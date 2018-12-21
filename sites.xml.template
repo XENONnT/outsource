@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sitecatalog xmlns="http://pegasus.isi.edu/schema/sitecatalog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pegasus.isi.edu/schema/sitecatalog http://pegasus.isi.edu/schema/sc-4.0.xsd" version="4.0">
+
+    <site  handle="local" arch="x86_64">
+        <directory type="shared-scratch" path="$WORK_DIR/scratch">
+            <file-server operation="all" url="file://$WORK_DIR/scratch"/>
+        </directory>
+        <directory type="local-storage" path="$WORK_DIR/outputs">
+            <file-server operation="all" url="file://$WORK_DIR/outputs"/>
+        </directory>
+
+        <!-- control the environment -->
+        <profile namespace="env" key="PATH">$PATH</profile>
+        <profile namespace="env" key="LD_LIBRARY_PATH">$LD_LIBRARY_PATH</profile>
+        <profile namespace="env" key="PYTHONPATH">$PYTHONPATH</profile>
+        <profile namespace="env" key="GFAL_PLUGIN_DIR">$GFAL_PLUGIN_DIR</profile>
+        <profile namespace="env" key="GFAL_CONFIG_DIR">$GFAL_CONFIG_DIR</profile>
+        <profile namespace="env" key="GLOBUS_LOCATION"></profile>
+        <profile namespace="env" key="X509_USER_PROXY">$HOME/user_cert</profile>
+    </site>
+
+    <!-- this is our staging site, where intermediate data will be stored -->
+    <site  handle="staging" arch="x86_64" os="LINUX">
+        <directory type="shared-scratch" path="/stash/user/$USER/scratch">
+            <file-server operation="all" url="gsiftp://gridftp.grid.uchicago.edu:2811/cephfs/connect/user/$USER/scratch"/>
+        </directory>
+    </site>
+
+    <!-- this is our execution site -->
+    <site  handle="condorpool" arch="x86_64" os="LINUX">
+        <profile namespace="pegasus" key="style" >condor</profile>
+        <profile namespace="condor" key="universe" >vanilla</profile>
+        <profile namespace="condor" key="requirements" >OSGVO_OS_STRING == "RHEL 7" &amp;&amp; HAS_CVMFS_xenon_opensciencegrid_org</profile>
+        <profile namespace="condor" key="request_cpus" >1</profile>
+        <profile namespace="condor" key="request_memory" >1 GB</profile>
+        <profile namespace="condor" key="request_disk" >1 GB</profile>
+
+        <!-- control the environment -->
+        <profile namespace="env" key="PATH">/usr/bin:/bin</profile>
+        <profile namespace="env" key="LD_LIBRARY_PATH"></profile>
+        <profile namespace="env" key="GLOBUS_LOCATION"></profile>
+    </site>
+
+</sitecatalog>

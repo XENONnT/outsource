@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# This script is called when a workflow starts
+# See https://pegasus.isi.edu/documentation/notifications.php
+
+echo "$PEGASUS_SUBMIT_DIR started" >>/tmp/mats-test
+
