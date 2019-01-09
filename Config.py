@@ -1,8 +1,10 @@
-
 import re
 import os
 import time
 import getpass
+from . import db
+
+dir_raw = '/xenon/xenon1t/raw'
 
 class Config:
     
@@ -11,6 +13,7 @@ class Config:
     def __init__(self):
         self._run_id = str(time.time())
         self._run_id = re.sub('\..*', '', self._run_id)
+
     
     def get_run_id(self):
         return self._run_id
@@ -32,3 +35,20 @@ class Config:
     
     def get_pegasus_path(self):
         return '/cvmfs/oasis.opensciencegrid.org/osg/projects/pegasus/rhel6/4.9.0dev'
+
+    def raw_dir(self):
+        return os.path.join(dir_raw, '160315_1824')
+
+    def workflow_title(self):
+        return os.path.join(self.get_runs_dir(), self.run_id)
+
+    @property
+    def run_id(self):
+        return self._run_id
+
+
+class ConfigDB(Config):
+    """Object that uses run identifier and RunDB API to make config"""
+
+    def __init__(self, run_id, detector='tpc'):
+        self._run_id = db.get_name(run_id, detector)

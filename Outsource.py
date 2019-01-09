@@ -6,9 +6,8 @@ import socket
 import getpass
 
 from Shell import Shell
-from Config import Config
+from outsource.Config import Config
 config = Config()
-
 # Pegasus environment
 sys.path.insert(0, os.path.join(config.get_pegasus_path(), 'lib64/python2.6/site-packages'))
 os.environ['PATH'] = os.path.join(config.get_pegasus_path(), 'bin') + ':' + os.environ['PATH']
@@ -17,19 +16,28 @@ from Pegasus.DAX3 import *
 
 class Outsource:
 
-        
+    def __init__(self, config):
+        """Take a Config object as input to make the workflow"""
+
+        # TODO config stuff (see above also)
+        self.config = config
+
     def submit_workflow(self):
         '''
         Main interface to submitting a new workflow
         '''
-        
+
+        # does workflow already exist?
+        if os.path.exists(self.config.workflow_title()):
+            print("Workflow already exists at {path}. Exiting.".format(path=self.config.workflow_title()))
+            return
         # work dirs
         try:
-            os.makedirs(config.get_generated_dir(), 0o755)
+            os.makedirs(self.config.get_generated_dir(), 0o755)
         except OSError:
             pass
         try:
-            os.makedirs(config.get_runs_dir(), 0o755)
+            os.makedirs(self.config.get_runs_dir(), 0o755)
         except OSError:
             pass
         
@@ -49,25 +57,24 @@ class Outsource:
         dax = ADAG('xenonnt')
         
         # event callouts
-        dax.invoke('start',  config.get_base_dir() + '/events/wf-start')
-        dax.invoke('at_end',  config.get_base_dir() + '/events/wf-end')
+        dax.invoke('start',  self.config.get_base_dir() + '/events/wf-start')
+        dax.invoke('at_end',  self.config.get_base_dir() + '/events/wf-end')
         
         # Add executables to the DAX-level replica catalog
         wrapper = Executable(name='run-pax.sh', arch='x86_64', installed=False)
-        wrapper.addPFN(PFN('file://' + config.get_base_dir() + '/run-pax.sh', 'local'))
+        wrapper.addPFN(PFN('file://' + self.config.get_base_dir() + '/run-pax.sh', 'local'))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
         
         # for now, bypass the data find step and use: /xenon/xenon1t/raw/160315_1824
         
         base_url = 'gsiftp://gridftp.grid.uchicago.edu:2811/cephfs/srm'
-        dir_raw = '/xenon/xenon1t/raw'
-        
-        pax_version = 'v6.9.0'
-        run_id = '160315_1824'
-        
-        rawdir = os.path.join(dir_raw, run_id)
-        
+
+        pax_version = self.config.get_pax_version()
+        rawdir = self.config.raw_dir() #os.path.join(dir_raw, run_id)
+        # run_id = '160315_1824'
+        run_id = self.config.run_id
+
         # json file for the run - TODO: verify existance
         json_infile = File('pax_info.json')
         json_infile.addPFN(PFN(base_url + os.path.join(rawdir, 'pax_info.json'), 'UChicago'))
@@ -103,6 +110,7 @@ class Outsource:
             
                 # Add job
                 job = Job(name='run-pax.sh')
+                # TODO update arguments and the executable
                 job.addArguments(run_id, 
                                  "n/a",
                                  socket.gethostname(),
@@ -120,7 +128,7 @@ class Outsource:
                 dax.addJob(job)
         
         # Write the DAX to stdout
-        f = open(os.path.join(config.get_generated_dir(), 'dax.xml'), 'w')
+        f = open(os.path.join(self.config.get_generated_dir(), 'dax.xml'), 'w')
         dax.writeXML(f)
         f.close()
        
@@ -130,12 +138,11 @@ class Outsource:
         Call out to plan-env-helper.sh to start the workflow
         '''
         
-        cmd = ' '.join([os.path.join(config.get_base_dir(), 'plan-env-helper.sh'),
-                        config.get_base_dir(),
-                        config.get_generated_dir(),
-                        config.get_runs_dir(),
-                        config.get_run_id()])
-
+        cmd = ' '.join([os.path.join(self.config.get_base_dir(), 'plan-env-helper.sh'),
+                        self.config.get_base_dir(),
+                        self.config.get_generated_dir(),
+                        self.config.get_runs_dir(),
+                        self.config.get_run_id()])
         shell = Shell(cmd, log_cmd = False, log_outerr = True)
         shell.run()
        
