@@ -12,25 +12,10 @@
   # 8 - disable_updates  
   # 9 - json file
   # 10 - on rucio? (True or False)
-  # 11 - rucio rse
 
-echo $@
-echo
-echo $HOSTNAME
-echo
-echo $LD_LIBRARY_PATH
+
 export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_$4_OSG/lib:$LD_LIBRARY_PATH
 #export GFAL2_GRIDFTP_DEBUG=1
-echo $LD_LIBRARY_PATH
-# df -h
-echo 
-env | grep -i glidein
-env | grep -i OSG
-echo
-
-#echo "RUCIO SOURCE SCRIPT"
-#cat /cvmfs/xenon.opensciencegrid.org/software/rucio-py27/setup_rucio_1_8_3.sh
-#echo
 
 osg_software=/cvmfs/oasis.opensciencegrid.org/osg-software/osg-wn-client/3.4/3.4.9/el7-x86_64/
 anaconda_env=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/bin
@@ -40,9 +25,6 @@ export input_file=$2
 export pax_version=$4
 jobuuid=`uuidgen`
 
-echo "Using this proxy: $X509_USER_PROXY"
-unset X509_USER_KEY
-unset X509_USER_CERT
 source /cvmfs/xenon.opensciencegrid.org/software/rucio-py27/setup_rucio_1_8_3.sh
 source $osg_software/setup.sh
 export GFAL_CONFIG_DIR=$OSG_LOCATION/etc/gfal2.d
@@ -137,40 +119,21 @@ echo ${10}
 
 (curl_moni "start downloading") || (curl_moni "start downloading")
 
-### if [[ ${10} == 'True' ]]; then
-### 
-###     #sleep $[ ( $RANDOM % 1200 )  + 1 ]s
-###     echo "Performing rucio download"
-###     echo "rucio -T 18000 download $2 --no-subdir --dir ${rawdata_path} --rse $rse"
-###     download="rucio -T 18000 download $2 --no-subdir --dir ${rawdata_path} --rse $rse --ndownloader 1" #removed -v option
-### 
-### fi
-### 
-### if [[ ${10} == 'False' ]]; then 
-###     #sleep $[ ( $RANDOM % 600 )  + 1 ]s
-###     echo "Performing gfal copy"
-###     download="gfal-copy -v -f -p -t 3600 -T 3600 -K md5 $2 file://${rawdata_path}"
-### 
-### fi
-### 
-### # perform the download
-### echo "($download) || (sleep 60s && $download) || (sleep 120s && $download)"
-### ($download) || (sleep $[ ( $RANDOM % 60 )  + 1 ]s && $download) || (sleep $[ ( $RANDOM % 120 )  + 1 ]s && $download) || exit 1 
-### #(sleep $[ ( $RANDOM % 180 )  + 1 ]s && $download) || (sleep $[ ( $RANDOM % 240 )  + 1 ]s && $download) || exit 1
-### 
-### if [[ $? -ne 0 ]];
-### then 
-###     exit 255
-### fi 
+# if the data is on rucio, download (otherwise, Pegasus will have handled the transfer)
+if [[ ${10} == 'True' ]]; then
+	echo "Performing rucio download"
+	echo "rucio -T 18000 download $2 --no-subdir --dir ${rawdata_path} --rse $rse"
+	download="rucio -T 18000 download $2 --no-subdir --dir ${rawdata_path} --rse $rse --ndownloader 1" #removed -v option
+	echo "($download) || (sleep 60s && $download) || (sleep 120s && $download)"
+    ($download) || (sleep $[ ( $RANDOM % 60 )  + 1 ]s && $download) || (sleep $[ ( $RANDOM % 120 )  + 1 ]s && $download) || exit 1 
+fi
+ 
 old_ld_library_path=$LD_LIBRARY_PATH
 source $anaconda_env/activate pax_$4 #_OSG
 echo $PYTHONPATH
 
 export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_$4_OSG/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_$4/lib:$LD_LIBRARY_PATH
-
-export API_USER='ci-connect'
-export API_KEY=5ac3ed84c1ed8210c84f4d70f194161a64758e29
 
 (curl_moni "end downloading") || (curl_moni "end downloading")
 
@@ -207,34 +170,4 @@ outfile=$(ls ${start_dir}/output/)
 echo "-----"
 ls ${start_dir}/output/*.root
 echo "-----"
-echo "outfile: $outfile"
-echo "Arg 6: $stash_loc"
 
-### # echo "time gfal-copy --cert ${outfile} -T 36000 -t 36000 -f -p --checksum md5 file://${out_file} ${stash_loc}"
-### upload_cmd="gfal-copy -T 36000 -t 36000 -f -p --checksum md5 file://${start_dir}/output/${outfile} ${stash_loc}" 
-### source $osg_software/setup.sh
-### export GFAL_CONFIG_DIR=$OSG_LOCATION/etc/gfal2.d
-### export GFAL_PLUGIN_DIR=$OSG_LOCATION/usr/lib64/gfal2-plugins/
-### upload ()
-### {
-###   gfal-copy -T 36000 -t 36000 -f -p --checksum md5 file://${start_dir}/output/${outfile} ${stash_loc}
-### }
-### 
-### echo $upload_cmd
-### 
-### (curl_moni "start uploading") || (curl_moni "start uploading")
-### 
-### (upload) || (sleep 30s && upload) || (sleep 60s && upload) || (echo "upload failed" && exit 255)
-### 
-### (curl_moni "end uploading") || (curl_moni "end uploading")
-### 
-### gfal-ls -v ${stash_loc}
-### if [[ $? -ne 0 ]];
-### then
-###     echo “file not found”
-###     exit 225
-### fi
-### 
-### rm -rf $work_dir
-### rm -rf ${start_dir}/output
-### 

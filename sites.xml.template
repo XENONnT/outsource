@@ -30,7 +30,6 @@
     <site  handle="condorpool" arch="x86_64" os="LINUX">
         <profile namespace="pegasus" key="style" >condor</profile>
         <profile namespace="condor" key="universe" >vanilla</profile>
-        <profile namespace="condor" key="requirements" >OSGVO_OS_STRING == "RHEL 7" &amp;&amp; HAS_CVMFS_xenon_opensciencegrid_org</profile>
         <profile namespace="condor" key="request_cpus" >1</profile>
         <profile namespace="condor" key="request_memory" >1 GB</profile>
         <profile namespace="condor" key="request_disk" >1 GB</profile>

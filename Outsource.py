@@ -3,7 +3,7 @@
 import sys
 import os
 import socket
-import getpass
+import re
 
 from Shell import Shell
 from outsource.Config import Config
@@ -15,12 +15,40 @@ from Pegasus.DAX3 import *
 
 
 class Outsource:
+    # Data availability to site selection map
+    _rse_to_req_expr = {
+        'UC_OSG_USERDISK': 'GLIDEIN_Country == "US"',
+        'NIKHEF_USERDISK': 'GLIDEIN_ResourceName == "NIKHEF-ELPROD"',
+        'CCIN2P3_USERDISK': 'GLIDEIN_ResourceName == "CCIN2P3"',
+        'WEIZMANN_USERDISK': 'GLIDEIN_ResourceName == "WEIZMANN-LCG2"',
+        'CNAF_USERDISK': 'GLIDEIN_ResourceName == "INFN-T1"',
+        'CNAF_TAPE_USERDISK': '',
+        'SURFSARA_USERDISK': '',
+    }
 
-    def __init__(self, config):
-        """Take a Config object as input to make the workflow"""
+    #def __init__(self, config):
+    #    """Take a Config object as input to make the workflow"""
+    #
+    #    # TODO config stuff (see above also)
+    #    self.config = config
 
-        # TODO config stuff (see above also)
+    
+    def __init__(self, detector, name, force_rerun = False, update_run_db = False):
+        '''
+        Creates a new Outsource object. Specifying a detector and name is required.
+        '''
+        if not detector:
+            raise RuntimeError('Detector is a required parameter')
+        if not name:
+            raise RuntimeError('Name is a required parameter')
+        self._detector = detector
+        self._name = name
+        self._force_rerun = force_rerun
+        self._force_update_run_db = update_run_db
         self.config = config
+        
+        # TODO: look up run here
+
 
     def submit_workflow(self):
         '''
@@ -53,6 +81,10 @@ class Outsource:
         Use the Pegasus DAX API to build an abstract graph of the workflow
         '''
         
+        # determine the job requirements based on the data locations
+        requirements = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org'
+        requirements = requirements + ' && (' + self._determine_sites_from_rses(None) + ')'
+        
         # Create a abstract dag
         dax = ADAG('xenonnt')
         
@@ -62,7 +94,9 @@ class Outsource:
         
         # Add executables to the DAX-level replica catalog
         wrapper = Executable(name='run-pax.sh', arch='x86_64', installed=False)
-        wrapper.addPFN(PFN('file://' + self.config.get_base_dir() + '/run-pax.sh', 'local'))
+        #wrapper.addPFN(PFN('file://' + self.config.get_base_dir() + '/run-pax.sh', 'local'))
+        wrapper.addPFN(PFN('file://' + config.get_base_dir() + '/run-pax.sh', 'local'))
+        wrapper.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
         
@@ -74,6 +108,18 @@ class Outsource:
         rawdir = self.config.raw_dir() #os.path.join(dir_raw, run_id)
         # run_id = '160315_1824'
         run_id = self.config.run_id
+
+        dir_raw = '/xenon/xenon1t/raw'
+        
+        pax_version = 'v6.9.0'
+        run_id = '160315_1824'
+        
+        rawdir = os.path.join(dir_raw, run_id)
+
+        # determine_rse - a helper for the job to determine where to pull data from
+        determine_rse = File('determine_rse.py')
+        determine_rse.addPFN(PFN('file://' + os.path.join(config.get_base_dir(), 'task-data/determine-rse.py'), 'local'))
+        dax.addFile(determine_rse)
 
         # json file for the run - TODO: verify existance
         json_infile = File('pax_info.json')
@@ -122,6 +168,7 @@ class Outsource:
                                  json_infile,
                                  'False',
                                  'n/a')
+                job.uses(determine_rse, link=Link.INPUT)
                 job.uses(json_infile, link=Link.INPUT)
                 job.uses(zip_infile, link=Link.INPUT)
                 job.uses(job_output, link=Link.OUTPUT)
@@ -160,6 +207,26 @@ class Outsource:
             raise RuntimeError('User proxy is only valid for %d hours. Minimum required is %d hours.' \
                                %(valid_hours, min_valid_hours))
          
+
+    def _determine_sites_from_rses(self, rses):
+        '''
+        Given a list of RSEs, limit the runs for sites for those locations
+        '''
+        
+        exprs = []
+        rses = ['CNAF_USERDISK', 'SURFSARA_USERDISK', 'UC_OSG_USERDISK']
+
+        for rse in rses:
+            if rse in self._rse_to_req_expr:
+                if self._rse_to_req_expr[rse] is not '':
+                    exprs.append(self._rse_to_req_expr[rse])
+            else:
+                raise RuntimeError('We do not know how to handle the RSE: ' + rse)
+
+        final_expr = ' || '.join(exprs)
+        print('Site expression from RSEs list: ' + final_expr)
+        return final_expr
+
 
 if __name__ == '__main__':
     outsource = Outsource()
