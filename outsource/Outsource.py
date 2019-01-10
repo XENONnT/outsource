@@ -4,10 +4,14 @@ import sys
 import os
 import socket
 import re
+import subprocess
 
-from Shell import Shell
+from outsource.Shell import Shell
 from outsource.Config import Config
+from outsource.rundb import DB
+
 config = Config()
+
 # Pegasus environment
 sys.path.insert(0, os.path.join(config.get_pegasus_path(), 'lib64/python2.6/site-packages'))
 os.environ['PATH'] = os.path.join(config.get_pegasus_path(), 'bin') + ':' + os.environ['PATH']
@@ -31,7 +35,10 @@ class Outsource:
     #
     #    # TODO config stuff (see above also)
     #    self.config = config
-
+    
+    # information from the run database
+    _run_info = None
+    
     
     def __init__(self, detector, name, force_rerun = False, update_run_db = False):
         '''
@@ -47,8 +54,9 @@ class Outsource:
         self._force_update_run_db = update_run_db
         self.config = config
         
-        # TODO: look up run here
-
+        db = DB()
+        self._run_info = db.get_run(name, detector)
+        
 
     def submit_workflow(self):
         '''
@@ -81,6 +89,9 @@ class Outsource:
         Use the Pegasus DAX API to build an abstract graph of the workflow
         '''
         
+        # figrue our where input data exists
+        rucio_location, rses = self._data_find()
+        
         # determine the job requirements based on the data locations
         requirements = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org'
         requirements = requirements + ' && (' + self._determine_sites_from_rses(None) + ')'
@@ -89,13 +100,12 @@ class Outsource:
         dax = ADAG('xenonnt')
         
         # event callouts
-        dax.invoke('start',  self.config.get_base_dir() + '/events/wf-start')
-        dax.invoke('at_end',  self.config.get_base_dir() + '/events/wf-end')
+        dax.invoke('start',  self.config.get_base_dir() + '/workflow/events/wf-start')
+        dax.invoke('at_end',  self.config.get_base_dir() + '/workflow/events/wf-end')
         
         # Add executables to the DAX-level replica catalog
         wrapper = Executable(name='run-pax.sh', arch='x86_64', installed=False)
-        #wrapper.addPFN(PFN('file://' + self.config.get_base_dir() + '/run-pax.sh', 'local'))
-        wrapper.addPFN(PFN('file://' + config.get_base_dir() + '/run-pax.sh', 'local'))
+        wrapper.addPFN(PFN('file://' + self.config.get_base_dir() + '/workflow/run-pax.sh', 'local'))
         wrapper.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
@@ -118,7 +128,7 @@ class Outsource:
 
         # determine_rse - a helper for the job to determine where to pull data from
         determine_rse = File('determine_rse.py')
-        determine_rse.addPFN(PFN('file://' + os.path.join(config.get_base_dir(), 'task-data/determine-rse.py'), 'local'))
+        determine_rse.addPFN(PFN('file://' + os.path.join(config.get_base_dir(), 'workflow/determine-rse.py'), 'local'))
         dax.addFile(determine_rse)
 
         # json file for the run - TODO: verify existance
@@ -207,6 +217,25 @@ class Outsource:
             raise RuntimeError('User proxy is only valid for %d hours. Minimum required is %d hours.' \
                                %(valid_hours, min_valid_hours))
          
+    def _data_find(self):
+        '''
+        call out to rucio to figure out where the data is located
+        '''
+        
+        for d in self._run_info['data']:
+            if d['host'] == 'rucio-catalogue' and d['status'] == 'transferred':
+                    rucio_location = d['location']
+        
+        out = subprocess.Popen(["rucio", "list-rules", rucio_location], stdout=subprocess.PIPE).stdout.read()
+        out = out.decode("utf-8").split("\n")
+        rses = []
+        for line in out:
+            line = re.sub(' +', ' ', line).split(" ")
+            if len(line) > 4 and line[3][:2] == "OK":
+                rses.append(line[4])
+        if len(rses) < 1:
+            raise RuntimeError("Problem finding rucio rses")
+        return rucio_location, rses
 
     def _determine_sites_from_rses(self, rses):
         '''
