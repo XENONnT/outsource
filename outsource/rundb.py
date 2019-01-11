@@ -108,13 +108,13 @@ class DB:
         params['limit'] = 1
         params['offset'] = 0
 
-        pprint(params)
+        #pprint(params)
 
         data = requests.get('https://xenon1t-daq.lngs.infn.it/runs_api/runs/runs/', headers=self.headers, params = params).text
         #data = requests.get(PREFIX + '/runs_api/', headers=self.headers, params = params).text
         
         data = json_util.loads(data)
-        pprint(data)
+        #pprint(data)
         
         if data['meta']['total_count'] != 1:
             raise RuntimeError('Unable to find run in the run database')

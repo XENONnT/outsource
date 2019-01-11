@@ -63,7 +63,7 @@ class Config():
             return os.path.join(self.get_work_dir(), 'runs')
         
         def get_generated_dir(self):
-            return os.path.join(self.get_work_dir(), 'generated')
+            return os.path.join(self.get_work_dir(), 'generated', self._run_id)
         
         def get_pax_version(self):
             return 'v' + self.get('Outsource', 'pax_version')
@@ -76,7 +76,10 @@ class Config():
     
         def workflow_title(self):
             return os.path.join(self.get_runs_dir(), self.run_id)
-    
+   
+        def set_run_id(self, run_id):
+            self._run_id = run_id
+
         @property
         def run_id(self):
             return self._run_id

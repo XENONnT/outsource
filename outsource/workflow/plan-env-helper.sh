@@ -15,7 +15,7 @@ cd $TOP_DIR
 
 # create the site catalog from the template - this has to happen after the local
 # env has been fully set up
-envsubst < sites.xml.template > $GENERATED_DIR/sites.xml
+envsubst < workflow/sites.xml.template > $GENERATED_DIR/sites.xml
 
 # make sure we also have access to the AMQP lib
 export PYTHONPATH="$PYTHONPATH:/usr/lib/python2.6/site-packages"
@@ -23,7 +23,7 @@ export PYTHONPATH="$PYTHONPATH:/usr/lib/python2.6/site-packages"
 # plan and submit the  workflow
 pegasus-plan \
     -Dpegasus.catalog.site.file=$GENERATED_DIR/sites.xml \
-    --conf pegasus.conf \
+    --conf workflow/pegasus.conf \
     --dir $RUNS_DIR \
     --relative-dir $RUN_ID \
     --sites condorpool \

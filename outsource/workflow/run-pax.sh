@@ -14,39 +14,37 @@
   # 10 - on rucio? (True or False)
 
 
-export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_$4_OSG/lib:$LD_LIBRARY_PATH
-#export GFAL2_GRIDFTP_DEBUG=1
-
-osg_software=/cvmfs/oasis.opensciencegrid.org/osg-software/osg-wn-client/3.4/3.4.9/el7-x86_64/
-anaconda_env=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/bin
 start_dir=$PWD
 
 export input_file=$2
 export pax_version=$4
+
+osg_software=/cvmfs/oasis.opensciencegrid.org/osg-software/osg-wn-client/3.4/3.4.9/el7-x86_64/
+anaconda_env=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/bin
+
 jobuuid=`uuidgen`
 
-source /cvmfs/xenon.opensciencegrid.org/software/rucio-py27/setup_rucio_1_8_3.sh
+# OSG env for gfal
 source $osg_software/setup.sh
 export GFAL_CONFIG_DIR=$OSG_LOCATION/etc/gfal2.d
 export GFAL_PLUGIN_DIR=$OSG_LOCATION/usr/lib64/gfal2-plugins/
+
+# Rucio env
+source /cvmfs/xenon.opensciencegrid.org/software/rucio-py27/setup_rucio_1_8_3.sh
 export RUCIO_HOME=/cvmfs/xenon.opensciencegrid.org/software/rucio-py27/1.8.3/rucio/
 export RUCIO_ACCOUNT=xenon-analysis
 
+# If data is in Rucio, find the rse to use
 if [[ ${10} == 'True' ]]; then
     # set GLIDEIN_Country variable if not already
     if [[ -z "$GLIDEIN_Country" ]]; then
         export GLIDEIN_Country="US"
     fi
 
-    if [[ -e ${start_dir}/determine_rse.py ]]; then
-        echo "python ${start_dir}/determine_rse.py $input_file $GLIDEIN_Country" 
-        rse=$(python ${start_dir}/determine_rse.py $input_file $GLIDEIN_Country)
-        if [[ $? -ne 0 ]]; then
-            exit 255;
-        fi
-    else
-        echo "Can't find determine_rse.py script" 
-        exit 255
+    echo "python ${start_dir}/determine_rse.py $input_file $GLIDEIN_Country" 
+    rse=$(python ${start_dir}/determine_rse.py $input_file $GLIDEIN_Country)
+    if [[ $? -ne 0 ]]; then
+        exit 255;
     fi
 
     export filesize=$(rucio stat $input_file | grep "bytes" | awk '{print $2}')
@@ -115,8 +113,6 @@ cd ${rawdata_path}
 pwd
 cd ${work_dir}
 
-echo ${10}
-
 (curl_moni "start downloading") || (curl_moni "start downloading")
 
 # if the data is on rucio, download (otherwise, Pegasus will have handled the transfer)
@@ -127,7 +123,9 @@ if [[ ${10} == 'True' ]]; then
 	echo "($download) || (sleep 60s && $download) || (sleep 120s && $download)"
     ($download) || (sleep $[ ( $RANDOM % 60 )  + 1 ]s && $download) || (sleep $[ ( $RANDOM % 120 )  + 1 ]s && $download) || exit 1 
 fi
- 
+
+# post-transfer, we can set up the env for pax
+export LD_LIBRARY_PATH=$anaconda_env/lib:$LD_LIBRARY_PATH
 old_ld_library_path=$LD_LIBRARY_PATH
 source $anaconda_env/activate pax_$4 #_OSG
 echo $PYTHONPATH
