@@ -118,7 +118,7 @@ class Outsource:
         
         # determine the job requirements based on the data locations
         requirements = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org'
-        requirements = requirements + ' && (' + self._determine_sites_from_rses(None) + ')'
+        requirements = requirements + ' && (' + self._determine_sites_from_rses(rses) + ')'
         
         # Create a abstract dag
         dax = ADAG('xenonnt')
@@ -289,8 +289,6 @@ class Outsource:
         '''
         
         exprs = []
-        rses = ['CNAF_USERDISK', 'SURFSARA_USERDISK', 'UC_OSG_USERDISK']
-
         for rse in rses:
             if rse in self._rse_to_req_expr:
                 if self._rse_to_req_expr[rse] is not '':
