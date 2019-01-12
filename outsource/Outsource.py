@@ -16,8 +16,8 @@ config = Config()
 logger = logging.getLogger("my_logger")
 
 # Pegasus environment
-sys.path.insert(0, os.path.join(config.get_pegasus_path(), 'lib64/python2.6/site-packages'))
-os.environ['PATH'] = os.path.join(config.get_pegasus_path(), 'bin') + ':' + os.environ['PATH']
+sys.path.insert(0, os.path.join(config.pegasus_path(), 'lib64/python2.6/site-packages'))
+os.environ['PATH'] = os.path.join(config.pegasus_path(), 'bin') + ':' + os.environ['PATH']
 from Pegasus.DAX3 import *
 
 
@@ -76,6 +76,7 @@ class Outsource:
 
         # update run id, this is currently derived from detector and name
         self.config.set_run_id(detector + '__' + name)
+        self.config.set_run_name(name)
         
         db = DB()
         self._run_info = db.get_run(name, detector)
@@ -93,11 +94,11 @@ class Outsource:
 
         # work dirs
         try:
-            os.makedirs(self.config.get_generated_dir(), 0o755)
+            os.makedirs(self.config.generated_dir(), 0o755)
         except OSError:
             pass
         try:
-            os.makedirs(self.config.get_runs_dir(), 0o755)
+            os.makedirs(self.config.runs_dir(), 0o755)
         except OSError:
             pass
         
@@ -113,99 +114,79 @@ class Outsource:
         Use the Pegasus DAX API to build an abstract graph of the workflow
         '''
         
-        # figrue our where input data exists
-        rucio_dataset, rses = self._data_find()
+        # figure our where input data exists
+        rucio_dataset, rses, stash_raw_path = self._data_find_locations()
         
         # determine the job requirements based on the data locations
         requirements = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org'
-        requirements = requirements + ' && (' + self._determine_sites_from_rses(rses) + ')'
+        requirements = requirements + ' && (' + self._determine_target_sites(rses, stash_raw_path) + ')'
         
         # Create a abstract dag
         dax = ADAG('xenonnt')
         
         # event callouts
-        dax.invoke('start',  self.config.get_base_dir() + '/workflow/events/wf-start')
-        dax.invoke('at_end',  self.config.get_base_dir() + '/workflow/events/wf-end')
+        dax.invoke('start',  self.config.base_dir() + '/workflow/events/wf-start')
+        dax.invoke('at_end',  self.config.base_dir() + '/workflow/events/wf-end')
         
         # Add executables to the DAX-level replica catalog
         wrapper = Executable(name='run-pax.sh', arch='x86_64', installed=False)
-        wrapper.addPFN(PFN('file://' + self.config.get_base_dir() + '/workflow/run-pax.sh', 'local'))
+        wrapper.addPFN(PFN('file://' + self.config.base_dir() + '/workflow/run-pax.sh', 'local'))
         wrapper.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
         
-        # for now, bypass the data find step and use: /xenon/xenon1t/raw/160315_1824
-        
-        base_url = 'gsiftp://gridftp.grid.uchicago.edu:2811/cephfs/srm'
-
-        pax_version = self.config.get_pax_version()
-        rawdir = self.config.raw_dir()
-
-        dir_raw = '/xenon/xenon1t/raw'
-        
-        #rawdir = os.path.join(dir_raw, run_id)
+        pax_version = self.config.pax_version()
 
         # determine_rse - a helper for the job to determine where to pull data from
         determine_rse = File('determine_rse.py')
-        determine_rse.addPFN(PFN('file://' + os.path.join(config.get_base_dir(), 'workflow/determine_rse.py'), 'local'))
+        determine_rse.addPFN(PFN('file://' + os.path.join(config.base_dir(), 'workflow/determine_rse.py'), 'local'))
         dax.addFile(determine_rse)
 
         # json file for the run
-        self._write_run_info_json(os.path.join(config.get_generated_dir(), 'run_info.json'))
+        self._write_run_info_json(os.path.join(config.generated_dir(), 'run_info.json'))
         json_infile = File('run_info.json')
-        json_infile.addPFN(PFN('file://' + os.path.join(config.get_generated_dir(), 'run_info.json'), 'local'))
+        json_infile.addPFN(PFN('file://' + os.path.join(config.generated_dir(), 'run_info.json'), 'local'))
         dax.addFile(json_infile)
         
         # add jobs, one for each input file
-        zip_counter = 0
-        #for dir_name, subdir_list, file_list in os.walk(rawdir):
-        #for infile in file_list:
+        for zip_file, zip_props in self._data_find_zips(rucio_dataset, stash_raw_path).items():
 
-        for infile in self._rucio_get_zips(rucio_dataset):
-
-            logger.debug("Adding job for zip file: " + infile)
+            logger.debug("Adding job for zip file: " + zip_file)
     
-            filepath, file_extenstion = os.path.splitext(infile)
+            filepath, file_extenstion = os.path.splitext(zip_file)
             if file_extenstion != ".zip":
-                continue
-    
-            zip_counter += 1
-            base_name = filepath.split("/")[-1]
-            zip_name = base_name + file_extenstion
-            #outfile = zip_name + ".root"
+                raise RuntimeError('Non-zip in the input file list')
 
-            infile_handle = re.sub('raw$', infile, rucio_dataset)
-    
-            # Add input file to the DAX-level replica catalog
-            #infile_local = os.path.abspath(os.path.join(dir_name, infile))
-            #zip_infile = File(zip_name)
-            #zip_infile.addPFN(PFN(base_url + infile_local, 'UChicago'))
-            #dax.addFile(zip_infile)
+            file_rucio_dataset = None
+            if zip_props['rucio_available']:
+                file_rucio_dataset = rucio_dataset
+                
+            stash_gridftp_url = None
+            if zip_props['stash_available']:
+                stash_gridftp_url = 'gsiftp://gridftp.grid.uchicago.edu:2811/cephfs/srm' + config.raw_dir() + '/' + zip_file 
         
             # output files
-            job_output = File(zip_name + '.OUTPUT')
+            job_output = File(zip_file + '.OUTPUT')
         
             # Add job
             job = Job(name='run-pax.sh')
-            # TODO update arguments and the executable
-            job.addArguments(self.config.get_run_id(), 
-                             infile_handle,
+            # Note that any changes to this argument list, also means run-pax.sh has to be updated
+            job.addArguments(self.config.run_id(), 
+                             zip_file,
+                             str(file_rucio_dataset),
+                             str(stash_gridftp_url),
                              socket.gethostname(),
                              pax_version,
                              "n/a",
-                             "n/a",
                              str(1),
-                             'False',
-                             json_infile,
-                             'True')
+                             'False')
             job.uses(determine_rse, link=Link.INPUT)
             job.uses(json_infile, link=Link.INPUT)
-            #job.uses(zip_infile, link=Link.INPUT)
-            job.uses(job_output, link=Link.OUTPUT)
+            #job.uses(job_output, link=Link.OUTPUT)
             dax.addJob(job)
         
         # Write the DAX to stdout
-        f = open(os.path.join(self.config.get_generated_dir(), 'dax.xml'), 'w')
+        f = open(os.path.join(self.config.generated_dir(), 'dax.xml'), 'w')
         dax.writeXML(f)
         f.close()
        
@@ -215,11 +196,11 @@ class Outsource:
         Call out to plan-env-helper.sh to start the workflow
         '''
         
-        cmd = ' '.join([os.path.join(self.config.get_base_dir(), 'workflow/plan-env-helper.sh'),
-                        self.config.get_base_dir(),
-                        self.config.get_generated_dir(),
-                        self.config.get_runs_dir(),
-                        self.config.get_run_id()])
+        cmd = ' '.join([os.path.join(self.config.base_dir(), 'workflow/plan-env-helper.sh'),
+                        self.config.base_dir(),
+                        self.config.generated_dir(),
+                        self.config.runs_dir(),
+                        self.config.run_id()])
         shell = Shell(cmd, log_cmd = False, log_outerr = True)
         shell.run()
        
@@ -261,35 +242,87 @@ class Outsource:
         return dictionary
   
  
-    def _data_find(self):
+    def _data_find_locations(self):
         '''
-        call out to rucio to figure out where the data is located
+        Check Rucio and other locations to determine where input files exist
         '''
 
+        rucio_dataset = None
+        rses = []
+        stash_raw_path = None
+        
         for d in self._run_info['data']:
             if d['host'] == 'rucio-catalogue' and d['status'] == 'transferred':
-                    rucio_location = d['location']
+                    rucio_dataset = d['location']
         
-        logger.info('Querying Rucio for RSEs for the data set ' + rucio_location)  
-        out = subprocess.Popen(["rucio", "list-rules", rucio_location], stdout=subprocess.PIPE).stdout.read()
-        out = out.decode("utf-8").split("\n")
-        rses = []
-        for line in out:
-            line = re.sub(' +', ' ', line).split(" ")
-            if len(line) > 4 and line[3][:2] == "OK":
-                rses.append(line[4])
-        if len(rses) < 1:
-            raise RuntimeError("Problem finding rucio rses")
-        return rucio_location, rses
+        if rucio_dataset:
+            logger.info('Querying Rucio for RSEs for the data set ' + rucio_dataset)  
+            out = subprocess.Popen(["rucio", "list-rules", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
+            out = out.decode("utf-8").split("\n")
+            
+            for line in out:
+                line = re.sub(' +', ' ', line).split(" ")
+                if len(line) > 4 and line[3][:2] == "OK":
+                    rses.append(line[4])
+            if len(rses) < 1:
+                logger.warning("Problem finding Rucio RSEs")
+                
+        # also check local dir (which is available via GridFTP)
+        if os.path.exists(config.raw_dir()):
+            # also make sure the dir contains some zip files?
+            stash_raw_path = config.raw_dir()
+            
+        return rucio_dataset, rses, stash_raw_path
+    
+    
+    def _data_find_zips(self, rucio_dataset, stash_raw_path):
+        '''
+        Look up which zip files are in the dataset - return a dict where the keys are the
+        zipfiles, and the values a dict of locations
+        '''
+        zip_files = {}
+
+        if rucio_dataset:
+            logger.info('Querying Rucio for files in  the data set ' + rucio_dataset)  
+            out = subprocess.Popen(["rucio", "list-file-replicas", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
+            out = str(out).split("\\n")
+            files = set([l.split(" ")[3] for l in out if '---' not in l and 'x1t' in l])
+            for f in sorted([f for f in files if f.startswith('XENON1T')]):
+                zip_files[f] = {'rucio_available': True}
+        
+        if stash_raw_path:
+            logger.info('Checking ' + stash_raw_path + ' for local files')
+            files = os.listdir(stash_raw_path)
+            for f in sorted([f for f in files if f.startswith('XENON1T')]):
+                if f not in zip_files:
+                    zip_files[f] = {}
+                zip_files[f]['stash_available'] = True
+                
+        # make sure all the properties are defined for all the files - we want a neat dict to 
+        # smooth access later on
+        for fname, props in zip_files.items():
+            if 'rucio_available' not in props:
+                props['rucio_available'] = False
+            if 'stash_available' not in props:
+                props['stash_available'] = False
+        
+        return zip_files
 
 
-    def _determine_sites_from_rses(self, rses):
+    def _determine_target_sites(self, rses, stash_raw_path):
         '''
         Given a list of RSEs, limit the runs for sites for those locations
         '''
         
+        # want a temporary copy so we can modify it
+        my_rses = rses.copy()
+        
+        # stash enables US processing
+        if stash_raw_path and 'UC_OSG_USERDISK' not in my_rses:
+            my_rses.append('UC_OSG_USERDISK')
+        
         exprs = []
-        for rse in rses:
+        for rse in my_rses:
             if rse in self._rse_to_req_expr:
                 if self._rse_to_req_expr[rse] is not '':
                     exprs.append(self._rse_to_req_expr[rse])
@@ -299,18 +332,6 @@ class Outsource:
         final_expr = ' || '.join(exprs)
         logger.info('Site expression from RSEs list: ' + final_expr)
         return final_expr
-
-    def _rucio_get_zips(self, dataset):
-        '''
-        Look up which zip files are in the dataset
-        '''
-
-        logger.info('Querying Rucio for files in  the data set ' + dataset)  
-        out = subprocess.Popen(["rucio", "list-file-replicas", dataset], stdout=subprocess.PIPE).stdout.read()
-        out = str(out).split("\\n")
-        files = set([l.split(" ")[3] for l in out if '---' not in l and 'x1t' in l])
-        zip_files = sorted([f for f in files if f.startswith('XENON1T')])
-        return zip_files
 
 
 if __name__ == '__main__':

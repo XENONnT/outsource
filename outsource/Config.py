@@ -49,40 +49,43 @@ class Config():
             self._run_id = str(time.time())
             self._run_id = re.sub('\..*', '', self._run_id)
     
-        
-        def get_run_id(self):
-            return self._run_id
-        
-        def get_base_dir(self):
+   
+        def base_dir(self):
             return os.path.dirname(__file__)
         
-        def get_work_dir(self):
+        def work_dir(self):
             return self.get('Outsource', 'work_dir')
         
-        def get_runs_dir(self):
-            return os.path.join(self.get_work_dir(), 'runs')
+        def runs_dir(self):
+            return os.path.join(self.work_dir(), 'runs')
         
-        def get_generated_dir(self):
-            return os.path.join(self.get_work_dir(), 'generated', self._run_id)
+        def generated_dir(self):
+            return os.path.join(self.work_dir(), 'generated', self._run_id)
         
-        def get_pax_version(self):
+        def pax_version(self):
             return 'v' + self.get('Outsource', 'pax_version')
         
-        def get_pegasus_path(self):
+        def pegasus_path(self):
             return self.get('Outsource', 'pegasus_path')
     
         def raw_dir(self):
-            return os.path.join(dir_raw, '160315_1824')
+            return os.path.join(dir_raw, self._run_name)
     
         def workflow_title(self):
-            return os.path.join(self.get_runs_dir(), self.run_id)
+            return os.path.join(self.runs_dir(), self._run_id)
    
-        def set_run_id(self, run_id):
-            self._run_id = run_id
-
-        @property
         def run_id(self):
             return self._run_id
+
+        def set_run_id(self, run_id):
+            '''
+            Update the run id - this should be done early in the lifetime of the module's lifetime
+            as other methods depends on the run id value
+            '''
+            self._run_id = run_id
+
+        def set_run_name(self, run_name):
+            self._run_name = run_name
 
 
 class ConfigDB(Config):

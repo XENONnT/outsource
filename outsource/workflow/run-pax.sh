@@ -1,26 +1,21 @@
 #!/bin/bash
 
-## takes 11 arguments: ##
-
-  # 1 - name of run being processed
-  # 2 - uri of input raw data file
-  # 3 - host
-  # 4 - pax version
-  # 5 - pax hash
-  # 6 - uri for output root file
-  # 7 - number of cpus used to process
-  # 8 - disable_updates  
-  # 9 - json file
-  # 10 - on rucio? (True or False)
-
+# === arguments - make sure these match Pegasus job definition ===
+export run_id=$1
+export zip_file=$2
+export rucio_dataset=$3
+export stash_gridftp_url=$4
+export submit_host=$5
+export pax_version=$6
+export pax_hash=$7
+export core_count=$8
+export send_updates=$9
 
 start_dir=$PWD
 
-export input_file=$2
-export pax_version=$4
-
-osg_software=/cvmfs/oasis.opensciencegrid.org/osg-software/osg-wn-client/3.4/3.4.9/el7-x86_64/
+osg_software=/cvmfs/oasis.opensciencegrid.org/mis/osg-wn-client/3.4/3.4.22/el7-x86_64
 anaconda_env=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/bin
+rucio_base=/cvmfs/xenon.opensciencegrid.org/software/rucio-py27/1.8.3
 
 jobuuid=`uuidgen`
 
@@ -30,27 +25,28 @@ export GFAL_CONFIG_DIR=$OSG_LOCATION/etc/gfal2.d
 export GFAL_PLUGIN_DIR=$OSG_LOCATION/usr/lib64/gfal2-plugins/
 
 # Rucio env
-source /cvmfs/xenon.opensciencegrid.org/software/rucio-py27/setup_rucio_1_8_3.sh
-export RUCIO_HOME=/cvmfs/xenon.opensciencegrid.org/software/rucio-py27/1.8.3/rucio/
+export RUCIO_HOME=$rucio_base/rucio/
 export RUCIO_ACCOUNT=xenon-analysis
+export PYTHONPATH=$rucio_base/lib/python2.7/site-packages:$PYTHONPATH
+export PATH=$rucio_base/bin:$PATH
+
+# set GLIDEIN_Country variable if not already
+if [[ -z "$GLIDEIN_Country" ]]; then
+    export GLIDEIN_Country="US"
+fi
+
+data_downloaded=0
 
 # If data is in Rucio, find the rse to use
-if [[ ${10} == 'True' ]]; then
-    # set GLIDEIN_Country variable if not already
-    if [[ -z "$GLIDEIN_Country" ]]; then
-        export GLIDEIN_Country="US"
-    fi
+if [[ $rucio_dataset != "None" ]]; then
 
-    echo "python ${start_dir}/determine_rse.py $input_file $GLIDEIN_Country" 
-    rse=$(python ${start_dir}/determine_rse.py $input_file $GLIDEIN_Country)
-    if [[ $? -ne 0 ]]; then
-        exit 255;
+    echo "python ${start_dir}/determine_rse.py ${rucio_dataset} $GLIDEIN_Country" 
+    rse=$(python ${start_dir}/determine_rse.py ${rucio_dataset} $GLIDEIN_Country)
+    if [[ $? != 0 ]]; then
+        # disable rucio downloading
+        echo "WARNING: determine_rse.py call failed - disabling Rucio downloading"
+        rucio_dataset="None"
     fi
-
-    export filesize=$(rucio stat $input_file | grep "bytes" | awk '{print $2}')
-else
-    rse=$2
-    export filesize=0
 fi
 
 curl_moni () {
@@ -105,8 +101,8 @@ export XDG_CONFIG_HOME=${work_dir}/.config
 # loop and use gfal-copy before pax gets loaded to avoid
 # gfal using wrong python version/libraries    
 
-input_file=$2
-rawdata_path=${work_dir}/$1
+# directory to download inputs to
+rawdata_path=${work_dir}/$run_id
 mkdir $rawdata_path
 
 cd ${rawdata_path}
@@ -115,29 +111,60 @@ cd ${work_dir}
 
 (curl_moni "start downloading") || (curl_moni "start downloading")
 
-# if the data is on rucio, download (otherwise, Pegasus will have handled the transfer)
-if [[ ${10} == 'True' ]]; then
-	echo "Performing rucio download"
-	echo "rucio -T 18000 download $2 --no-subdir --dir ${rawdata_path} --rse $rse"
-	download="rucio -T 18000 download $2 --no-subdir --dir ${rawdata_path} --rse $rse --ndownloader 1" #removed -v option
-	echo "($download) || (sleep 60s && $download) || (sleep 120s && $download)"
-    ($download) || (sleep $[ ( $RANDOM % 60 )  + 1 ]s && $download) || (sleep $[ ( $RANDOM % 120 )  + 1 ]s && $download) || exit 1 
+# data download - try rucio
+if [[ $rucio_dataset != "None" ]]; then
+    echo "Attempting rucio download from a closeby RSE..."
+    rucio_dataset_base=`echo ${rucio_dataset} | sed 's/:raw$//'`
+    echo "rucio -T 18000 download ${rucio_dataset_base}:${zip_file} --no-subdir --dir ${rawdata_path} --rse ${rse}"
+    download="rucio -T 18000 download ${rucio_dataset_base}:${zip_file} --no-subdir --dir ${rawdata_path} --rse ${rse} --ndownloader 1"
+    echo "($download) || (sleep 60s && $download) || (sleep 120s && $download)"
+    ($download) || (sleep $[ ( $RANDOM % 60 )  + 1 ]s && $download) || (sleep $[ ( $RANDOM % 120 )  + 1 ]s && $download)
+    if [[ $? == 0 ]]; then
+        data_downloaded=1
+    fi    
 fi
 
-# post-transfer, we can set up the env for pax
-export LD_LIBRARY_PATH=$anaconda_env/lib:$LD_LIBRARY_PATH
-old_ld_library_path=$LD_LIBRARY_PATH
-source $anaconda_env/activate pax_$4 #_OSG
-echo $PYTHONPATH
+# data download - gridftp from stash in case Rucio failed, but only in the US
+if [[ $data_downloaded == 0 ]]; then
+    if [[ $stash_gridftp_url != "None" && $GLIDEIN_Country == "US" ]]; then
+        echo "Attempting download from Stash GridFTP..."
+        download="gfal-copy -f -p -t 3600 -T 3600 -K md5 ${stash_gridftp_url} file://${rawdata_path}/${zip_file}"
+        echo "($download) || (sleep 60s && $download) || (sleep 120s && $download)"
+        ($download) || (sleep $[ ( $RANDOM % 60 )  + 1 ]s && $download) || (sleep $[ ( $RANDOM % 120 )  + 1 ]s && $download)
+        if [[ $? == 0 ]]; then
+            data_downloaded=1
+        fi
+    fi
+fi
 
-export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_$4_OSG/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_$4/lib:$LD_LIBRARY_PATH
+if [[ $data_downloaded == 0 ]]; then
+    echo "ERROR: All available data sources failed. Exiting with error 25."
+    exit 25
+fi
 
 (curl_moni "end downloading") || (curl_moni "end downloading")
+
+# post-transfer, we can set up the env for pax - but first save/clear some old stuff
+old_path=$PATH
+export PATH=/usr/bin:/bin
+old_ld_library_path=$LD_LIBRARY_PATH
+unset LD_LIBRARY_PATH
+old_pythonpath=$PYTHONPATH
+unset PYTHONPATH
+
+export LD_LIBRARY_PATH=$anaconda_env/lib:$LD_LIBRARY_PATH
+source $anaconda_env/activate pax_${pax_version} #_OSG
+echo $PYTHONPATH
+
+export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_${pax_version}_OSG/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_${pax_version}/lib:$LD_LIBRARY_PATH
 
 mkdir $start_dir/output/
 echo "output directory: ${start_dir}/output"
 cd $start_dir
+
+echo
+echo
 echo 'Processing...'
 
 stash_loc=$6
@@ -149,8 +176,8 @@ cax-process $1 $rawdata_path $3 $4 output $7 $8 ${start_dir}/${json_file}
 
 if [[ $? -ne 0 ]];
 then 
-    echo "exiting with status 255"
-    exit 255
+    echo "exiting with status 25"
+    exit 25
 fi
 
 pwd
@@ -158,7 +185,7 @@ ls output
 echo ${start_dir}/output/$1.root
 
 source deactivate
-export LD_LIBRARY_PATH=$old_ld_library_path
+#export LD_LIBRARY_PATH=$old_ld_library_path
 
 (curl_moni "end processing") || (curl_moni "end processing")
 
