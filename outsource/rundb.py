@@ -1,8 +1,12 @@
 import os
 import requests
 import json
+from bson import json_util
 import datetime
 import logging
+
+from pprint import pprint
+from outsource.Config import Config
 
 # TODO understand logging better
 #logging.basicConfig(level=logging.DEBUG)
@@ -73,6 +77,12 @@ class DB:
     """Wrapper around the RunDB API"""
 
     def __init__(self, token_path=".dbtoken"):
+        config = Config()
+        self.get_params = {
+            'username': config.get('Common', 'rundb_username'),
+            'api_key': config.get('Common', 'rundb_api_key'),
+        }
+        
         # Takes a path to pickled token object. If path exists, load it; else make a new one
         token = Token(token_path)
 
@@ -87,6 +97,31 @@ class DB:
         url = "/runs/number/{number}/filter/detector".format(number=number)
         response = json.loads(self.get(url).text)
         return response['results']['name']
+
+    def get_run(self, name, detector='tpc'):
+        query = {'detector': detector,
+                 'name': name}
+        query = {'query': json.dumps(query)}
+        
+        # Prepare query parameters
+        params = self.get_params
+        for key in query.keys():
+            params[key] = query[key]
+        params['limit'] = 1
+        params['offset'] = 0
+
+        #pprint(params)
+
+        data = requests.get('https://xenon1t-daq.lngs.infn.it/runs_api/runs/runs/', headers=self.headers, params = params).text
+        #data = requests.get(PREFIX + '/runs_api/', headers=self.headers, params = params).text
+        
+        data = json_util.loads(data)
+        #pprint(data)
+        
+        if data['meta']['total_count'] != 1:
+            raise RuntimeError('Unable to find run in the run database')
+        
+        return data['objects'][0]['doc']
 
 
 if __name__ == "__main__":

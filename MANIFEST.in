@@ -1,0 +1,3 @@
+include outsource/workflow/*
+include outsource/workflow/events/*
+README.md
