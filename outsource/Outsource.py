@@ -85,10 +85,6 @@ class Outsource:
 
         self._generate_dax()
 
-        # TODO temporary
-        json_file = os.path.join(self.config.generated_dir, "rundoc.json")
-        write_json_file(self.config.run_doc,json_file)
-
         self._plan_and_submit()
     
     
@@ -170,6 +166,7 @@ class Outsource:
                              'False')
             job.uses(determine_rse, link=Link.INPUT)
             job.uses(json_infile, link=Link.INPUT)
+            job.uses(paxify, link=Link.INPUT)
             #job.uses(job_output, link=Link.OUTPUT)
             dax.addJob(job)
         

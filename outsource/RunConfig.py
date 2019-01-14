@@ -95,7 +95,7 @@ class DBConfig(RunConfig):
 
         # eventually get the input location, etc here using DB
         rawdir = os.path.join('/xenon/xenon1t/raw', self.name)
-        output = os.path.join('/xenon/nt_tests/processed', self.name)
+        output = os.path.join('/xenon/xenonnt_test/processed', self.name)
 
         super().__init__(input_location=rawdir, output_location=output, **kwargs)
 

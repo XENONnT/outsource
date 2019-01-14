@@ -150,7 +150,7 @@ old_pythonpath=$PYTHONPATH
 unset PYTHONPATH
 
 export LD_LIBRARY_PATH=$anaconda_env/lib:$LD_LIBRARY_PATH
-source $anaconda_env/activate pax_${pax_version} #_OSG
+source $anaconda_env/activate pax_v${pax_version} #_OSG
 echo $PYTHONPATH
 
 export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_${pax_version}_OSG/lib:$LD_LIBRARY_PATH
