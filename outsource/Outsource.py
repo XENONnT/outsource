@@ -125,6 +125,11 @@ class Outsource:
         determine_rse.addPFN(PFN('file://' + os.path.join(config.base_dir(), 'workflow/determine_rse.py'), 'local'))
         dax.addFile(determine_rse)
 
+        # paxify is what processes the data. Gets called by the executable run-pax.sh
+        paxify = File('paxify.py')
+        paxify.addPFN(PFN('file://' + os.path.join(config.base_dir(), 'workflow/paxify.py'), 'local'))
+        dax.addFile(paxify)
+
         # json file for the run
         #self._write_run_info_json(os.path.join(config.generated_dir(), 'run_info.json'))
         json_file = os.path.join(self.config.generated_dir, "run_info.json")
