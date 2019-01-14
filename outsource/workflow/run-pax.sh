@@ -169,7 +169,7 @@ echo 'Processing...'
 #echo "cax-process $1 $rawdata_path $3 $4 output $7 $8 $start_dir/${json_file}"
 #cax-process $1 $rawdata_path $3 $4 output $7 $8 ${start_dir}/${json_file}
 
-python paxify.py --input ${rawdata_path} --output output --json_path run_info.json
+python paxify.py --input ${rawdata_path} --output ./ --json_path run_info.json
 
 if [[ $? -ne 0 ]];
 then 
@@ -187,9 +187,6 @@ source deactivate
 (curl_moni "end processing") || (curl_moni "end processing")
 
 echo "---- Test line ----"
-echo "Processing done, here's what's inside the output directory:"
-outfile=$(ls ${start_dir}/output/)
-echo "-----"
-ls ${start_dir}/output/*.root
+ls ${start_dir}/*.root
 echo "-----"
 

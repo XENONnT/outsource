@@ -153,7 +153,7 @@ class Outsource:
                                     self.config.input_location + '/' + zip_file
         
             # output files
-            job_output = File(zip_file + '.OUTPUT')
+            job_output = File(zip_file.replace('.zip', '.root'))
         
             # Add job
             job = Job(name='run-pax.sh')
@@ -167,7 +167,7 @@ class Outsource:
             job.uses(determine_rse, link=Link.INPUT)
             job.uses(json_infile, link=Link.INPUT)
             job.uses(paxify, link=Link.INPUT)
-            #job.uses(job_output, link=Link.OUTPUT)
+            job.uses(job_output, link=Link.OUTPUT)
             dax.addJob(job)
         
         # Write the DAX to stdout

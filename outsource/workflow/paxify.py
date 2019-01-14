@@ -13,12 +13,12 @@ def process(inputfile, outputdir, json_path):
     name = doc['name']
 
     if detector == 'muon_veto':
-        output_fullname = outputdir + '/' + name + '_MV'
+        output_fullname = os.path.join(outputdir, name + '_MV')
         pax_config = 'XENON1T_MV'
         decoder = 'BSON.DecodeZBSON'
 
     elif detector == 'tpc':
-        output_fullname = outputdir + '/' + name
+        output_fullname = os.path.join(outputdir, name)
         decoder = 'Pickle.DecodeZPickle'
 
         if doc['reader']['self_trigger']:
@@ -53,7 +53,7 @@ def process(inputfile, outputdir, json_path):
 def main():
     parser = argparse.ArgumentParser(description='Process with pax given a json file')
     parser.add_argument("--input", type=str, help='Input file')
-    parser.add_argument("--output", type='str', help='Directory to save output')
+    parser.add_argument("--output", type=str, help='Directory to save output')
     parser.add_argument("--json_path", type=str, help='path to json file')
     args = parser.parse_args()
     process(args.input, args.output, args.json_path)
