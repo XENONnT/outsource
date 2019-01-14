@@ -31,6 +31,8 @@ class Token:
         # for writing to disk
         self.json = dict(string=self.string, creation_time=self.creation_time)
 
+        self.write()
+
     def __call__(self):
         return self.string
 
