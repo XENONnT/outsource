@@ -11,7 +11,9 @@ from outsource.Config import Config
 # TODO understand logging better
 #logging.basicConfig(level=logging.DEBUG)
 
-PREFIX = "http://xenon-runsdb-dev.grid.uchicago.edu:5000"
+config = Config()
+
+PREFIX = config.get('Common', 'rundb_api_url')
 BASE_HEADERS = {'Content-Type': "application/json", 'Cache-Control': "no-cache"}
 
 
@@ -43,7 +45,8 @@ class Token:
     def new_token(self):
         path = PREFIX + "/login"
         # TODO put the username and password in config file or something
-        data=json.dumps({"username": "admin", "password": "test_admin"})
+        data=json.dumps({"username": config.get('Common', 'rundb_api_user'),
+                         "password": config.get('Common', 'rundb_api_password')})
         response = requests.post(path, data=data, headers=BASE_HEADERS)
         return json.loads(response.text)['access_token']
 
@@ -77,11 +80,10 @@ class DB:
     """Wrapper around the RunDB API"""
 
     def __init__(self, token_path=".dbtoken"):
-        config = Config()
-        self.get_params = {
-            'username': config.get('Common', 'rundb_username'),
-            'api_key': config.get('Common', 'rundb_api_key'),
-        }
+        #self.get_params = {
+        #    'username': config.get('Common', 'rundb_username'),
+        #    'api_key': config.get('Common', 'rundb_api_key'),
+        #}
         
         # Takes a path to pickled token object. If path exists, load it; else make a new one
         token = Token(token_path)
@@ -97,6 +99,11 @@ class DB:
         url = "/runs/number/{number}/filter/detector".format(number=number)
         response = json.loads(self.get(url).text)
         return response['results']['name']
+
+    def get_doc(self, number):
+        # return the whole run doc for this run number
+        url = '/runs/number/{num}'.format(num=number)
+        return json.loads(self.get(url).text)['results']
 
     def get_run(self, name, detector='tpc'):
         query = {'detector': detector,
@@ -126,5 +133,6 @@ class DB:
 
 if __name__ == "__main__":
     db = DB()
-    x = db.get_name(10000)
+    #x = db.get_name(10000)
+    x = db.get_doc(10000)
     print(x)
