@@ -5,11 +5,8 @@ export run_id=$1
 export zip_file=$2
 export rucio_dataset=$3
 export stash_gridftp_url=$4
-export submit_host=$5
-export pax_version=$6
-export pax_hash=$7
-export core_count=$8
-export send_updates=$9
+export pax_version=$5
+export send_updates=$6
 
 start_dir=$PWD
 
@@ -91,7 +88,7 @@ curl_moni () {
 echo "start dir is $start_dir. Here's whats inside"
 ls -l 
 
-json_file=$(ls *json)
+#json_file=$(ls *json)
 
 # Pegasus has started the job in a work dir
 work_dir=$PWD
@@ -153,7 +150,7 @@ old_pythonpath=$PYTHONPATH
 unset PYTHONPATH
 
 export LD_LIBRARY_PATH=$anaconda_env/lib:$LD_LIBRARY_PATH
-source $anaconda_env/activate pax_${pax_version} #_OSG
+source $anaconda_env/activate pax_v${pax_version} #_OSG
 echo $PYTHONPATH
 
 export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_${pax_version}_OSG/lib:$LD_LIBRARY_PATH
@@ -167,12 +164,12 @@ echo
 echo
 echo 'Processing...'
 
-stash_loc=$6
-
 (curl_moni "start processing") || (curl_moni "start processing")
 
-echo "cax-process $1 $rawdata_path $3 $4 output $7 $8 $start_dir/${json_file}" 
-cax-process $1 $rawdata_path $3 $4 output $7 $8 ${start_dir}/${json_file}
+#echo "cax-process $1 $rawdata_path $3 $4 output $7 $8 $start_dir/${json_file}"
+#cax-process $1 $rawdata_path $3 $4 output $7 $8 ${start_dir}/${json_file}
+
+python paxify.py --input ${rawdata_path} --output output --json_path run_info.json
 
 if [[ $? -ne 0 ]];
 then 
@@ -190,9 +187,6 @@ source deactivate
 (curl_moni "end processing") || (curl_moni "end processing")
 
 echo "---- Test line ----"
-echo "Processing done, here's what's inside the output directory:"
-outfile=$(ls ${start_dir}/output/)
-echo "-----"
-ls ${start_dir}/output/*.root
+ls ${start_dir}/*.root
 echo "-----"
 

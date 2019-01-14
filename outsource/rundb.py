@@ -22,8 +22,8 @@ class Token:
     Object handling tokens for runDB API access.
     
     """
-    def __init__(self, path=".dbtoken"):
-        # get a new token
+    def __init__(self, path=os.path.join(os.environ['HOME'], ".dbtoken")):
+        # if token path exists, read it in. Otherwise make a new one
         if os.path.exists(path):
             with open(path) as f:
                 json_in = json.load(f)
@@ -37,6 +37,7 @@ class Token:
         # for writing to disk
         self.json = dict(string=self.string, creation_time=self.creation_time)
 
+        # save the token json to disk
         self.write()
 
     def __call__(self):
@@ -79,13 +80,8 @@ class Token:
 class DB:
     """Wrapper around the RunDB API"""
 
-    def __init__(self, token_path=".dbtoken"):
-        #self.get_params = {
-        #    'username': config.get('Common', 'rundb_username'),
-        #    'api_key': config.get('Common', 'rundb_api_key'),
-        #}
-        
-        # Takes a path to pickled token object. If path exists, load it; else make a new one
+    def __init__(self, token_path=os.path.join(os.environ['HOME'], ".dbtoken")):
+        # Takes a path to serialized token object
         token = Token(token_path)
 
         self.headers = BASE_HEADERS.copy()
@@ -100,39 +96,20 @@ class DB:
         response = json.loads(self.get(url).text)
         return response['results']['name']
 
+    def get_number(self, name, detector='tpc'):
+        url = "/runs/name/{name}/filter/detector".format(name=name)
+        response = json.loads(self.get(url).text)
+        return response['results']['number']
+
     def get_doc(self, number):
         # return the whole run doc for this run number
         url = '/runs/number/{num}'.format(num=number)
         return json.loads(self.get(url).text)['results']
 
-    def get_run(self, name, detector='tpc'):
-        query = {'detector': detector,
-                 'name': name}
-        query = {'query': json.dumps(query)}
-        
-        # Prepare query parameters
-        params = self.get_params
-        for key in query.keys():
-            params[key] = query[key]
-        params['limit'] = 1
-        params['offset'] = 0
 
-        #pprint(params)
-
-        data = requests.get('https://xenon1t-daq.lngs.infn.it/runs_api/runs/runs/', headers=self.headers, params = params).text
-        #data = requests.get(PREFIX + '/runs_api/', headers=self.headers, params = params).text
-        
-        data = json_util.loads(data)
-        #pprint(data)
-        
-        if data['meta']['total_count'] != 1:
-            raise RuntimeError('Unable to find run in the run database')
-        
-        return data['objects'][0]['doc']
-
-
+# for testing
 if __name__ == "__main__":
     db = DB()
     #x = db.get_name(10000)
-    x = db.get_doc(10000)
+    x = db.get_number("160809_1454")
     print(x)
