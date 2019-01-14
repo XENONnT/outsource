@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 from outsource.Outsource import Outsource
-from outsource.Config import Config, ConfigDB
+from outsource.RunConfig import DBConfig
 
 if __name__ == '__main__':
-    config = ConfigDB(49)
-    #outsource = Outsource(config)
-    outsource = Outsource(detector = 'tpc', name = '160809_1454', force_rerun = True, update_run_db = False)
+    config = DBConfig(2023)
+    outsource = Outsource(config)
     outsource.submit_workflow()
