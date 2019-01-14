@@ -33,7 +33,8 @@ def process(inputfile, outputdir, json_path):
     config_dict = {'pax': {'input_name': inputfile,
                            'output_name': output_fullname,
                            'look_for_config_in_runs_db': False,
-                           'decoder_plugin': decoder
+                           'decoder_plugin': decoder,
+                           'stop_after': 10 # temporary
                            }}
     if detector == 'tpc':
         mongo_config = doc['processor']

@@ -169,7 +169,7 @@ echo 'Processing...'
 #echo "cax-process $1 $rawdata_path $3 $4 output $7 $8 $start_dir/${json_file}"
 #cax-process $1 $rawdata_path $3 $4 output $7 $8 ${start_dir}/${json_file}
 
-python paxify.py --input ${rawdata_path} --output ./ --json_path run_info.json
+python paxify.py --input ${rawdata_path} --output output --json_path run_info.json
 
 if [[ $? -ne 0 ]];
 then 
