@@ -99,6 +99,8 @@ class Outsource:
         # determine the job requirements based on the data locations
         requirements = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org'
         requirements = requirements + ' && (' + self._determine_target_sites(rses, stash_raw_path) + ')'
+        if self._exclude_sites():
+            requirements = requirements + ' && (' + self._exclude_sites()  + ')'
         
         # Create a abstract dag
         dax = ADAG('xenonnt')
@@ -294,6 +296,24 @@ class Outsource:
         final_expr = ' || '.join(exprs)
         logger.info('Site expression from RSEs list: ' + final_expr)
         return final_expr
+
+
+    def _exclude_sites(self):
+        '''
+        Exclude sites from the user config file
+        '''
+    
+        if not config.has_option('Outsource', 'exclude_sites'):
+            return ''
+
+        sites = [x.strip() for x in config.get('Outsource', 'exclude_sites').split(',')]
+        if len(sites) == 0:
+            return ''
+
+        exprs = []
+        for site in sites:
+            exprs.append('GLIDEIN_Site =!= "%s"' %(site))
+        return ' && '.join(exprs)
 
 
 # This should be temporary hopefully, but just to get things working now
