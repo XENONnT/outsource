@@ -1,11 +1,12 @@
 """Replacement for cax-process"""
 import argparse
 import json
-import os
 from pax import core, configuration
 
+# TODO do DB API call here instead of using json
+# TODO allow for passing custom config (maybe via json?)
 
-def process(inputfile, outputdir, json_path):
+def process(inputfile, output, json_path):
     with open(json_path, "r") as f:
         doc = json.load(f)
 
@@ -13,12 +14,10 @@ def process(inputfile, outputdir, json_path):
     name = doc['name']
 
     if detector == 'muon_veto':
-        output_fullname = os.path.join(outputdir, name + '_MV')
         pax_config = 'XENON1T_MV'
         decoder = 'BSON.DecodeZBSON'
 
     elif detector == 'tpc':
-        output_fullname = os.path.join(outputdir, name)
         decoder = 'Pickle.DecodeZPickle'
 
         if doc['reader']['self_trigger']:
@@ -28,10 +27,8 @@ def process(inputfile, outputdir, json_path):
     else:
         raise ValueError('Detector must be tpc or muon_veto')
 
-    os.makedirs(outputdir, exist_ok=True)
-
     config_dict = {'pax': {'input_name': inputfile,
-                           'output_name': output_fullname,
+                           'output_name': output,
                            'look_for_config_in_runs_db': False,
                            'decoder_plugin': decoder,
                            'stop_after': 10 # temporary

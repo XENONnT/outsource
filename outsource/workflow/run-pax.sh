@@ -156,30 +156,26 @@ echo $PYTHONPATH
 export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_${pax_version}_OSG/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/envs/pax_${pax_version}/lib:$LD_LIBRARY_PATH
 
-mkdir $start_dir/output/
-echo "output directory: ${start_dir}/output"
 cd $start_dir
 
 echo
 echo
-echo 'Processing...'
+echo 'Processing now'
 
 (curl_moni "start processing") || (curl_moni "start processing")
 
 #echo "cax-process $1 $rawdata_path $3 $4 output $7 $8 $start_dir/${json_file}"
 #cax-process $1 $rawdata_path $3 $4 output $7 $8 ${start_dir}/${json_file}
-
-python paxify.py --input ${rawdata_path} --output output --json_path run_info.json
+echo ${zip_file}
+out=${zip_file%".zip"}
+echo "Saving to $out"
+python paxify.py --input ${rawdata_path} --output $out --json_path run_info.json
 
 if [[ $? -ne 0 ]];
 then 
     echo "exiting with status 25"
     exit 25
 fi
-
-pwd
-ls output
-echo ${start_dir}/output/$1.root
 
 source deactivate
 #export LD_LIBRARY_PATH=$old_ld_library_path
