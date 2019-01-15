@@ -8,9 +8,9 @@ environment variables can be used in the form `$HOME`. Example:
 
     [Common]
     
-    rundb_api_url = 
-    rundb_api_user = 
-    rundb_api_key = 
+    rundb_api_url = [ask Evan]
+    rundb_api_user = [ask Evan]
+    rundb_api_password = [ask Evan]
     
     [Outsource]
     
