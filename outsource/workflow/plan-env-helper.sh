@@ -2,10 +2,11 @@
 
 set -e
 
-TOP_DIR=$1
-GENERATED_DIR=$2
-RUNS_DIR=$3
-RUN_ID=$4
+export TOP_DIR=$1
+export WORK_DIR=$2
+export GENERATED_DIR=$3
+export RUNS_DIR=$4
+export RUN_ID=$5
 
 # make sure we are working in the right directory
 cd $TOP_DIR

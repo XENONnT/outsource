@@ -115,6 +115,11 @@ class Outsource:
         wrapper.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
+
+        merge = Executable(name='merge.sh', arch='x86_64', installed=False)
+        merge.addPFN(PFN('file://' + config.base_dir() + '/workflow/merge.sh', 'local'))
+        merge.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
+        dax.addExecutable(merge)
         
         pax_version = self.config.pax_version
 
@@ -135,6 +140,13 @@ class Outsource:
         json_infile = File('run_info.json')
         json_infile.addPFN(PFN('file://' + os.path.join(self.config.generated_dir, 'run_info.json'), 'local'))
         dax.addFile(json_infile)
+        
+        # Set up the merge job first - we can then add to that job inside the zip file loop
+        merge_out = File(self.config.name + '.root')
+        merge_job = Job('merge.sh')
+        merge_job.uses(merge_out, link=Link.OUTPUT)
+        merge_job.addArguments(merge_out)
+        dax.addJob(merge_job)
         
         # add jobs, one for each input file
         for zip_file, zip_props in self._data_find_zips(rucio_dataset, stash_raw_path).items():
@@ -164,6 +176,7 @@ class Outsource:
                              zip_file,
                              str(file_rucio_dataset),
                              str(stash_gridftp_url),
+                             job_output,
                              pax_version,
                              'False')
             job.uses(determine_rse, link=Link.INPUT)
@@ -171,6 +184,11 @@ class Outsource:
             job.uses(paxify, link=Link.INPUT)
             job.uses(job_output, link=Link.OUTPUT)
             dax.addJob(job)
+            
+            # update merge job
+            merge_job.uses(job_output, link=Link.INPUT)
+            merge_job.addArguments(job_output)
+            dax.depends(parent=job, child=merge_job)
         
         # Write the DAX to stdout
         f = open(os.path.join(self.config.generated_dir, 'dax.xml'), 'w')
@@ -185,6 +203,7 @@ class Outsource:
         
         cmd = ' '.join([os.path.join(config.base_dir(), 'workflow/plan-env-helper.sh'),
                         config.base_dir(),
+                        self.config.workdir,
                         self.config.generated_dir,
                         config.runs_dir(),
                         self.config.workflow_id])

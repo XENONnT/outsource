@@ -5,8 +5,9 @@ export run_id=$1
 export zip_file=$2
 export rucio_dataset=$3
 export stash_gridftp_url=$4
-export pax_version=$5
-export send_updates=$6
+export output_name=$5
+export pax_version=$6
+export send_updates=$7
 
 start_dir=$PWD
 
@@ -179,14 +180,14 @@ fi
 
 pwd
 ls output
-echo ${start_dir}/output/$1.root
-
-source deactivate
-#export LD_LIBRARY_PATH=$old_ld_library_path
+echo ${start_dir}/output/${run_id}.root
 
 (curl_moni "end processing") || (curl_moni "end processing")
 
-echo "---- Test line ----"
-ls ${start_dir}/*.root
-echo "-----"
+# move the output to the filename Pegasus is tracking
+cd $start_dir
+echo
+echo "mv output/${run_id}.root $output_name"
+mv output/${run_id}.root $output_name
+
 
