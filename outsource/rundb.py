@@ -29,6 +29,7 @@ class Token:
                 json_in = json.load(f)
                 self.string = json_in['string']
                 self.creation_time = json_in['creation_time']
+
         else:
             self.string = self.new_token()
             self.creation_time = datetime.datetime.now().timestamp()
@@ -36,9 +37,10 @@ class Token:
 
         # for writing to disk
         self.json = dict(string=self.string, creation_time=self.creation_time)
-
         # save the token json to disk
         self.write()
+        # refresh if needed
+        self.refresh()
 
     def __call__(self):
         return self.string
@@ -51,13 +53,14 @@ class Token:
         response = requests.post(path, data=data, headers=BASE_HEADERS)
         return json.loads(response.text)['access_token']
 
+    @property
     def is_valid(self):
         # TODO do an API call for this instead?
         return datetime.datetime.now().timestamp() - self.creation_time < 24*60*60
 
     def refresh(self):
         # if valid, don't do anything
-        if self.is_valid():
+        if self.is_valid:
             logging.debug("Token is valid")
             return
         # update the token string
