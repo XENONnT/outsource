@@ -15,8 +15,6 @@ osg_software=/cvmfs/oasis.opensciencegrid.org/mis/osg-wn-client/3.4/3.4.22/el7-x
 anaconda_env=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/bin
 rucio_base=/cvmfs/xenon.opensciencegrid.org/software/rucio-py27/1.8.3
 
-jobuuid=`uuidgen`
-
 # OSG env for gfal
 source $osg_software/setup.sh
 export GFAL_CONFIG_DIR=$OSG_LOCATION/etc/gfal2.d
@@ -47,67 +45,22 @@ if [[ $rucio_dataset != "None" ]]; then
     fi
 fi
 
-curl_moni () {
-
-    # NO MONITORING FOR NOW
-    return 0
-
-    echo "${_condor_GLIDEIN_Site}"
-    if [[ -z $GLIDEIN_ClusterId ]]; then
-        GLIDEIN_ClusterId=$(cat $_CONDOR_SCRATCH_DIR/.job.ad | awk '$1=="ClusterId" {print $3}')
-    fi
-    if [[ -z $GLIDEIN_ProcessId ]]; then
-        GLIDEIN_ProcessId=$(cat $_CONDOR_SCRATCH_DIR/.job.ad | awk '$1=="ProcId" {print $3}')
-    fi
-    if [[ "${_condor_GLIDEIN_Site}" == "\"ruc.ciconnect@uct2-gk.mwt2.org/condor\"" ]]; then
-        export OSG_SITE_NAME="MWT2"
-    fi
-    if [[ "${_condor_GLIDEIN_Site}" == "\"ruc.ciconnect@iut2-gk.mwt2.org/condor\"" ]]; then
-        export OSG_SITE_NAME="MWT2"
-    fi
-    if [[ -z $OSG_SITE_NAME ]]; then
-        if [[ -n $GLIDEIN_ResourceName ]]; then
-            export OSG_SITE_NAME=$GLIDEIN_ResourceName
-        else
-            export OSG_SITE_NAME=$HOSTNAME
-        fi
-        # export OSG_SITE_NAME=$HOSTNAME
-    fi
-    echo "Moni step $1 with ID $GLIDEIN_ClusterId"
-    echo "Moni step $1 at $OSG_SITE_NAME"
-    message="{\"job_id\" : \"${GLIDEIN_ClusterId}_${GLIDEIN_ProcessId}_${jobuuid}\", \"type\" : \"x1t-event\",
-              \"job_progress\" : \"$1\", \"executable\" : \"run_xenon.sh\",
-              \"input_filename\": \"$input_file\", \"computing_center\" : \"$OSG_SITE_NAME\",
-              \"pax_version\": \"$pax_version\", \"filesize\": $filesize,
-              \"storage_origin\": \"$rse\", \"timestamp\" : $(date +%s%3N)}"
-    echo "Message $message"
-    # curl -H "Content-Type: application/json" -X POST -I --retry 5 --retry-delay 0 --retry-max-time 20 -d "$message" http://xenon-logstash.mwt2.org:8080/
-    # curl -v -s --retry 5 --retry-delay 0 --retry-max-time 20 --connect-timeout 5 -H "Content-Type: application/json" -X POST -d "$message" http://xenon-logstash.mwt2.org:8080/
-    curl -v -s --retry 5 --retry-delay 0 --retry-max-time 20 --connect-timeout 5 -H "Content-Type: application/json" -X POST -d "$message" http://192.170.227.205:8080/
-}
-
 echo "start dir is $start_dir. Here's whats inside"
 ls -l 
 
-#json_file=$(ls *json)
-
-# Pegasus has started the job in a work dir
-work_dir=$PWD
-export XDG_CACHE_HOME=${work_dir}/.cache
-export XDG_CONFIG_HOME=${work_dir}/.config
+export XDG_CACHE_HOME=${start_dir}/.cache
+export XDG_CONFIG_HOME=${start_dir}/.config
 # $XDG_DATA_DIRS
 # loop and use gfal-copy before pax gets loaded to avoid
 # gfal using wrong python version/libraries    
 
 # directory to download inputs to
-rawdata_path=${work_dir}/$run_id
+rawdata_path=${start_dir}/$run_id
 mkdir $rawdata_path
 
 cd ${rawdata_path}
 pwd
 cd ${work_dir}
-
-(curl_moni "start downloading") || (curl_moni "start downloading")
 
 # data download - try rucio
 if [[ $rucio_dataset != "None" ]]; then
@@ -140,8 +93,6 @@ if [[ $data_downloaded == 0 ]]; then
     exit 25
 fi
 
-(curl_moni "end downloading") || (curl_moni "end downloading")
-
 # post-transfer, we can set up the env for pax - but first save/clear some old stuff
 old_path=$PATH
 export PATH=/usr/bin:/bin
@@ -160,13 +111,10 @@ export LD_LIBRARY_PATH=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/en
 cd $start_dir
 
 echo
-echo
 echo 'Processing now'
 
-(curl_moni "start processing") || (curl_moni "start processing")
-
 echo "Saving to ${output_name}"
-python paxify.py --input ${rawdata_path} --output ${output_name} --json_path run_info.json
+python paxify.py --input ${rawdata_path} --output ${output_name} --json_path ${run_id}.json 2>&1
 
 if [[ $? -ne 0 ]];
 then 
@@ -174,4 +122,13 @@ then
     exit 25
 fi
 
-(curl_moni "end processing") || (curl_moni "end processing")
+# paxify adds an extra .root to the file name
+mv ${output_name}.root ${output_name}
+
+echo
+echo "Job is done. Here is the contents of the directory now:"
+ls -l
+echo
+
+
+

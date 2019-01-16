@@ -12,7 +12,7 @@ from outsource.Shell import Shell
 from outsource.Config import Config
 
 config = Config()
-logger = logging.getLogger("my_logger")
+logger = logging.getLogger("outsource")
 
 # Pegasus environment
 sys.path.insert(0, os.path.join(config.pegasus_path(), 'lib64/python2.6/site-packages'))
@@ -32,14 +32,17 @@ class Outsource:
         'SURFSARA_USERDISK': '',
     }
 
-    def __init__(self, runcfg):
+    def __init__(self, dbcfgs):
         '''
-        Creates a new Outsource object. Specifying a RunConfig object required.
+        Creates a new Outsource object. Specifying a list of DBConfig objects required.
         '''
-        if not runcfg:
-            raise RuntimeError('A RunConfig is required')
+       
+        if not dbcfgs:
+            raise RuntimeError('At least one DBConfig is required')
+        if not isinstance(dbcfgs, list):
+            raise RuntimeError('Outsource expects a list of DBConfigs to run')
         # TODO there's likely going to be some confusion between the two configs here
-        self.config = runcfg
+        self._dbcfgs = dbcfgs
 
         # logger
         console = logging.StreamHandler()
@@ -53,12 +56,20 @@ class Outsource:
         # formatter
         formatter = logging.Formatter("%(asctime)s %(levelname)7s:  %(message)s")
         console.setFormatter(formatter)
+        if (logger.hasHandlers()):
+            logger.handlers.clear()
         logger.addHandler(console)
 
         # environment for subprocesses
-        os.environ['X509_USER_PROXY'] = self.config.x509_proxy
+        os.environ['X509_USER_PROXY'] = self._dbcfgs[0].x509_proxy
+        
+        # Determine a unique id for the workflow. If only one dbconfig is provided, use
+        # the workflow id of that object. If more than one is provided, make one up.
+        if len(self._dbcfgs) == 1:
+            self._wf_id = self._dbcfgs[0].workflow_id
+        else:
+            self._wf_id = 'multiples-' + self._dbcfgs[0].workflow_id
 
-        #
 
     def submit_workflow(self):
         '''
@@ -66,13 +77,13 @@ class Outsource:
         '''
 
         # does workflow already exist?
-        if os.path.exists(self.config.workflow_path):
-            logger.error("Workflow already exists at {path}. Exiting.".format(path=self.config.workflow_path))
+        if os.path.exists(self._workflow_dir()):
+            logger.error("Workflow already exists at {path}. Exiting.".format(path=self._workflow_dir()))
             return
 
         # work dirs
         try:
-            os.makedirs(self.config.generated_dir, 0o755)
+            os.makedirs(self._generated_dir(), 0o755)
         except OSError:
             pass
         try:
@@ -93,15 +104,6 @@ class Outsource:
         Use the Pegasus DAX API to build an abstract graph of the workflow
         '''
         
-        # figure our where input data exists
-        rucio_dataset, rses, stash_raw_path = self._data_find_locations()
-        
-        # determine the job requirements based on the data locations
-        requirements = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org'
-        requirements = requirements + ' && (' + self._determine_target_sites(rses, stash_raw_path) + ')'
-        if self._exclude_sites():
-            requirements = requirements + ' && (' + self._exclude_sites()  + ')'
-        
         # Create a abstract dag
         dax = ADAG('xenonnt')
         
@@ -112,16 +114,16 @@ class Outsource:
         # Add executables to the DAX-level replica catalog
         wrapper = Executable(name='run-pax.sh', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + config.base_dir() + '/workflow/run-pax.sh', 'local'))
-        wrapper.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
 
         merge = Executable(name='merge.sh', arch='x86_64', installed=False)
         merge.addPFN(PFN('file://' + config.base_dir() + '/workflow/merge.sh', 'local'))
-        merge.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
         dax.addExecutable(merge)
         
-        pax_version = self.config.pax_version
+        upload = Executable(name='upload.sh', arch='x86_64', installed=False)
+        upload.addPFN(PFN('file://' + config.base_dir() + '/workflow/upload.sh', 'local'))
+        dax.addExecutable(upload)
 
         # determine_rse - a helper for the job to determine where to pull data from
         determine_rse = File('determine_rse.py')
@@ -133,65 +135,95 @@ class Outsource:
         paxify.addPFN(PFN('file://' + os.path.join(config.base_dir(), 'workflow/paxify.py'), 'local'))
         dax.addFile(paxify)
 
-        # json file for the run
-        #self._write_run_info_json(os.path.join(config.generated_dir(), 'run_info.json'))
-        json_file = os.path.join(self.config.generated_dir, "run_info.json")
-        write_json_file(self.config.run_doc, json_file)
-        json_infile = File('run_info.json')
-        json_infile.addPFN(PFN('file://' + os.path.join(self.config.generated_dir, 'run_info.json'), 'local'))
-        dax.addFile(json_infile)
-        
-        # Set up the merge job first - we can then add to that job inside the zip file loop
-        merge_out = File(self.config.name + '.root')
-        merge_job = Job('merge.sh')
-        merge_job.uses(merge_out, link=Link.OUTPUT)
-        merge_job.addArguments(merge_out)
-        dax.addJob(merge_job)
-        
-        # add jobs, one for each input file
-        for zip_file, zip_props in self._data_find_zips(rucio_dataset, stash_raw_path).items():
-
-            logger.debug("Adding job for zip file: " + zip_file)
-    
-            filepath, file_extenstion = os.path.splitext(zip_file)
-            if file_extenstion != ".zip":
-                raise RuntimeError('Non-zip in the input file list')
-
-            file_rucio_dataset = None
-            if zip_props['rucio_available']:
-                file_rucio_dataset = rucio_dataset
-                
-            stash_gridftp_url = None
-            if zip_props['stash_available']:
-                stash_gridftp_url = 'gsiftp://gridftp.grid.uchicago.edu:2811/cephfs/srm' + \
-                                    self.config.input_location + '/' + zip_file
-        
-            # output files
-            job_output = File(zip_file.replace('.zip', '.root'))
-        
-            # Add job
-            job = Job(name='run-pax.sh')
-            # Note that any changes to this argument list, also means run-pax.sh has to be updated
-            job.addArguments(self.config.name,
-                             zip_file,
-                             str(file_rucio_dataset),
-                             str(stash_gridftp_url),
-                             job_output,
-                             pax_version,
-                             'False')
-            job.uses(determine_rse, link=Link.INPUT)
-            job.uses(json_infile, link=Link.INPUT)
-            job.uses(paxify, link=Link.INPUT)
-            job.uses(job_output, link=Link.OUTPUT)
-            dax.addJob(job)
+        for dbcfg in self._dbcfgs:
             
-            # update merge job
-            merge_job.uses(job_output, link=Link.INPUT)
-            merge_job.addArguments(job_output)
-            dax.depends(parent=job, child=merge_job)
+            logger.info('Adding run ' + dbcfg.name + ' to the workflow')
+        
+            # figure our where input data exists
+            rucio_dataset, rses, stash_raw_path = self._data_find_locations(dbcfg)
+            
+            # determine the job requirements based on the data locations
+            requirements = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org'
+            requirements = requirements + ' && (' + self._determine_target_sites(rses, stash_raw_path) + ')'
+            if self._exclude_sites():
+                requirements = requirements + ' && (' + self._exclude_sites()  + ')'
+            # map some jobs to US
+            requirements_us = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org && GLIDEIN_Country == "US"'
+                        
+            pax_version = dbcfg.pax_version
+    
+            # json file for the run
+            json_file = os.path.join(self._generated_dir(), dbcfg.name + '.json')
+            write_json_file(dbcfg.run_doc, json_file)
+            json_infile = File(dbcfg.name + '.json')
+            json_infile.addPFN(PFN('file://' + os.path.join(self._generated_dir(), dbcfg.name + '.json'), 'local'))
+            dax.addFile(json_infile)
+            
+            # Set up the merge job first - we can then add to that job inside the zip file loop
+            merged_root = File(dbcfg.name + '.root')
+            merge_job = Job('merge.sh')
+            merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
+            merge_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
+            merge_job.uses(merged_root, link=Link.OUTPUT)
+            merge_job.addArguments(merged_root)
+            dax.addJob(merge_job)
+            
+            # add jobs, one for each input file
+            for zip_file, zip_props in self._data_find_zips(rucio_dataset, stash_raw_path).items():
+    
+                logger.debug(" ... adding job for zip file: " + zip_file)
+        
+                filepath, file_extenstion = os.path.splitext(zip_file)
+                if file_extenstion != ".zip":
+                    raise RuntimeError('Non-zip in the input file list')
+    
+                file_rucio_dataset = None
+                if zip_props['rucio_available']:
+                    file_rucio_dataset = rucio_dataset
+                    
+                stash_gridftp_url = None
+                if zip_props['stash_available']:
+                    stash_gridftp_url = 'gsiftp://gridftp.grid.uchicago.edu:2811/cephfs/srm' + \
+                                        dbcfg.input_location + '/' + zip_file
+            
+                # output files
+                job_output = File(zip_file.replace('.zip', '.root'))
+            
+                # Add job
+                job = Job(name='run-pax.sh')
+                job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
+                job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority)))
+                # Note that any changes to this argument list, also means run-pax.sh has to be updated
+                job.addArguments(dbcfg.name,
+                                 zip_file,
+                                 str(file_rucio_dataset),
+                                 str(stash_gridftp_url),
+                                 job_output,
+                                 pax_version,
+                                 'False')
+                job.uses(determine_rse, link=Link.INPUT)
+                job.uses(json_infile, link=Link.INPUT)
+                job.uses(paxify, link=Link.INPUT)
+                job.uses(job_output, link=Link.OUTPUT, transfer=False)
+                dax.addJob(job)
+                
+                # update merge job
+                merge_job.uses(job_output, link=Link.INPUT)
+                merge_job.addArguments(job_output)
+                dax.depends(parent=job, child=merge_job)
+                
+            # upload job  - runs on the submit host
+            upload_job = Job("upload.sh")
+            upload_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
+            upload_job.uses(merged_root, link=Link.INPUT)
+            upload_job.addArguments(dbcfg.name, 
+                                    merged_root,
+                                    config.base_dir())
+            dax.addJob(upload_job)
+            dax.depends(parent=merge_job, child=upload_job)
         
         # Write the DAX to stdout
-        f = open(os.path.join(self.config.generated_dir, 'dax.xml'), 'w')
+        f = open(os.path.join(self._generated_dir(), 'dax.xml'), 'w')
         dax.writeXML(f)
         f.close()
        
@@ -202,14 +234,23 @@ class Outsource:
         '''
         
         cmd = ' '.join([os.path.join(config.base_dir(), 'workflow/plan-env-helper.sh'),
+                        config.pegasus_path(),
                         config.base_dir(),
-                        self.config.workdir,
-                        self.config.generated_dir,
+                        config.work_dir(),
+                        self._generated_dir(),
                         config.runs_dir(),
-                        self.config.workflow_id])
+                        self._wf_id])
         shell = Shell(cmd, log_cmd = False, log_outerr = True)
         shell.run()
-       
+ 
+
+    def _generated_dir(self):
+        return os.path.join(config.work_dir(), 'generated', self._wf_id)
+
+
+    def _workflow_dir(self):
+        return os.path.join(config.runs_dir(), self._wf_id)
+      
     
     def _validate_x509_proxy(self):
         '''
@@ -225,7 +266,7 @@ class Outsource:
                                %(valid_hours, min_valid_hours))
 
 
-    def _data_find_locations(self):
+    def _data_find_locations(self, dbcfg):
         '''
         Check Rucio and other locations to determine where input files exist
         '''
@@ -234,7 +275,7 @@ class Outsource:
         rses = []
         stash_raw_path = None
         
-        for d in self.config.run_doc['data']:
+        for d in dbcfg.run_doc['data']:
             if d['host'] == 'rucio-catalogue' and d['status'] == 'transferred':
                     rucio_dataset = d['location']
         
@@ -251,9 +292,9 @@ class Outsource:
                 logger.warning("Problem finding Rucio RSEs")
                 
         # also check local dir (which is available via GridFTP)
-        if os.path.exists(self.config.input_location):
+        if os.path.exists(dbcfg.input_location):
             # also make sure the dir contains some zip files?
-            stash_raw_path = self.config.input_location
+            stash_raw_path = dbcfg.input_location
             
         return rucio_dataset, rses, stash_raw_path
     
@@ -319,7 +360,7 @@ class Outsource:
 
     def _exclude_sites(self):
         '''
-        Exclude sites from the user config file
+        Exclude sites from the user _dbcfgs file
         '''
     
         if not config.has_option('Outsource', 'exclude_sites'):

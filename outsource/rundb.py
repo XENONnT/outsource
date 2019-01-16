@@ -8,8 +8,7 @@ import logging
 from pprint import pprint
 from outsource.Config import Config
 
-# TODO understand logging better
-#logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("outsource")
 
 config = Config()
 
@@ -61,7 +60,7 @@ class Token:
     def refresh(self):
         # if valid, don't do anything
         if self.is_valid:
-            logging.debug("Token is valid")
+            logger.debug("Token is valid")
             return
         # update the token string
         url = PREFIX + "/refresh"
@@ -71,7 +70,7 @@ class Token:
         self.string = json.loads(response.text)['access_token']
         # write out again
         self.write()
-        logging.debug("Token refreshed")
+        logger.debug("Token refreshed")
 
     # TODO what if reach 30 day expiration?
 

@@ -27,6 +27,10 @@ class RunConfig(RunConfigBase):
     required_attributes = ['input_location', 'output_location']
 
     def __init__(self, **kwargs):
+        
+        # default job priority
+        self._priority = 50
+        
         for key, val in kwargs.items():
             setattr(self, "_" + key, val)
 
@@ -75,16 +79,12 @@ class RunConfig(RunConfigBase):
         return self._workdir
 
     @property
-    def generated_dir(self):
-        return os.path.join(self.workdir, 'generated', self.workflow_id)
-
-    @property
-    def workflow_path(self):
-        return os.path.join(config.runs_dir(), self.workflow_id)
+    def priority(self):
+        return self._priority
 
 
 class DBConfig(RunConfig):
-    """Uses runDB to build config info"""
+    """Uses runDB to build _dbcfgs info"""
     # default detector is tpc
     _detector = 'tpc'
 

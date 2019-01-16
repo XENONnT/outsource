@@ -40,7 +40,6 @@ class Config():
             except FileNotFoundError as e:
                 raise RuntimeError('Unable to open %s. Please see the README for an example configuration' %(config_file_path)) from e
 
-   
         def base_dir(self):
             return os.path.dirname(__file__)
         
