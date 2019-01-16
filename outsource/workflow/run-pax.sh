@@ -165,12 +165,8 @@ echo 'Processing now'
 
 (curl_moni "start processing") || (curl_moni "start processing")
 
-#echo "cax-process $1 $rawdata_path $3 $4 output $7 $8 $start_dir/${json_file}"
-#cax-process $1 $rawdata_path $3 $4 output $7 $8 ${start_dir}/${json_file}
-echo ${zip_file}
-out=${zip_file%".zip"}
-echo "Saving to $out"
-python paxify.py --input ${rawdata_path} --output $out --json_path run_info.json
+echo "Saving to ${output_name}"
+python paxify.py --input ${rawdata_path} --output ${output_name} --json_path run_info.json
 
 if [[ $? -ne 0 ]];
 then 
@@ -178,16 +174,4 @@ then
     exit 25
 fi
 
-pwd
-ls output
-echo ${start_dir}/output/${run_id}.root
-
 (curl_moni "end processing") || (curl_moni "end processing")
-
-# move the output to the filename Pegasus is tracking
-cd $start_dir
-echo
-echo "mv output/${run_id}.root $output_name"
-mv output/${run_id}.root $output_name
-
-
