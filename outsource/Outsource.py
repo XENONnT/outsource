@@ -24,12 +24,12 @@ class Outsource:
     # Data availability to site selection map
     _rse_to_req_expr = {
         'UC_OSG_USERDISK': 'GLIDEIN_Country == "US"',
-        'NIKHEF_USERDISK': 'GLIDEIN_ResourceName == "NIKHEF-ELPROD"',
-        'CCIN2P3_USERDISK': 'GLIDEIN_ResourceName == "CCIN2P3"',
-        'WEIZMANN_USERDISK': 'GLIDEIN_ResourceName == "WEIZMANN-LCG2"',
-        'CNAF_USERDISK': 'GLIDEIN_ResourceName == "INFN-T1"',
+        'NIKHEF_USERDISK': 'GLIDEIN_Site == "NIKHEF"',
+        'CCIN2P3_USERDISK': 'GLIDEIN_Site == "CCIN2P3"',
+        'WEIZMANN_USERDISK': 'GLIDEIN_Site == "Weizmann"',
+        'CNAF_USERDISK': 'GLIDEIN_Site == "CNAF"',
         'CNAF_TAPE_USERDISK': '',
-        'SURFSARA_USERDISK': '',
+        'SURFSARA_USERDISK': 'GLIDEIN_Site == "SURFsara"',
     }
 
     def __init__(self, dbcfgs):
