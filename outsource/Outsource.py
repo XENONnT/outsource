@@ -257,7 +257,7 @@ class Outsource:
         ensure $HOME/user_cert exists and has enough time left
         '''
         logger.info('Verifying that the ~/user_cert proxy has enough lifetime')  
-        min_valid_hours = 48
+        min_valid_hours = 20
         shell = Shell('grid-proxy-info -timeleft -file ~/user_cert')
         shell.run()
         valid_hours = int(shell.get_outerr()) / 60 / 60
