@@ -3,6 +3,7 @@ import requests
 import json
 from bson import json_util
 import datetime
+import datetime
 import logging
 
 from pprint import pprint
@@ -131,11 +132,12 @@ if __name__ == "__main__":
 
     hosts = [d['host'] for d in data]
     test_datum = {'checksum': "None",
-                  'creation_time': "None",
+                  'creation_time': datetime.datetime.now().isoformat(),
+                  'location': '/test/path',
                   'host': 'OSG',
                   'type': 'processed',
                   'status': 'transferring'}
 
-    print(hosts)
-    print(db.update_datum(2023, test_datum).text)
+    print(data)
+    #print(db.update_datum(2023, test_datum).text)
 
