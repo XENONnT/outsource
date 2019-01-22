@@ -137,18 +137,5 @@ if __name__ == "__main__":
     #x = db.get_doc(2023)
     url = '/run/number/2023/data/'
     data = json.loads(db.get(url).text)['results']['data']
-
-    OSG_datums = [d for d in data if d['host'] == 'OSG']
-
-    print(OSG_datums)
-
-    delete_datum = {'checksum': 'FOO',
-                  'creation_time': '2006-08-07 12:34:56-06:00',
-                  'location': 'FOO',
-                  'host': 'OSG',
-                  'type': 'processed',
-                  'status': 'transferring'}
-
-    #print(data)
-    #print(db.update_datum(2023, test_datum).text)
+    print([d['host'] for d in data])
 
