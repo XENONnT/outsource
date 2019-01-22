@@ -3,6 +3,7 @@ import requests
 import json
 from bson import json_util
 import datetime
+import datetime
 import logging
 
 from pprint import pprint
@@ -92,6 +93,15 @@ class DB:
     def get(self, url):
         return requests.get(PREFIX + url, headers=self.headers)
 
+    def put(self, url, data):
+        return requests.put(PREFIX + url, data, headers=self.headers)
+
+    def post(self, url, data):
+        return requests.post(PREFIX + url, data, headers=self.headers)
+
+    def delete(self, url, data):
+        return requests.delete(PREFIX + url, data=data, headers=self.headers)
+
     def get_name(self, number, detector='tpc'):
         # TODO check against the detector, if necessary
         url = "/runs/number/{number}/filter/detector".format(number=number)
@@ -108,10 +118,24 @@ class DB:
         url = '/runs/number/{num}'.format(num=number)
         return json.loads(self.get(url).text)['results']
 
+    def update_data(self, run, datum):
+        datum = json.dumps(datum)
+        url = '/run/number/{num}/data/'.format(num=run)
+        return self.post(url, data=datum)
+
+    def delete_datum(self, run, datum):
+        datum = json.dumps(datum)
+        url = '/run/number/{num}/data/'.format(num=run)
+        return self.delete(url, data=datum)
+
 
 # for testing
 if __name__ == "__main__":
     db = DB()
     #x = db.get_name(10000)
-    x = db.get_number("160809_1454")
-    print(x)
+    # get data doc for run 2023
+    #x = db.get_doc(2023)
+    url = '/run/number/2023/data/'
+    data = json.loads(db.get(url).text)['results']['data']
+    print([d['host'] for d in data])
+
