@@ -99,6 +99,9 @@ class DB:
     def post(self, url, data):
         return requests.post(PREFIX + url, data, headers=self.headers)
 
+    def delete(self, url, data):
+        return requests.delete(PREFIX + url, data=data, headers=self.headers)
+
     def get_name(self, number, detector='tpc'):
         # TODO check against the detector, if necessary
         url = "/runs/number/{number}/filter/detector".format(number=number)
@@ -115,10 +118,15 @@ class DB:
         url = '/runs/number/{num}'.format(num=number)
         return json.loads(self.get(url).text)['results']
 
-    def update_datum(self, run, datum):
+    def update_data(self, run, datum):
         datum = json.dumps(datum)
         url = '/run/number/{num}/data/'.format(num=run)
         return self.post(url, data=datum)
+
+    def delete_datum(self, run, datum):
+        datum = json.dumps(datum)
+        url = '/run/number/{num}/data/'.format(num=run)
+        return self.delete(url, data=datum)
 
 
 # for testing
@@ -127,17 +135,20 @@ if __name__ == "__main__":
     #x = db.get_name(10000)
     # get data doc for run 2023
     #x = db.get_doc(2023)
-    url = '/run/number/2023/data'
+    url = '/run/number/2023/data/'
     data = json.loads(db.get(url).text)['results']['data']
 
-    hosts = [d['host'] for d in data]
-    test_datum = {'checksum': "None",
-                  'creation_time': datetime.datetime.now().isoformat(),
-                  'location': '/test/path',
+    OSG_datums = [d for d in data if d['host'] == 'OSG']
+
+    print(OSG_datums)
+
+    delete_datum = {'checksum': 'FOO',
+                  'creation_time': '2006-08-07 12:34:56-06:00',
+                  'location': 'FOO',
                   'host': 'OSG',
                   'type': 'processed',
                   'status': 'transferring'}
 
-    print(data)
+    #print(data)
     #print(db.update_datum(2023, test_datum).text)
 
