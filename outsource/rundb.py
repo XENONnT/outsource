@@ -95,6 +95,9 @@ class DB:
     def put(self, url, data):
         return requests.put(PREFIX + url, data, headers=self.headers)
 
+    def post(self, url, data):
+        return requests.post(PREFIX + url, data, headers=self.headers)
+
     def get_name(self, number, detector='tpc'):
         # TODO check against the detector, if necessary
         url = "/runs/number/{number}/filter/detector".format(number=number)
@@ -113,8 +116,8 @@ class DB:
 
     def update_datum(self, run, datum):
         datum = json.dumps(datum)
-        url = '/run/number/{num}/data'.format(num=run)
-        return self.put(url, data=datum)
+        url = '/run/number/{num}/data/'.format(num=run)
+        return self.post(url, data=datum)
 
 
 # for testing
