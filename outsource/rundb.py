@@ -93,7 +93,7 @@ class DB:
         return requests.get(PREFIX + url, headers=self.headers)
 
     def put(self, url, data):
-        return requests.put(PREFIX + url, data, headers=self.headers)
+        return requests.post(PREFIX + url, data, headers=self.headers)
 
     def get_name(self, number, detector='tpc'):
         # TODO check against the detector, if necessary
@@ -113,7 +113,7 @@ class DB:
 
     def update_datum(self, run, datum):
         datum = json.dumps(datum)
-        url = '/run/number/{num}/data'.format(num=run)
+        url = '/run/number/{num}/data/'.format(num=run)
         return self.put(url, data=datum)
 
 
@@ -123,12 +123,13 @@ if __name__ == "__main__":
     #x = db.get_name(10000)
     # get data doc for run 2023
     #x = db.get_doc(2023)
-    url = '/run/number/2023/data'
+    url = '/run/number/2023/data/'
     data = json.loads(db.get(url).text)['results']['data']
 
     hosts = [d['host'] for d in data]
-    test_datum = {'checksum': "None",
-                  'creation_time': "None",
+    test_datum = {'checksum': 'FOO',
+                  'creation_time': '2006-08-07 12:34:56-06:00',
+                  'location': 'FOO',
                   'host': 'OSG',
                   'type': 'processed',
                   'status': 'transferring'}
