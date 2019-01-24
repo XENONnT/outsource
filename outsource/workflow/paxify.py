@@ -3,7 +3,6 @@ import argparse
 import json
 from pax import core, configuration
 
-# TODO do DB API call here instead of using json
 # TODO allow for passing custom config (maybe via json?)
 
 def process(inputfile, output, json_path):
@@ -31,7 +30,7 @@ def process(inputfile, output, json_path):
                            'output_name': output,
                            'look_for_config_in_runs_db': False,
                            'decoder_plugin': decoder,
-                           'stop_after': 10 # temporary
+                           #'stop_after': 10 # temporary
                            }}
     if detector == 'tpc':
         mongo_config = doc['processor']
