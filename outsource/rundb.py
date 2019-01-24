@@ -129,13 +129,11 @@ class DB:
         return self.delete(url, data=datum)
 
 
+
+
 # for testing
 if __name__ == "__main__":
     db = DB()
-    #x = db.get_name(10000)
-    # get data doc for run 2023
-    #x = db.get_doc(2023)
-    url = '/run/number/2023/data/'
-    data = json.loads(db.get(url).text)['results']['data']
-    print([d['host'] for d in data])
-
+    url = '/runs/source/none/'
+    x = db.get(url).text
+    print(x)
