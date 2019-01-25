@@ -67,8 +67,8 @@ cd ${work_dir}
 if [[ $rucio_dataset != "None" ]]; then
     echo "Attempting rucio download from a closeby RSE..."
     rucio_dataset_base=`echo ${rucio_dataset} | sed 's/:raw$//'`
-    echo "rucio -T 18000 download ${rucio_dataset_base}:${zip_file} --no-subdir --dir ${rawdata_path} --rse ${rse} --ndownloader 1 2>&1"
-    download="rucio -T 18000 download ${rucio_dataset_base}:${zip_file} --no-subdir --dir ${rawdata_path} --rse ${rse} --ndownloader 1 2>&1"
+    echo "rucio -T 18000 download ${rucio_dataset_base}:${zip_file} --no-subdir --dir ${rawdata_path} --rse ${rse} --ndownloader 1"
+    download="rucio -T 18000 download ${rucio_dataset_base}:${zip_file} --no-subdir --dir ${rawdata_path} --rse ${rse} --ndownloader 1"
     echo "($download) || (sleep 60s && $download) || (sleep 120s && $download)"
     ($download) || (sleep $[ ( $RANDOM % 60 )  + 1 ]s && $download) || (sleep $[ ( $RANDOM % 120 )  + 1 ]s && $download)
     if [[ $? == 0 ]]; then
