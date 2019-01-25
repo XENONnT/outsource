@@ -17,6 +17,7 @@
         <profile namespace="env" key="GFAL_CONFIG_DIR">$GFAL_CONFIG_DIR</profile>
         <profile namespace="env" key="GLOBUS_LOCATION"></profile>
         <profile namespace="env" key="X509_USER_PROXY">$HOME/user_cert</profile>
+        <profile namespace="env" key="RUCIO_LOGGING_FORMAT">%(asctime)s  %(levelname)s  %(message)s</profile>
     </site>
 
     <!-- this is our staging site, where intermediate data will be stored -->
@@ -38,6 +39,7 @@
         <profile namespace="env" key="PATH">/usr/bin:/bin</profile>
         <profile namespace="env" key="LD_LIBRARY_PATH"></profile>
         <profile namespace="env" key="GLOBUS_LOCATION"></profile>
+        <profile namespace="env" key="RUCIO_LOGGING_FORMAT">%(asctime)s  %(levelname)s  %(message)s</profile>
     </site>
 
 </sitecatalog>

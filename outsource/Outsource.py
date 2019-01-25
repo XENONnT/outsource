@@ -114,7 +114,7 @@ class Outsource:
         # Add executables to the DAX-level replica catalog
         wrapper = Executable(name='run-pax.sh', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + config.base_dir() + '/workflow/run-pax.sh', 'local'))
-        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
+        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 2))
         dax.addExecutable(wrapper)
 
         merge = Executable(name='merge.sh', arch='x86_64', installed=False)
@@ -143,12 +143,13 @@ class Outsource:
             rucio_dataset, rses, stash_raw_path = self._data_find_locations(dbcfg)
             
             # determine the job requirements based on the data locations
-            requirements = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org'
-            requirements = requirements + ' && (' + self._determine_target_sites(rses, stash_raw_path) + ')'
+            requirements_base = 'OSGVO_OS_STRING == "RHEL 7" && GFAL_VERIFIED && HAS_CVMFS_xenon_opensciencegrid_org && HAS_FILE_lib64_libgcc_s_so_1'
+            # general compute jobs
+            requirements = requirements_base + ' && (' + self._determine_target_sites(rses, stash_raw_path) + ')'
             if self._exclude_sites():
                 requirements = requirements + ' && (' + self._exclude_sites()  + ')'
             # map some jobs to US
-            requirements_us = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org && GLIDEIN_Country == "US"'
+            requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
             if self._exclude_sites():
                 requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
                         
