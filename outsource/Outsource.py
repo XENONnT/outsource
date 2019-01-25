@@ -149,6 +149,8 @@ class Outsource:
                 requirements = requirements + ' && (' + self._exclude_sites()  + ')'
             # map some jobs to US
             requirements_us = 'OSGVO_OS_STRING == "RHEL 7" && HAS_CVMFS_xenon_opensciencegrid_org && GLIDEIN_Country == "US"'
+            if self._exclude_sites():
+                requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
                         
             pax_version = dbcfg.pax_version
     
