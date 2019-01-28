@@ -21,15 +21,16 @@ from Pegasus.DAX3 import *
 
 
 class Outsource:
+
     # Data availability to site selection map
-    _rse_to_req_expr = {
-        'UC_OSG_USERDISK': 'GLIDEIN_Country == "US"',
-        'NIKHEF_USERDISK': 'GLIDEIN_Site == "NIKHEF"',
-        'CCIN2P3_USERDISK': 'GLIDEIN_Site == "CCIN2P3"',
-        'WEIZMANN_USERDISK': 'GLIDEIN_Site == "Weizmann"',
-        'CNAF_USERDISK': 'GLIDEIN_Site == "CNAF"',
-        'CNAF_TAPE_USERDISK': '',
-        'SURFSARA_USERDISK': 'GLIDEIN_Site == "SURFsara"',
+    _rse_site_map = {
+        'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
+        'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
+        'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
+        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
+        'CNAF_TAPE_USERDISK': {},
+        'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
     }
 
     def __init__(self, dbcfgs):
@@ -143,9 +144,11 @@ class Outsource:
             rucio_dataset, rses, stash_raw_path = self._data_find_locations(dbcfg)
             
             # determine the job requirements based on the data locations
+            sites_expression, desired_sites = self._determine_target_sites(rses, stash_raw_path)
+
             requirements_base = 'OSGVO_OS_STRING == "RHEL 7" && GFAL_VERIFIED && HAS_CVMFS_xenon_opensciencegrid_org && HAS_FILE_lib64_libgcc_s_so_1'
             # general compute jobs
-            requirements = requirements_base + ' && (' + self._determine_target_sites(rses, stash_raw_path) + ')'
+            requirements = requirements_base + ' && (' + sites_expression + ')'
             if self._exclude_sites():
                 requirements = requirements + ' && (' + self._exclude_sites()  + ')'
             # map some jobs to US
@@ -194,6 +197,9 @@ class Outsource:
             
                 # Add job
                 job = Job(name='run-pax.sh')
+                if desired_sites and len(desired_sites) > 0:
+                    # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
+                    job.addProfile(Profile(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"'))
                 job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
                 job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority)))
                 # Note that any changes to this argument list, also means run-pax.sh has to be updated
@@ -349,16 +355,21 @@ class Outsource:
             my_rses.append('UC_OSG_USERDISK')
         
         exprs = []
+        sites = []
         for rse in my_rses:
-            if rse in self._rse_to_req_expr:
-                if self._rse_to_req_expr[rse] is not '':
-                    exprs.append(self._rse_to_req_expr[rse])
+            if rse in self._rse_site_map:
+                if 'expr' in self._rse_site_map[rse]:
+                    exprs.append(self._rse_site_map[rse]['expr'])
+                if 'desired_sites' in self._rse_site_map[rse]:
+                    sites.append(self._rse_site_map[rse]['desired_sites'])
             else:
                 raise RuntimeError('We do not know how to handle the RSE: ' + rse)
 
         final_expr = ' || '.join(exprs)
+        desired_sites = ','.join(sites)
         logger.info('Site expression from RSEs list: ' + final_expr)
-        return final_expr
+        logger.info('XENON_DESIRED_Sites from RSEs list (mostly used for European sites): ' + desired_sites)
+        return final_expr, desired_sites
 
 
     def _exclude_sites(self):
