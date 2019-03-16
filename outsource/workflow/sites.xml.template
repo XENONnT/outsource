@@ -32,13 +32,18 @@
         <profile namespace="pegasus" key="style" >condor</profile>
         <profile namespace="condor" key="universe" >vanilla</profile>
         <profile namespace="condor" key="request_cpus" >1</profile>
-        <profile namespace="condor" key="request_memory" >1 GB</profile>
-        <profile namespace="condor" key="request_disk" >1 GB</profile>
+        <profile namespace="condor" key="request_disk" >2 GB</profile>
+        <profile namespace="condor" key="request_memory" > ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, 1800, 4000) </profile>
+
+        <!-- always run under singularity -->
+        <profile namespace="condor" key="+SingularityImage" >"/cvmfs/singularity.opensciencegrid.org/opensciencegrid/osgvo-xenon:latest"</profile>
 
         <!-- control the environment -->
         <profile namespace="env" key="PATH">/usr/bin:/bin</profile>
         <profile namespace="env" key="LD_LIBRARY_PATH"></profile>
         <profile namespace="env" key="GLOBUS_LOCATION"></profile>
+
+        <!-- we don't want color/control characters in the outputs -->
         <profile namespace="env" key="RUCIO_LOGGING_FORMAT">%(asctime)s  %(levelname)s  %(message)s</profile>
     </site>
 

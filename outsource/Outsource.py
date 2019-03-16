@@ -146,7 +146,7 @@ class Outsource:
             # determine the job requirements based on the data locations
             sites_expression, desired_sites = self._determine_target_sites(rses, stash_raw_path)
 
-            requirements_base = 'OSGVO_OS_STRING == "RHEL 7" && GFAL_VERIFIED && HAS_CVMFS_xenon_opensciencegrid_org && HAS_FILE_lib64_libgcc_s_so_1'
+            requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
             # general compute jobs
             requirements = requirements_base + ' && (' + sites_expression + ')'
             if self._exclude_sites():
