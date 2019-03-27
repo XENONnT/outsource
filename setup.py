@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 def readme():
-    with open('README.md') as f:
+    with open('README.rst') as f:
         return f.read()
 
 
@@ -12,8 +12,8 @@ setup(name='outsource',
       long_description=readme(),
       url='https://github.com/XENONnT/outsource',
       packages=['outsource'],
-      install_requires=[
-          'markdown',
-      ],
+      install_requires=['markdown',
+                        'utilix'
+                        ],
       include_package_data=True,
       zip_safe=False)
