@@ -9,14 +9,13 @@ import subprocess
 import sys
 
 from outsource.Shell import Shell
-from outsource.Config import Config
+from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 
-config = Config()
 logger = logging.getLogger("outsource")
 
 # Pegasus environment
-sys.path.insert(0, os.path.join(config.pegasus_path(), 'lib64/python2.6/site-packages'))
-os.environ['PATH'] = os.path.join(config.pegasus_path(), 'bin') + ':' + os.environ['PATH']
+sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python2.6/site-packages'))
+os.environ['PATH'] = os.path.join(pegasus_path, 'bin') + ':' + os.environ['PATH']
 from Pegasus.DAX3 import *
 
 
@@ -88,7 +87,7 @@ class Outsource:
         except OSError:
             pass
         try:
-            os.makedirs(config.runs_dir(), 0o755)
+            os.makedirs(runs_dir, 0o755)
         except OSError:
             pass
         
@@ -109,31 +108,31 @@ class Outsource:
         dax = ADAG('xenonnt')
         
         # event callouts
-        dax.invoke('start',  config.base_dir() + '/workflow/events/wf-start')
-        dax.invoke('at_end',  config.base_dir() + '/workflow/events/wf-end')
+        dax.invoke('start', base_dir + '/workflow/events/wf-start')
+        dax.invoke('at_end', base_dir + '/workflow/events/wf-end')
         
         # Add executables to the DAX-level replica catalog
         wrapper = Executable(name='run-pax.sh', arch='x86_64', installed=False)
-        wrapper.addPFN(PFN('file://' + config.base_dir() + '/workflow/run-pax.sh', 'local'))
+        wrapper.addPFN(PFN('file://' + base_dir + '/workflow/run-pax.sh', 'local'))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 2))
         dax.addExecutable(wrapper)
 
         merge = Executable(name='merge.sh', arch='x86_64', installed=False)
-        merge.addPFN(PFN('file://' + config.base_dir() + '/workflow/merge.sh', 'local'))
+        merge.addPFN(PFN('file://' + base_dir + '/workflow/merge.sh', 'local'))
         dax.addExecutable(merge)
         
         upload = Executable(name='upload.sh', arch='x86_64', installed=False)
-        upload.addPFN(PFN('file://' + config.base_dir() + '/workflow/upload.sh', 'local'))
+        upload.addPFN(PFN('file://' + base_dir + '/workflow/upload.sh', 'local'))
         dax.addExecutable(upload)
 
         # determine_rse - a helper for the job to determine where to pull data from
         determine_rse = File('determine_rse.py')
-        determine_rse.addPFN(PFN('file://' + os.path.join(config.base_dir(), 'workflow/determine_rse.py'), 'local'))
+        determine_rse.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/determine_rse.py'), 'local'))
         dax.addFile(determine_rse)
 
         # paxify is what processes the data. Gets called by the executable run-pax.sh
         paxify = File('paxify.py')
-        paxify.addPFN(PFN('file://' + os.path.join(config.base_dir(), 'workflow/paxify.py'), 'local'))
+        paxify.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/paxify.py'), 'local'))
         dax.addFile(paxify)
 
         for dbcfg in self._dbcfgs:
@@ -225,9 +224,9 @@ class Outsource:
             upload_job = Job("upload.sh")
             upload_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
             upload_job.uses(merged_root, link=Link.INPUT)
-            upload_job.addArguments(dbcfg.name, 
+            upload_job.addArguments(dbcfg.name,
                                     merged_root,
-                                    config.base_dir())
+                                    base_dir)
             dax.addJob(upload_job)
             dax.depends(parent=merge_job, child=upload_job)
         
@@ -242,23 +241,23 @@ class Outsource:
         Call out to plan-env-helper.sh to start the workflow
         '''
         
-        cmd = ' '.join([os.path.join(config.base_dir(), 'workflow/plan-env-helper.sh'),
-                        config.pegasus_path(),
-                        config.base_dir(),
-                        config.work_dir(),
+        cmd = ' '.join([os.path.join(base_dir, 'workflow/plan-env-helper.sh'),
+                        pegasus_path,
+                        base_dir,
+                        work_dir,
                         self._generated_dir(),
-                        config.runs_dir(),
+                        runs_dir,
                         self._wf_id])
         shell = Shell(cmd, log_cmd = False, log_outerr = True)
         shell.run()
  
 
     def _generated_dir(self):
-        return os.path.join(config.work_dir(), 'generated', self._wf_id)
+        return os.path.join(work_dir, 'generated', self._wf_id)
 
 
     def _workflow_dir(self):
-        return os.path.join(config.runs_dir(), self._wf_id)
+        return os.path.join(runs_dir, self._wf_id)
       
     
     def _validate_x509_proxy(self):
