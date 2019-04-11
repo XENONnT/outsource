@@ -2,4 +2,5 @@
 .pydevproject
 __pycache__
 *.dbtoken
+outsource.egg-info
 

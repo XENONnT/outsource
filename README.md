@@ -1,12 +1,16 @@
 # outsource
 Job submission code for XENONnT
 
+## Installation
+TODO
+
+Outsource requires modules from [utilix](https://github.com/XENONnT/utilix)
+
 ## Configuration file
 
-This tool expects a configuration file named `$HOME/.xenonnt.conf`. Note that 
-environment variables can be used in the form `$HOME`. Example:
+Just like utilix, this tool expects a configuration file named `$HOME/.xenonnt.conf`. Particularly it uses information in the field of the config with header 'Outsource', see below: 
 
-    [Common]
+    [RunDB]
     
     rundb_api_url = [ask Evan]
     rundb_api_user = [ask Evan]

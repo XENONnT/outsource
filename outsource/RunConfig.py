@@ -1,10 +1,9 @@
 import os
 import re
 import time
-from outsource.Config import Config
-from outsource import db
+from .Config import config, base_dir, work_dir
+from utilix import db
 
-config = Config()
 
 
 class RunConfigBase:
@@ -13,8 +12,8 @@ class RunConfigBase:
     _update_run_db = False
     _force_rerun = False
     _x509_proxy = os.path.join(os.environ['HOME'], 'user_cert')
-    _executable = os.path.join(config.base_dir(), 'workflow', 'run-pax.sh')
-    _workdir = config.get('Outsource', 'work_dir')
+    _executable = os.path.join(base_dir, 'workflow', 'run-pax.sh')
+    _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
     _pax_version = config.get('Outsource', 'pax_version')
 
