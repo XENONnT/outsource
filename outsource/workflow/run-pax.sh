@@ -11,25 +11,37 @@ export send_updates=$7
 
 start_dir=$PWD
 
-osg_software=/cvmfs/oasis.opensciencegrid.org/mis/osg-wn-client/3.4/3.4.22/el7-x86_64
-anaconda_env=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/bin
-rucio_base=/cvmfs/xenon.opensciencegrid.org/software/rucio-py27/1.8.3
-
-# OSG env for gfal
-source $osg_software/setup.sh
-export GFAL_CONFIG_DIR=$OSG_LOCATION/etc/gfal2.d
-export GFAL_PLUGIN_DIR=$OSG_LOCATION/usr/lib64/gfal2-plugins/
-
-# Rucio env
-export RUCIO_HOME=$rucio_base/rucio/
-export RUCIO_ACCOUNT=xenon-analysis
-export PYTHONPATH=$rucio_base/lib/python2.7/site-packages:$PYTHONPATH
-export PATH=$rucio_base/bin:$PATH
-
 # set GLIDEIN_Country variable if not already
 if [[ -z "$GLIDEIN_Country" ]]; then
     export GLIDEIN_Country="US"
 fi
+
+if [ -e /image-build-info.txt ]; then
+    echo
+    echo "Running in image with build info:"
+    cat /image-build-info.txt
+    echo
+fi
+
+. /opt/XENONnT/setup.sh
+
+### We should not need these anymore as it is part of the container we running in
+###
+### osg_software=/cvmfs/oasis.opensciencegrid.org/mis/osg-wn-client/3.4/3.4.22/el7-x86_64
+anaconda_env=/cvmfs/xenon.opensciencegrid.org/releases/anaconda/2.4/bin
+### rucio_base=/cvmfs/xenon.opensciencegrid.org/software/rucio-py27/1.8.3
+### 
+### # OSG env for gfal
+### source $osg_software/setup.sh
+### export GFAL_CONFIG_DIR=$OSG_LOCATION/etc/gfal2.d
+### export GFAL_PLUGIN_DIR=$OSG_LOCATION/usr/lib64/gfal2-plugins/
+### 
+### # Rucio env
+### export RUCIO_HOME=$rucio_base/rucio/
+#export PYTHONPATH=$rucio_base/lib/python2.7/site-packages:$PYTHONPATH
+#export PATH=$rucio_base/bin:$PATH
+
+export RUCIO_ACCOUNT=xenon-analysis
 
 data_downloaded=0
 
@@ -95,7 +107,7 @@ if [[ $data_downloaded == 0 ]]; then
 fi
 
 # post-transfer, we can set up the env for pax - but first save/clear some old stuff
-old_path=$PATH
+iold_path=$PATH
 export PATH=/usr/bin:/bin
 old_ld_library_path=$LD_LIBRARY_PATH
 unset LD_LIBRARY_PATH

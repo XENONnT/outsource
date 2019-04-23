@@ -78,7 +78,7 @@ class Outsource:
 
         # does workflow already exist?
         if os.path.exists(self._workflow_dir()):
-            logger.error("Workflow already exists at {path}. Exiting.".format(path=self._workflow_dir()))
+            logger.error("Workflow already exists at {path} . Exiting.".format(path=self._workflow_dir()))
             return
 
         # work dirs
