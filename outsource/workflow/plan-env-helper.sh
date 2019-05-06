@@ -18,7 +18,7 @@ unset LD_LIBRARY_PATH
 unset PYTHONPATH
 
 # need basic wn tools for things like transfers
-. /cvmfs/oasis.opensciencegrid.org/mis/osg-wn-client/3.4/3.4.22/el6-x86_64/setup.sh
+. /cvmfs/oasis.opensciencegrid.org/mis/osg-wn-client/3.4/3.4.29/el7-x86_64/setup.sh
 
 # create the site catalog from the template - this has to happen after the local
 # env has been fully set up

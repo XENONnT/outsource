@@ -14,7 +14,7 @@ from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 logger = logging.getLogger("outsource")
 
 # Pegasus environment
-sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python2.6/site-packages'))
+sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python2.7/site-packages'))
 os.environ['PATH'] = os.path.join(pegasus_path, 'bin') + ':' + os.environ['PATH']
 from Pegasus.DAX3 import *
 
@@ -112,7 +112,7 @@ class Outsource:
         dax.invoke('at_end', base_dir + '/workflow/events/wf-end')
         
         # Add executables to the DAX-level replica catalog
-        wrapper = Executable(name='run-pax.sh', arch='x86_64', installed=False)
+        wrapper = Executable(name='run-pax', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + base_dir + '/workflow/run-pax.sh', 'local'))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 2))
         dax.addExecutable(wrapper)
@@ -195,7 +195,7 @@ class Outsource:
                 job_output = File(zip_file.replace('.zip', '.root'))
             
                 # Add job
-                job = Job(name='run-pax.sh')
+                job = Job(name='run-pax')
                 if desired_sites and len(desired_sites) > 0:
                     # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
                     job.addProfile(Profile(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"'))

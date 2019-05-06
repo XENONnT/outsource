@@ -13,10 +13,12 @@
         <profile namespace="env" key="PATH">$PATH</profile>
         <profile namespace="env" key="LD_LIBRARY_PATH">$LD_LIBRARY_PATH</profile>
         <profile namespace="env" key="PYTHONPATH">$PYTHONPATH</profile>
-        <profile namespace="env" key="GFAL_PLUGIN_DIR">$GFAL_PLUGIN_DIR</profile>
         <profile namespace="env" key="GFAL_CONFIG_DIR">$GFAL_CONFIG_DIR</profile>
+        <profile namespace="env" key="GFAL_PLUGIN_DIR">$GFAL_PLUGIN_DIR</profile>
         <profile namespace="env" key="GLOBUS_LOCATION"></profile>
         <profile namespace="env" key="X509_USER_PROXY">$HOME/user_cert</profile>
+
+        <!-- we don't want color/control characters in the outputs -->
         <profile namespace="env" key="RUCIO_LOGGING_FORMAT">%(asctime)s  %(levelname)s  %(message)s</profile>
     </site>
 
@@ -38,9 +40,11 @@
         <!-- always run under singularity -->
         <profile namespace="condor" key="+SingularityImage" >"/cvmfs/singularity.opensciencegrid.org/opensciencegrid/osgvo-xenon:latest"</profile>
 
-        <!-- control the environment -->
+        <!-- control the environment - this should match the Singularity image -->
         <profile namespace="env" key="PATH">/usr/bin:/bin</profile>
         <profile namespace="env" key="LD_LIBRARY_PATH"></profile>
+        <profile namespace="env" key="GFAL_CONFIG_DIR">/etc/gfal2.d</profile>
+        <profile namespace="env" key="GFAL_PLUGIN_DIR">/usr/lib64/gfal2-plugins</profile>
         <profile namespace="env" key="GLOBUS_LOCATION"></profile>
 
         <!-- we don't want color/control characters in the outputs -->
