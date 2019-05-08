@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import os
+import sys
 import strax
 import straxen
 from ast import literal_eval
@@ -49,7 +50,7 @@ def determine_rse(rse_list, glidein_country):
             if site in rse_list:
                 return site
 
-    if US_SITES[0] in rses:
+    if US_SITES[0] in rse_list:
         return US_SITES[0]
     else:
         raise AttributeError("cannot download data")
@@ -58,20 +59,22 @@ def determine_rse(rse_list, glidein_country):
 def main():
     parser = argparse.ArgumentParser(description="strax testing")
     parser.add_argument('dataset', help='Run name')
-    parser.add_argument('dtype', help='strax output')
+    parser.add_argument('input_dtype', help='strax input')
+    parser.add_argument('output_dtype', help='strax output')
     parser.add_argument('chunk', help='chunk id number to download', type=int)
 
     args = parser.parse_args()
 
     runid = args.dataset
-    out = args.dtype
-    did = db.get_did(runid)
+    in_dtype = args.input_dtype
+    out_dtype = args.output_dtype
+    did = db.get_did(runid, type=in_dtype)
     key = did.split(':')[1].split('-')[1]
     chunk_string = str(args.chunk).zfill(6)
     
     file1 = did + '-' + chunk_string
     file2 = did + '-metadata.json'
-    rucio_dir = os.path.join('data', runid + "-raw_records-" + key)
+    rucio_dir = os.path.join('data', runid + "-" + in_dtype + "-" + key)
 
     rc = RucioSummoner("API")
     rc.ConfigHost()
@@ -90,8 +93,7 @@ def main():
 
     rse = determine_rse(rses, os.environ.get('GLIDEIN_Country', 'US'))
 
-    ds = rc.DownloadDids([file1, file2], download_path=rucio_dir,
-                         rse="UC_OSG_USERDISK",
+    ds = rc.DownloadDids([file1, file2], download_path=rucio_dir, rse=rse,
                          no_subdir=True, transfer_timeout=None)
     for ik in ds:
         if ik.get('clientState', 'fail') == 'DONE':
@@ -102,17 +104,17 @@ def main():
                        config=dict(s2_tail_veto=False, filter=None),
                         **straxen.contexts.common_opts)
     
-    input_metadata = st.get_metadata(runid, 'raw_records')
-    input_key = strax.DataKey(runid, 'raw_records', input_metadata['lineage'])
+    input_metadata = st.get_metadata(runid, in_dtype)
+    input_key = strax.DataKey(runid, in_dtype, input_metadata['lineage'])
     in_data = st.storage[0].backends[0]._read_chunk(st.storage[0].find(input_key)[1], 
                                                  chunk_info=input_metadata['chunks'][0],
                                                  dtype=literal_eval(input_metadata['dtype']), 
                                                  compressor=input_metadata['compressor'])
 
-    plugin = st._get_plugins((out,), runid)[out]
-    output_key = strax.DataKey(runid, out, plugin.lineage)
+    plugin = st._get_plugins((out_dtype,), runid)[out_dtype]
+    output_key = strax.DataKey(runid, out_dtype, plugin.lineage)
 
-    output_data = plugin.do_compute(chunk_i=args.chunk, **{'raw_records': in_data})
+    output_data = plugin.do_compute(chunk_i=args.chunk, **{in_dtype: in_data})
     saver = st.storage[0].saver(output_key, plugin.metadata(runid))
     saver.is_forked = True
 
