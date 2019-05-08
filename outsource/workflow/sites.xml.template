@@ -25,7 +25,7 @@
     <!-- this is our staging site, where intermediate data will be stored -->
     <site  handle="staging" arch="x86_64" os="LINUX">
         <directory type="shared-scratch" path="/stash/user/$USER/scratch">
-            <file-server operation="all" url="gsiftp://gridftp.grid.uchicago.edu:2811/cephfs/connect/user/$USER/scratch"/>
+            <file-server operation="all" url="gsiftp://ceph-gridftp2.grid.uchicago.edu:2811/cephfs/connect/user/$USER/scratch"/>
         </directory>
     </site>
 
