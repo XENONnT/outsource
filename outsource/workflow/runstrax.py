@@ -1,60 +1,128 @@
-"""Replacement for cax-process"""
+#!/usr/bin/env python
 import argparse
-import json
-from pax import core, configuration
+import os
+import strax
+import straxen
+from ast import literal_eval
+from utilix import db
+from admix.interfaces.rucio_summoner import RucioSummoner
 
-# TODO allow for passing custom config (maybe via json?)
+EURO_SITES = ["CCIN2P3_USERDISK", 
+              "NIKHEF_USERDISK",
+              "WEIZMANN_USERDISK", 
+              "CNAF_USERDISK", 
+              "SURFSARA_USERDISK"]
 
-def process(inputfile, output, json_path):
-    with open(json_path, "r") as f:
-        doc = json.load(f)
+US_SITES = ["UC_OSG_USERDISK"]
 
-    detector = doc['detector']
-    name = doc['name']
+ALL_SITES = US_SITES + EURO_SITES
 
-    if detector == 'muon_veto':
-        pax_config = 'XENON1T_MV'
-        decoder = 'BSON.DecodeZBSON'
 
-    elif detector == 'tpc':
-        decoder = 'Pickle.DecodeZPickle'
+def determine_rse(rse_list, glidein_country):
+    if glidein_country == "US":
+        in_US = False
+        for site in US_SITES:
+            if site in rse_list:
+                return site
 
-        if doc['reader']['self_trigger']:
-            pax_config = 'XENON1T'
-        else:
-            pax_config = 'XENON1T_LED'
+        if not in_US:
+            print("This run is not in the US so can't be processed here. Exit 255")
+            sys.exit(255)
+
+    elif glidein_country == "FR":
+        for site in EURO_SITES:
+            if site in rse_list:
+                return site
+
+    elif glidein_country == "NL":
+        for site in reversed(EURO_SITES):
+            if site in rse_list:
+                return site
+
+    elif glidein_country == "IL":
+        for site in EURO_SITES:
+            if site in rse_list:
+                return site
+
+    elif glidein_country == "IT":
+        for site in EURO_SITES:
+            if site in rse_list:
+                return site
+
+    if US_SITES[0] in rses:
+        return US_SITES[0]
     else:
-        raise ValueError('Detector must be tpc or muon_veto')
-
-    config_dict = {'pax': {'input_name': inputfile,
-                           'output_name': output,
-                           'look_for_config_in_runs_db': False,
-                           'decoder_plugin': decoder,
-                           #'stop_after': 10 # temporary
-                           }}
-    if detector == 'tpc':
-        mongo_config = doc['processor']
-        config_dict = configuration.combine_configs(mongo_config, config_dict)
-
-    # Add run number and run name to the config_dict
-    config_dict.setdefault('DEFAULT', {})
-    config_dict['DEFAULT']['run_number'] = doc['number']
-    config_dict['DEFAULT']['run_name'] = doc['name']
-
-    pax_kwargs = dict(config_names=pax_config,
-                      config_dict=config_dict)
-
-    core.Processor(**pax_kwargs).run()
+        raise AttributeError("cannot download data")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process with pax given a json file')
-    parser.add_argument("--input", type=str, help='Input file')
-    parser.add_argument("--output", type=str, help='Directory to save output')
-    parser.add_argument("--json_path", type=str, help='path to json file')
-    args = parser.parse_args()
-    process(args.input, args.output, args.json_path)
+    parser = argparse.ArgumentParser(description="strax testing")
+    parser.add_argument('dataset', help='Run name')
+    parser.add_argument('dtype', help='strax output')
+    parser.add_argument('chunk', help='chunk id number to download', type=int)
 
+    args = parser.parse_args()
+
+    runid = args.dataset
+    out = args.dtype
+    did = db.get_did(runid)
+    key = did.split(':')[1].split('-')[1]
+    chunk_string = str(args.chunk).zfill(6)
+    
+    file1 = did + '-' + chunk_string
+    file2 = did + '-metadata.json'
+    rucio_dir = os.path.join('data', runid + "-raw_records-" + key)
+
+    rc = RucioSummoner("API")
+    rc.ConfigHost()
+
+    rucio_config = {'L0': {'type': 'rucio_container', 'did': did},
+                    'L1': {'type': 'rucio_container', 'did': did},
+                    'L2': {'type': 'rucio_dataset', 'did': did}
+                    }
+
+    rules = rc.ListDidRules(rucio_config)
+
+    rses = []
+    for r in rules:
+        if r['state'] == 'OK':
+            rses.append(r['rse_expression'])
+
+    rse = determine_rse(rses, os.environ.get('GLIDEIN_Country', 'US'))
+
+    ds = rc.DownloadDids([file1, file2], download_path=rucio_dir,
+                         rse="UC_OSG_USERDISK",
+                         no_subdir=True, transfer_timeout=None)
+    for ik in ds:
+        if ik.get('clientState', 'fail') == 'DONE':
+            print('Download of {file} completed.'.format(file=ik.get('did')))
+
+    st = strax.Context(storage=[strax.DataDirectory(path='data')],
+                       register=straxen.plugins.pax_interface.RecordsFromPax,
+                       config=dict(s2_tail_veto=False, filter=None),
+                        **straxen.contexts.common_opts)
+    
+    input_metadata = st.get_metadata(runid, 'raw_records')
+    input_key = strax.DataKey(runid, 'raw_records', input_metadata['lineage'])
+    in_data = st.storage[0].backends[0]._read_chunk(st.storage[0].find(input_key)[1], 
+                                                 chunk_info=input_metadata['chunks'][0],
+                                                 dtype=literal_eval(input_metadata['dtype']), 
+                                                 compressor=input_metadata['compressor'])
+
+    plugin = st._get_plugins((out,), runid)[out]
+    output_key = strax.DataKey(runid, out, plugin.lineage)
+
+    output_data = plugin.do_compute(chunk_i=args.chunk, **{'raw_records': in_data})
+    saver = st.storage[0].saver(output_key, plugin.metadata(runid))
+    saver.is_forked = True
+
+    # To save one chunk, do this:
+    saver.save(output_data, chunk_i=args.chunk)
+
+    # To merge results from many chunks, copy the sub-results into the temp directory now
+    # (after creating the saver, since otherwise the saver will remove the files)
+    # then do:
+    # saver.close()
 
 if __name__ == "__main__":
     main()
