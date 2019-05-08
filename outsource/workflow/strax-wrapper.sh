@@ -4,8 +4,8 @@
 export run_id=$1
 export input_dtype=$2
 export output_dtype=$3
-export chunk=$4
-export output_tar=$5
+export output_tar=$4
+export chunk=$5
 
 
 start_dir=$PWD

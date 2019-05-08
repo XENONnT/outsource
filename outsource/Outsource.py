@@ -124,23 +124,18 @@ class Outsource:
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 2))
         dax.addExecutable(wrapper)
 
-        merge = Executable(name='merge.sh', arch='x86_64', installed=False)
-        merge.addPFN(PFN('file://' + base_dir + '/workflow/merge.sh', 'local'))
-        dax.addExecutable(merge)
+        # merge = Executable(name='merge.sh', arch='x86_64', installed=False)
+        # merge.addPFN(PFN('file://' + base_dir + '/workflow/merge.sh', 'local'))
+        # dax.addExecutable(merge)
         
         upload = Executable(name='upload.sh', arch='x86_64', installed=False)
         upload.addPFN(PFN('file://' + base_dir + '/workflow/upload.sh', 'local'))
         dax.addExecutable(upload)
 
-        # determine_rse - a helper for the job to determine where to pull data from
-        determine_rse = File('determine_rse.py')
-        determine_rse.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/determine_rse.py'), 'local'))
-        dax.addFile(determine_rse)
-
-        # paxify is what processes the data. Gets called by the executable strax-wrapper.sh
-        paxify = File('paxify.py')
-        paxify.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/paxify.py'), 'local'))
-        dax.addFile(paxify)
+        # paxify is what processes the data. Gets called by the executable run-pax.sh
+        straxify = File('runstrax.py')
+        straxify.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/runstrax.py'), 'local'))
+        dax.addFile(straxify)
 
         for dbcfg in self._dbcfgs:
             
@@ -161,13 +156,7 @@ class Outsource:
             requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
             if self._exclude_sites():
                 requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
-                        
-            # json file for the run
-            json_file = os.path.join(self._generated_dir(), dbcfg.name + '.json')
-            write_json_file(dbcfg.run_doc, json_file)
-            json_infile = File(dbcfg.name + '.json')
-            json_infile.addPFN(PFN('file://' + os.path.join(self._generated_dir(), dbcfg.name + '.json'), 'local'))
-            dax.addFile(json_infile)
+
             
             # pre flight
             pre_flight_job = Job('pre-flight.sh')
@@ -177,13 +166,13 @@ class Outsource:
             dax.addJob(pre_flight_job)
             
             # Set up the merge job first - we can then add to that job inside the chunk file loop
-            merged_root = File(dbcfg.name + '.root')
-            merge_job = Job('merge.sh')
-            merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
-            merge_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
-            merge_job.uses(merged_root, link=Link.OUTPUT)
-            merge_job.addArguments(merged_root)
-            dax.addJob(merge_job)
+            #merged_root = File(dbcfg.name + '.root')
+            #merge_job = Job('merge.sh')
+            #merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
+            #merge_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
+            #merge_job.uses(merged_root, link=Link.OUTPUT)
+            #merge_job.addArguments(merged_root)
+            #dax.addJob(merge_job)
             
             # add jobs, one for each input file
             for chunk_file, chunk_props in self._data_find_chunks(rucio_dataset).items():
@@ -200,38 +189,37 @@ class Outsource:
                 job_output_tar = chunk_file + '.tar.gz'
             
                 # Add job
-                job = Job(name='run-pax')
+                job = Job(name='strax-wrapper')
                 if desired_sites and len(desired_sites) > 0:
                     # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
                     job.addProfile(Profile(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"'))
                 job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
                 job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority)))
                 # Note that any changes to this argument list, also means run-pax.sh has to be updated
-                job.addArguments(dbcfg.name,
-                                 chunk_file,
-                                 str(file_rucio_dataset),
+                job.addArguments(str(dbcfg.number),
+                                 'raw_records',
+                                 'records',
                                  job_output_tar,
-                                 'False')
-                job.uses(determine_rse, link=Link.INPUT)
-                job.uses(json_infile, link=Link.INPUT)
-                job.uses(paxify, link=Link.INPUT)
+                                 chunk_file,
+                                 )
+                job.uses(straxify, link=Link.INPUT)
                 job.uses(job_output_tar, link=Link.OUTPUT, transfer=False)
                 dax.addJob(job)
-                
+
                 # update merge job
-                merge_job.uses(job_output_tar, link=Link.INPUT)
-                merge_job.addArguments(job_output_tar)
-                dax.depends(parent=job, child=merge_job)
+                #merge_job.uses(job_output_tar, link=Link.INPUT)
+                #merge_job.addArguments(job_output_tar)
+                #dax.depends(parent=job, child=merge_job)
                 
             # upload job  - runs on the submit host
-            upload_job = Job("upload.sh")
-            upload_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
-            upload_job.uses(merged_root, link=Link.INPUT)
-            upload_job.addArguments(dbcfg.name,
-                                    merged_root,
-                                    base_dir)
-            dax.addJob(upload_job)
-            dax.depends(parent=merge_job, child=upload_job)
+            #upload_job = Job("upload.sh")
+            #upload_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
+            #upload_job.uses(merged_root, link=Link.INPUT)
+            #upload_job.addArguments(dbcfg.name,
+            #                        merged_root,
+            #                        base_dir)
+            #dax.addJob(upload_job)
+            #dax.depends(parent=merge_job, child=upload_job)
         
         # Write the DAX to stdout
         f = open(os.path.join(self._generated_dir(), 'dax.xml'), 'w')
@@ -286,7 +274,7 @@ class Outsource:
         rses = []
         
         for d in dbcfg.run_doc['data']:
-            if d['host'] == 'rucio-catalogue' and d['status'] == 'transferred':
+            if d['host'] == 'rucio-catalogue' and d['status'] == 'transferred' and d['type'] == 'raw_records':
                     rucio_dataset = d['location']
         
         if rucio_dataset:
