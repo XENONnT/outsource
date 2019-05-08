@@ -8,6 +8,8 @@ import socket
 import subprocess
 import sys
 
+from pprint import pprint
+
 from outsource.Shell import Shell
 from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 
@@ -140,10 +142,10 @@ class Outsource:
             logger.info('Adding run ' + dbcfg.name + ' to the workflow')
         
             # figure our where input data exists
-            rucio_dataset, rses, stash_raw_path = self._data_find_locations(dbcfg)
+            rucio_dataset, rses = self._data_find_locations(dbcfg)
             
             # determine the job requirements based on the data locations
-            sites_expression, desired_sites = self._determine_target_sites(rses, stash_raw_path)
+            sites_expression, desired_sites = self._determine_target_sites(rses)
 
             requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
             # general compute jobs
@@ -155,8 +157,6 @@ class Outsource:
             if self._exclude_sites():
                 requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
                         
-            pax_version = dbcfg.pax_version
-    
             # json file for the run
             json_file = os.path.join(self._generated_dir(), dbcfg.name + '.json')
             write_json_file(dbcfg.run_doc, json_file)
@@ -164,7 +164,7 @@ class Outsource:
             json_infile.addPFN(PFN('file://' + os.path.join(self._generated_dir(), dbcfg.name + '.json'), 'local'))
             dax.addFile(json_infile)
             
-            # Set up the merge job first - we can then add to that job inside the zip file loop
+            # Set up the merge job first - we can then add to that job inside the chunk file loop
             merged_root = File(dbcfg.name + '.root')
             merge_job = Job('merge.sh')
             merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
@@ -174,25 +174,18 @@ class Outsource:
             dax.addJob(merge_job)
             
             # add jobs, one for each input file
-            for zip_file, zip_props in self._data_find_zips(rucio_dataset, stash_raw_path).items():
+            for chunk_file, chunk_props in self._data_find_chunks(rucio_dataset).items():
     
-                logger.debug(" ... adding job for zip file: " + zip_file)
+                logger.debug(" ... adding job for chunk file: " + chunk_file)
         
-                filepath, file_extenstion = os.path.splitext(zip_file)
-                if file_extenstion != ".zip":
-                    raise RuntimeError('Non-zip in the input file list')
+                filepath, file_extenstion = os.path.splitext(chunk_file)
     
                 file_rucio_dataset = None
-                if zip_props['rucio_available']:
+                if chunk_props['rucio_available']:
                     file_rucio_dataset = rucio_dataset
-                    
-                stash_gridftp_url = None
-                if zip_props['stash_available']:
-                    stash_gridftp_url = 'gsiftp://gridftp.grid.uchicago.edu:2811/cephfs/srm' + \
-                                        dbcfg.input_location + '/' + zip_file
             
                 # output files
-                job_output = File(zip_file.replace('.zip', '.root'))
+                job_output_tar = chunk_file + '.tar.gz'
             
                 # Add job
                 job = Job(name='run-pax')
@@ -203,21 +196,19 @@ class Outsource:
                 job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority)))
                 # Note that any changes to this argument list, also means run-pax.sh has to be updated
                 job.addArguments(dbcfg.name,
-                                 zip_file,
+                                 chunk_file,
                                  str(file_rucio_dataset),
-                                 str(stash_gridftp_url),
-                                 job_output,
-                                 pax_version,
+                                 job_output_tar,
                                  'False')
                 job.uses(determine_rse, link=Link.INPUT)
                 job.uses(json_infile, link=Link.INPUT)
                 job.uses(paxify, link=Link.INPUT)
-                job.uses(job_output, link=Link.OUTPUT, transfer=False)
+                job.uses(job_output_tar, link=Link.OUTPUT, transfer=False)
                 dax.addJob(job)
                 
                 # update merge job
-                merge_job.uses(job_output, link=Link.INPUT)
-                merge_job.addArguments(job_output)
+                merge_job.uses(job_output_tar, link=Link.INPUT)
+                merge_job.addArguments(job_output_tar)
                 dax.depends(parent=job, child=merge_job)
                 
             # upload job  - runs on the submit host
@@ -281,7 +272,6 @@ class Outsource:
 
         rucio_dataset = None
         rses = []
-        stash_raw_path = None
         
         for d in dbcfg.run_doc['data']:
             if d['host'] == 'rucio-catalogue' and d['status'] == 'transferred':
@@ -299,59 +289,40 @@ class Outsource:
             if len(rses) < 1:
                 logger.warning("Problem finding Rucio RSEs")
                 
-        # also check local dir (which is available via GridFTP)
-        if os.path.exists(dbcfg.input_location):
-            # also make sure the dir contains some zip files?
-            stash_raw_path = dbcfg.input_location
-            
-        return rucio_dataset, rses, stash_raw_path
+        return rucio_dataset, rses
     
     
-    def _data_find_zips(self, rucio_dataset, stash_raw_path):
+    def _data_find_chunks(self, rucio_dataset):
         '''
-        Look up which zip files are in the dataset - return a dict where the keys are the
-        zipfiles, and the values a dict of locations
+        Look up which chunk files are in the dataset - return a dict where the keys are the
+        chunks, and the values a dict of locations
         '''
-        zip_files = {}
+        chunks_files = {}
 
         if rucio_dataset:
             logger.info('Querying Rucio for files in  the data set ' + rucio_dataset)  
             out = subprocess.Popen(["rucio", "list-file-replicas", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
             out = str(out).split("\\n")
             files = set([l.split(" ")[3] for l in out if '---' not in l and 'x1t' in l])
-            for f in sorted([f for f in files if f.startswith('XENON1T')]):
-                zip_files[f] = {'rucio_available': True}
-        
-        if stash_raw_path:
-            logger.info('Checking ' + stash_raw_path + ' for local files')
-            files = os.listdir(stash_raw_path)
-            for f in sorted([f for f in files if f.startswith('XENON1T')]):
-                if f not in zip_files:
-                    zip_files[f] = {}
-                zip_files[f]['stash_available'] = True
-                
+            for f in sorted([f for f in files if 'json' not in f]):
+                chunks_files[f] = {'rucio_available': True}
+
         # make sure all the properties are defined for all the files - we want a neat dict to 
         # smooth access later on
-        for fname, props in zip_files.items():
+        for fname, props in chunks_files.items():
             if 'rucio_available' not in props:
                 props['rucio_available'] = False
-            if 'stash_available' not in props:
-                props['stash_available'] = False
         
-        return zip_files
+        return chunks_files
 
 
-    def _determine_target_sites(self, rses, stash_raw_path):
+    def _determine_target_sites(self, rses):
         '''
         Given a list of RSEs, limit the runs for sites for those locations
         '''
         
         # want a temporary copy so we can modify it
         my_rses = rses.copy()
-        
-        # stash enables US processing
-        if stash_raw_path and 'UC_OSG_USERDISK' not in my_rses:
-            my_rses.append('UC_OSG_USERDISK')
         
         exprs = []
         sites = []
