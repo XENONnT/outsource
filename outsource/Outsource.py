@@ -114,8 +114,13 @@ class Outsource:
         dax.invoke('at_end', base_dir + '/workflow/events/wf-end')
         
         # Add executables to the DAX-level replica catalog
-        wrapper = Executable(name='run-pax', arch='x86_64', installed=False)
-        wrapper.addPFN(PFN('file://' + base_dir + '/workflow/run-pax.sh', 'local'))
+        
+        pre_flight = Executable(name='pre-flight', arch='x86_64', installed=False)
+        pre_flight.addPFN(PFN('file://' + base_dir + '/workflow/pre-flight-wrapper.sh', 'local'))
+        dax.addExecutable(pre_flight)
+
+        wrapper = Executable(name='strax-wrapper', arch='x86_64', installed=False)
+        wrapper.addPFN(PFN('file://' + base_dir + '/workflow/strax-wrapper.sh', 'local'))
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 2))
         dax.addExecutable(wrapper)
 
@@ -132,7 +137,7 @@ class Outsource:
         determine_rse.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/determine_rse.py'), 'local'))
         dax.addFile(determine_rse)
 
-        # paxify is what processes the data. Gets called by the executable run-pax.sh
+        # paxify is what processes the data. Gets called by the executable strax-wrapper.sh
         paxify = File('paxify.py')
         paxify.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/paxify.py'), 'local'))
         dax.addFile(paxify)
@@ -163,6 +168,13 @@ class Outsource:
             json_infile = File(dbcfg.name + '.json')
             json_infile.addPFN(PFN('file://' + os.path.join(self._generated_dir(), dbcfg.name + '.json'), 'local'))
             dax.addFile(json_infile)
+            
+            # pre flight
+            pre_flight_job = Job('pre-flight.sh')
+            pre_flight_job.addArguments(base_dir, str(dbcfg.number))
+            # run the job on the local site
+            pre_flight_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
+            dax.addJob(pre_flight_job)
             
             # Set up the merge job first - we can then add to that job inside the chunk file loop
             merged_root = File(dbcfg.name + '.root')
