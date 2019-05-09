@@ -137,6 +137,10 @@ class Outsource:
         straxify.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/runstrax.py'), 'local'))
         dax.addFile(straxify)
 
+        xenon_config = File('.xenonnt.conf')
+        xenon_config.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.xenonnt.conf'), 'local'))
+        dax.addFile(xenon_config)
+
         for dbcfg in self._dbcfgs:
             
             logger.info('Adding run ' + dbcfg.name + ' to the workflow')
@@ -186,7 +190,9 @@ class Outsource:
                     file_rucio_dataset = rucio_dataset
             
                 # output files
-                job_output_tar = chunk_file + '.tar.gz'
+                chunk_id_str = chunk_file.split('-')[-1]
+                job_output_tar = '%06d-records-%s.tar.gz' % (dbcfg.number, chunk_id_str)
+
             
                 # Add job
                 job = Job(name='strax-wrapper')
@@ -200,10 +206,11 @@ class Outsource:
                                  'raw_records',
                                  'records',
                                  job_output_tar,
-                                 chunk_file,
+                                 str(int(chunk_id_str)),
                                  )
                 job.uses(straxify, link=Link.INPUT)
-                job.uses(job_output_tar, link=Link.OUTPUT, transfer=False)
+                job.uses(job_output_tar, link=Link.OUTPUT, transfer=True)
+                job.uses(xenon_config, link=Link.INPUT)
                 dax.addJob(job)
 
                 # update merge job
