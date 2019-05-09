@@ -10,6 +10,7 @@
         </directory>
 
         <!-- control the environment -->
+        <profile namespace="env" key="HOME">$HOME</profile>
         <profile namespace="env" key="PATH">$PATH</profile>
         <profile namespace="env" key="LD_LIBRARY_PATH">$LD_LIBRARY_PATH</profile>
         <profile namespace="env" key="PYTHONPATH">$PYTHONPATH</profile>

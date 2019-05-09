@@ -162,10 +162,9 @@ class Outsource:
                 requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
 
             
-            # pre flight
-            pre_flight_job = Job('pre-flight.sh')
+            # pre flight - runs on the submit host!
+            pre_flight_job = Job('pre-flight')
             pre_flight_job.addArguments(base_dir, str(dbcfg.number))
-            # run the job on the local site
             pre_flight_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
             dax.addJob(pre_flight_job)
             
@@ -212,6 +211,9 @@ class Outsource:
                 job.uses(job_output_tar, link=Link.OUTPUT, transfer=True)
                 job.uses(xenon_config, link=Link.INPUT)
                 dax.addJob(job)
+
+                # all strax jobs depend on the pre-flight one
+                dax.depends(parent=pre_flight_job, child=job)
 
                 # update merge job
                 #merge_job.uses(job_output_tar, link=Link.INPUT)

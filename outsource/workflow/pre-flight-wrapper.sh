@@ -14,7 +14,7 @@ RUN_NUMBER=$2
 
 
 # rundb...
-cd $BASE_DIR/outsource/workflow/
-python update_run_db.py $RUN_NUMBER
+python $BASE_DIR/workflow/update_run_db.py update-status --run-id=$RUN_NUMBER --dtype=records --status=processing
+
 
  
