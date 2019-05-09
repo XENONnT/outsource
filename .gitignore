@@ -3,4 +3,5 @@
 __pycache__
 *.dbtoken
 outsource.egg-info
-
+.idea
+*~
