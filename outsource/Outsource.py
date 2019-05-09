@@ -136,6 +136,10 @@ class Outsource:
         xenon_config.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.xenonnt.conf'), 'local'))
         dax.addFile(xenon_config)
 
+        token = File('.dbtoken')
+        token.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.dbtoken'), 'local'))
+        dax.addFile(token)
+
         for dbcfg in self._dbcfgs:
             
             logger.info('Adding run ' + dbcfg.name + ' to the workflow')
@@ -199,6 +203,7 @@ class Outsource:
                 job.uses(straxify, link=Link.INPUT)
                 job.uses(job_output_tar, link=Link.OUTPUT, transfer=True)
                 job.uses(xenon_config, link=Link.INPUT)
+                job.uses(token, link=Link.INPUT)
                 dax.addJob(job)
 
                 # update merge job

@@ -2,9 +2,9 @@
 import argparse
 import os
 import sys
-import time
 import strax
 import straxen
+import time
 from ast import literal_eval
 from utilix import db
 from admix.interfaces.rucio_summoner import RucioSummoner
@@ -106,18 +106,20 @@ def main():
             continue
 
     for ik in ds:
+        print(ik)
         if ik.get('clientState', 'fail') == 'DONE':
-            print('Download of {file} completed.'.format(file=ik.get('did')))
+            print('Download of {file} from {site} completed.'.format(file=ik.get('did'),
+                                                                     site=ik.get('rse_expression')))
 
     st = strax.Context(storage=[strax.DataDirectory(path='data')],
                        register=straxen.plugins.pax_interface.RecordsFromPax,
-                       config=dict(s2_tail_veto=False, filter=None),
+                       #config=dict(s2_tail_veto=False, filter=None),
                         **straxen.contexts.common_opts)
     
     input_metadata = st.get_metadata(runid, in_dtype)
     input_key = strax.DataKey(runid, in_dtype, input_metadata['lineage'])
     in_data = st.storage[0].backends[0]._read_chunk(st.storage[0].find(input_key)[1], 
-                                                 chunk_info=input_metadata['chunks'][0],
+                                                 chunk_info=input_metadata['chunks'][args.chunk],
                                                  dtype=literal_eval(input_metadata['dtype']), 
                                                  compressor=input_metadata['compressor'])
 
