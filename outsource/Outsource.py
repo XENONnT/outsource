@@ -124,9 +124,9 @@ class Outsource:
         wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
 
-        # merge = Executable(name='merge.sh', arch='x86_64', installed=False)
-        # merge.addPFN(PFN('file://' + base_dir + '/workflow/merge.sh', 'local'))
-        # dax.addExecutable(merge)
+        merge = Executable(name='merge.sh', arch='x86_64', installed=False)
+        merge.addPFN(PFN('file://' + base_dir + '/workflow/merge.sh', 'local'))
+        dax.addExecutable(merge)
         
         upload = Executable(name='upload.sh', arch='x86_64', installed=False)
         upload.addPFN(PFN('file://' + base_dir + '/workflow/upload.sh', 'local'))
@@ -173,13 +173,13 @@ class Outsource:
             dax.addJob(pre_flight_job)
             
             # Set up the merge job first - we can then add to that job inside the chunk file loop
-            #merged_root = File(dbcfg.name + '.root')
-            #merge_job = Job('merge.sh')
-            #merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
-            #merge_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
-            #merge_job.uses(merged_root, link=Link.OUTPUT)
-            #merge_job.addArguments(merged_root)
-            #dax.addJob(merge_job)
+            merged_root = File(dbcfg.name + '.root')
+            merge_job = Job('merge.sh')
+            merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
+            merge_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
+            merge_job.uses(merged_root, link=Link.OUTPUT, transfer=True)
+            merge_job.addArguments(merged_root)
+            dax.addJob(merge_job)
             
             # add jobs, one for each input file
             for chunk_file, chunk_props in self._data_find_chunks(rucio_dataset).items():
@@ -195,7 +195,6 @@ class Outsource:
                 # output files
                 chunk_id_str = chunk_file.split('-')[-1]
                 job_output_tar = '%06d-records-%s.tar.gz' % (dbcfg.number, chunk_id_str)
-
             
                 # Add job
                 job = Job(name='strax-wrapper')
@@ -221,9 +220,9 @@ class Outsource:
                 dax.depends(parent=pre_flight_job, child=job)
 
                 # update merge job
-                #merge_job.uses(job_output_tar, link=Link.INPUT)
-                #merge_job.addArguments(job_output_tar)
-                #dax.depends(parent=job, child=merge_job)
+                merge_job.uses(job_output_tar, link=Link.INPUT)
+                merge_job.addArguments(job_output_tar)
+                dax.depends(parent=job, child=merge_job)
                 
             # upload job  - runs on the submit host
             #upload_job = Job("upload.sh")

@@ -6,11 +6,12 @@ output_file=$1
 shift
 # the rest of the arguments are the inputs
 
-#source deactivate
-#source activate mc
-source /cvmfs/xenon.opensciencegrid.org/software/mc_old_setup.sh
+ls -la
 
-#echo "hadd_mod -d -f ${proc_merged_dir}/$run.root ${proc_zip_dir}/XENON*root"
-echo "hadd_mod -d -f $output_file $@"
-hadd_mod -d -f $output_file $@
+for TAR in `ls *.tar.gz`; do
+    tar xzf $TAR
+done
+
+# create the new output file
+tar czf $output_file data
 
