@@ -2,9 +2,9 @@
 import argparse
 import os
 import sys
-import time
 import strax
 import straxen
+import time
 from ast import literal_eval
 from utilix import db
 from admix.interfaces.rucio_summoner import RucioSummoner
@@ -117,7 +117,7 @@ def main():
     input_metadata = st.get_metadata(runid, in_dtype)
     input_key = strax.DataKey(runid, in_dtype, input_metadata['lineage'])
     in_data = st.storage[0].backends[0]._read_chunk(st.storage[0].find(input_key)[1], 
-                                                 chunk_info=input_metadata['chunks'][0],
+                                                 chunk_info=input_metadata['chunks'][args.chunk],
                                                  dtype=literal_eval(input_metadata['dtype']), 
                                                  compressor=input_metadata['compressor'])
 
