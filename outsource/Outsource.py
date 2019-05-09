@@ -116,7 +116,7 @@ class Outsource:
         # Add executables to the DAX-level replica catalog
         wrapper = Executable(name='strax-wrapper', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + base_dir + '/workflow/strax-wrapper.sh', 'local'))
-        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 2))
+        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
 
         # merge = Executable(name='merge.sh', arch='x86_64', installed=False)

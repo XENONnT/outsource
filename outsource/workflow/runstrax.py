@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+import time
 import strax
 import straxen
 from ast import literal_eval
@@ -92,9 +93,18 @@ def main():
             rses.append(r['rse_expression'])
 
     rse = determine_rse(rses, os.environ.get('GLIDEIN_Country', 'US'))
+    tries = 3
+    _try = 0
+    while _try < tries:
+        _try += 1
+        try:
+            ds = rc.DownloadDids([file1, file2], download_path=rucio_dir, rse=rse,
+                                 no_subdir=True, transfer_timeout=None)
+        except:
+            print(f"Download failed. Doing retry #{_try}")
+            time.sleep(10)
+            continue
 
-    ds = rc.DownloadDids([file1, file2], download_path=rucio_dir, rse=rse,
-                         no_subdir=True, transfer_timeout=None)
     for ik in ds:
         if ik.get('clientState', 'fail') == 'DONE':
             print('Download of {file} completed.'.format(file=ik.get('did')))
