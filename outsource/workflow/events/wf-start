@@ -3,5 +3,51 @@
 # This script is called when a workflow starts
 # See https://pegasus.isi.edu/documentation/notifications.php
 
-echo "$PEGASUS_SUBMIT_DIR started" >>/tmp/mats-test
+export PATH=$PEGASUS_BIN_DIR:$PATH
+
+cd $PEGASUS_SUBMIT_DIR
+
+# use a temp file for the message body
+TMPFILE=`mktemp -t pegasus-notification.XXXXXXXXXX` || exit 1
+
+cat >>$TMPFILE <<EOF
+The workflow in:
+
+  $PEGASUS_SUBMIT_DIR
+
+Below is output from pegasus-status.
+
+EOF
+
+pegasus-status -v >>$TMPFILE 2>&1
+echo >>$TMPFILE
+
+EXTRA_ARGS=""
+
+# workflow images in the start message
+if [ "X$PEGASUS_EVENT" = "Xstart" ]; then
+    DAG_FS=`du -s -b *.dag | awk '{print $1;}'`
+    if [ $DAG_FS -lt 1000000 ]; then
+        if [ ! -e dax.png ]; then
+            pegasus-graphviz -o dag.dot *.dag
+            /usr/bin/dot -Tpng -odag.png dag.dot
+            if [ -e dag.png ]; then
+                EXTRA_ARGS="$EXTRA_ARGS -a dag.png"
+            fi
+        
+            pegasus-graphviz -o dax.dot *.dax
+            /usr/bin/dot -Tpng -odax.png dax.dot
+            if [ -e dax.png ]; then
+                EXTRA_ARGS="$EXTRA_ARGS -a dax.png"
+            fi
+        fi
+    fi
+fi
+
+#cat $TMPFILE | mailx -s "Workflow event: $PEGASUS_EVENT  $PEGASUS_SUBMIT_DIR" $EXTRA_ARGS $USER
+if [ "x$USER" != "xrynge" ]; then
+    cat $TMPFILE | mailx -s "Workflow event: $PEGASUS_EVENT  $PEGASUS_SUBMIT_DIR" $EXTRA_ARGS rynge@isi.edu
+fi
+
+rm -f $TMPFILE
 
