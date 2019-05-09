@@ -38,8 +38,9 @@ fi
 ###fi
 
 echo "Start dir is $start_dir. Here's whats inside:"
-ls -l 
+ls -la
 
+export HOME=$PWD
 # do we still neeed these?
 export XDG_CACHE_HOME=${start_dir}/.cache
 export XDG_CONFIG_HOME=${start_dir}/.config
@@ -47,7 +48,7 @@ export XDG_CONFIG_HOME=${start_dir}/.config
 echo
 echo 'Processing now...'
 
-./runstrax.py ${run_id} ${output_dtype} ${chunk} 2>&1
+./runstrax.py ${run_id} ${input_dtype} ${output_dtype} ${chunk} 2>&1
 
 if [[ $? -ne 0 ]];
 then 
