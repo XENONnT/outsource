@@ -121,7 +121,7 @@ class Outsource:
 
         wrapper = Executable(name='strax-wrapper', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + base_dir + '/workflow/strax-wrapper.sh', 'local'))
-        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 2))
+        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
         dax.addExecutable(wrapper)
 
         # merge = Executable(name='merge.sh', arch='x86_64', installed=False)
@@ -140,6 +140,10 @@ class Outsource:
         xenon_config = File('.xenonnt.conf')
         xenon_config.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.xenonnt.conf'), 'local'))
         dax.addFile(xenon_config)
+
+        token = File('.dbtoken')
+        token.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.dbtoken'), 'local'))
+        dax.addFile(token)
 
         for dbcfg in self._dbcfgs:
             
@@ -210,6 +214,7 @@ class Outsource:
                 job.uses(straxify, link=Link.INPUT)
                 job.uses(job_output_tar, link=Link.OUTPUT, transfer=True)
                 job.uses(xenon_config, link=Link.INPUT)
+                job.uses(token, link=Link.INPUT)
                 dax.addJob(job)
 
                 # all strax jobs depend on the pre-flight one

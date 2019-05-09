@@ -40,6 +40,7 @@ fi
 echo "Start dir is $start_dir. Here's whats inside:"
 ls -la
 
+unset http_proxy
 export HOME=$PWD
 # do we still neeed these?
 export XDG_CACHE_HOME=${start_dir}/.cache
