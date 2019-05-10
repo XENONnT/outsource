@@ -18,12 +18,14 @@ Just like utilix, this tool expects a configuration file named `$HOME/.xenonnt.c
     
     [Outsource]
     
-    pax_version = 6.9.0
     work_dir = /scratch/$USER/workflows
     pegasus_path = /cvmfs/oasis.opensciencegrid.org/osg/projects/pegasus/rhel7/4.9.0dev
 
     # sites to exclude (GLIDEIN_Site), comma seprated list
     exclude_sites = 
+
+    # define this if you want email notifications 
+    notification_email = user@site.org
     
 ## Environment
 

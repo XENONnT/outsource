@@ -110,7 +110,10 @@ class Outsource:
         dax = ADAG('xenonnt')
         
         # event callouts
-        dax.invoke('start', base_dir + '/workflow/events/wf-start')
+        notification_email = ''
+        if config.has_option('Outsource', 'notification_email'):
+            notification_email = config.get('Outsource', 'notification_email')
+        dax.invoke('start', base_dir + '/workflow/events/wf-start ' + notification_email)
         dax.invoke('at_end', base_dir + '/workflow/events/wf-end')
         
         # Add executables to the DAX-level replica catalog
@@ -152,10 +155,12 @@ class Outsource:
 
         for dbcfg in self._dbcfgs:
             
-            logger.info('Adding run ' + dbcfg.name + ' to the workflow')
+            logger.info('Adding run ' + str(dbcfg.number) + ' to the workflow')
         
             # figure our where input data exists
             rucio_dataset, rses = self._data_find_locations(dbcfg)
+            if len(rses) == 0:
+                raise RuntimeError('Unable to find a data location for ' + str(dbcfg.number))
             
             # determine the job requirements based on the data locations
             sites_expression, desired_sites = self._determine_target_sites(rses)
