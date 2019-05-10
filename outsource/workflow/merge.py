@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
 
     if os.path.exists(args.output_path):
-        raise(FileExistsError(f"Output path {args.output_path} already exists"))
+        raise(FileExistsError("Output path %s already exists" % args.output_path))
 
     runid = args.dataset
     dtype = args.dtype
@@ -28,7 +28,6 @@ def main():
 
     st = strax.Context(storage=[strax.DataDirectory(path=tmp_path)],
                        register=straxen.plugins.pax_interface.RecordsFromPax,
-                       config=dict(s2_tail_veto=False, filter=None),
                        **straxen.contexts.common_opts)
 
     plugin = st._get_plugins((dtype,), runid)[dtype]

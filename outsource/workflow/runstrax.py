@@ -113,7 +113,6 @@ def main():
 
     st = strax.Context(storage=[strax.DataDirectory(path='data')],
                        register=straxen.plugins.pax_interface.RecordsFromPax,
-                       #config=dict(s2_tail_veto=False, filter=None),
                         **straxen.contexts.common_opts)
     
     input_metadata = st.get_metadata(runid, in_dtype)

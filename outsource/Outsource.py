@@ -132,10 +132,15 @@ class Outsource:
         upload.addPFN(PFN('file://' + base_dir + '/workflow/upload.sh', 'local'))
         dax.addExecutable(upload)
 
-        # paxify is what processes the data. Gets called by the executable run-pax.sh
+        # straxify is what processes the data. Gets called by the executable run-pax.sh
         straxify = File('runstrax.py')
         straxify.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/runstrax.py'), 'local'))
         dax.addFile(straxify)
+
+        # performs the merge
+        mergepy = File('merge.py')
+        mergepy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/merge.py'), 'local'))
+        dax.addFile(mergepy)
 
         xenon_config = File('.xenonnt.conf')
         xenon_config.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.xenonnt.conf'), 'local'))
@@ -173,12 +178,16 @@ class Outsource:
             dax.addJob(pre_flight_job)
             
             # Set up the merge job first - we can then add to that job inside the chunk file loop
-            merged_root = File(dbcfg.name + '.root')
             merge_job = Job('merge.sh')
             merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
             merge_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
-            merge_job.uses(merged_root, link=Link.OUTPUT, transfer=True)
-            merge_job.addArguments(merged_root)
+            merge_job.uses(mergepy, link=Link.INPUT)
+            merged_output = '%06d-records_merged.tar.gz' % (dbcfg.number)
+            print(merged_output)
+            merge_job.addArguments(str(dbcfg.number),
+                                   'records',
+                                   merged_output
+                                   )
             dax.addJob(merge_job)
             
             # add jobs, one for each input file
@@ -220,8 +229,7 @@ class Outsource:
                 dax.depends(parent=pre_flight_job, child=job)
 
                 # update merge job
-                merge_job.uses(job_output_tar, link=Link.INPUT)
-                merge_job.addArguments(job_output_tar)
+                merge_job.uses(job_output_tar, link=Link.INPUT, transfer=True)
                 dax.depends(parent=job, child=merge_job)
                 
             # upload job  - runs on the submit host
