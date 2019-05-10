@@ -34,7 +34,7 @@ class Outsource:
         'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
     }
 
-    def __init__(self, dbcfgs):
+    def __init__(self, dbcfgs, debug=False):
         '''
         Creates a new Outsource object. Specifying a list of DBConfig objects required.
         '''
@@ -52,7 +52,7 @@ class Outsource:
         logger.setLevel(logging.INFO)
         console.setLevel(logging.INFO)
         # debug - where to get this from?
-        if True:
+        if debug:
             logger.setLevel(logging.DEBUG)
             console.setLevel(logging.DEBUG)
         # formatter
@@ -71,7 +71,6 @@ class Outsource:
             self._wf_id = self._dbcfgs[0].workflow_id
         else:
             self._wf_id = 'multiples-' + self._dbcfgs[0].workflow_id
-
 
     def submit_workflow(self):
         '''
@@ -100,7 +99,6 @@ class Outsource:
 
         self._plan_and_submit()
     
-    
     def _generate_dax(self):
         '''
         Use the Pegasus DAX API to build an abstract graph of the workflow
@@ -110,7 +108,10 @@ class Outsource:
         dax = ADAG('xenonnt')
         
         # event callouts
-        dax.invoke('start', base_dir + '/workflow/events/wf-start')
+        notification_email = ''
+        if config.has_option('Outsource', 'notification_email'):
+            notification_email = config.get('Outsource', 'notification_email')
+        dax.invoke('start', base_dir + '/workflow/events/wf-start ' + notification_email)
         dax.invoke('at_end', base_dir + '/workflow/events/wf-end')
         
         # Add executables to the DAX-level replica catalog
@@ -121,16 +122,17 @@ class Outsource:
 
         wrapper = Executable(name='strax-wrapper', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + base_dir + '/workflow/strax-wrapper.sh', 'local'))
-        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 1))
+        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 5))
         dax.addExecutable(wrapper)
 
-        merge = Executable(name='merge.sh', arch='x86_64', installed=False)
-        merge.addPFN(PFN('file://' + base_dir + '/workflow/merge.sh', 'local'))
+        merge = Executable(name='merge-wrapper.sh', arch='x86_64', installed=False)
+        merge.addPFN(PFN('file://' + base_dir + '/workflow/merge-wrapper.sh', 'local'))
         dax.addExecutable(merge)
         
-        upload = Executable(name='upload.sh', arch='x86_64', installed=False)
-        upload.addPFN(PFN('file://' + base_dir + '/workflow/upload.sh', 'local'))
-        dax.addExecutable(upload)
+        upload_wrapper = Executable(name='upload.sh', arch='x86_64', installed=False)
+        upload_wrapper.addPFN(PFN('file://' + base_dir + '/workflow/upload-wrapper.sh', 'local'))
+        dax.addExecutable(upload_wrapper)
+
 
         # straxify is what processes the data. Gets called by the executable run-pax.sh
         straxify = File('runstrax.py')
@@ -142,6 +144,10 @@ class Outsource:
         mergepy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/merge.py'), 'local'))
         dax.addFile(mergepy)
 
+        uploadpy = File('upload.py')
+        uploadpy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/upload.py'), 'local'))
+        dax.addFile(uploadpy)
+
         xenon_config = File('.xenonnt.conf')
         xenon_config.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.xenonnt.conf'), 'local'))
         dax.addFile(xenon_config)
@@ -152,10 +158,12 @@ class Outsource:
 
         for dbcfg in self._dbcfgs:
             
-            logger.info('Adding run ' + dbcfg.name + ' to the workflow')
+            logger.info('Adding run ' + str(dbcfg.number) + ' to the workflow')
         
             # figure our where input data exists
             rucio_dataset, rses = self._data_find_locations(dbcfg)
+            if len(rses) == 0:
+                raise RuntimeError('Unable to find a data location for ' + str(dbcfg.number))
             
             # determine the job requirements based on the data locations
             sites_expression, desired_sites = self._determine_target_sites(rses)
@@ -178,7 +186,7 @@ class Outsource:
             dax.addJob(pre_flight_job)
             
             # Set up the merge job first - we can then add to that job inside the chunk file loop
-            merge_job = Job('merge.sh')
+            merge_job = Job('merge-wrapper.sh')
             merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
             merge_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
             merge_job.uses(mergepy, link=Link.INPUT)
@@ -187,7 +195,6 @@ class Outsource:
                                    'records',
                                    merged_output
                                    )
-            merge_job.uses(merged_output, link=Link.OUTPUT, transfer=True)
             dax.addJob(merge_job)
             
             # add jobs, one for each input file
@@ -240,14 +247,14 @@ class Outsource:
                 dax.depends(parent=job, child=merge_job)
                 
             # upload job  - runs on the submit host
-            #upload_job = Job("upload.sh")
-            #upload_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
-            #upload_job.uses(merged_root, link=Link.INPUT)
-            #upload_job.addArguments(dbcfg.name,
-            #                        merged_root,
-            #                        base_dir)
-            #dax.addJob(upload_job)
-            #dax.depends(parent=merge_job, child=upload_job)
+            upload_job = Job("upload.sh")
+            upload_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
+            upload_job.uses(merged_output, link=Link.INPUT)
+            upload_job.addArguments(str(dbcfg.number),
+                                    'records',
+                                    'UC_DALI_USERDISK')
+            dax.addJob(upload_job)
+            dax.depends(parent=merge_job, child=upload_job)
         
         # Write the DAX to stdout
         f = open(os.path.join(self._generated_dir(), 'dax.xml'), 'w')

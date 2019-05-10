@@ -132,10 +132,6 @@ def main():
     # To save one chunk, do this:
     saver.save(output_data, chunk_i=args.chunk)
 
-    # To merge results from many chunks, copy the sub-results into the temp directory now
-    # (after creating the saver, since otherwise the saver will remove the files)
-    # then do:
-    # saver.close()
 
 if __name__ == "__main__":
     main()

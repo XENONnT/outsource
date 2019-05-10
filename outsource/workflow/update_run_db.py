@@ -5,7 +5,7 @@ import argparse
 
 from pprint import pprint
 
-from utilix import *
+from utilix import rundb
 
 
 def update_status(run_id, dtype, status):

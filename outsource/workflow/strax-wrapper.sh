@@ -24,19 +24,6 @@ fi
 
 . /opt/XENONnT/setup.sh
 
-
-#### If data is in Rucio, find the rse to use
-###if [[ $rucio_dataset != "None" ]]; then
-###
-###    echo "python ${start_dir}/determine_rse.py ${rucio_dataset} $GLIDEIN_Country" 
-###    rse=$(python ${start_dir}/determine_rse.py ${rucio_dataset} $GLIDEIN_Country)
-###    if [[ $? != 0 ]]; then
-###        # disable rucio downloading
-###        echo "WARNING: determine_rse.py call failed - disabling Rucio downloading"
-###        rucio_dataset="None"
-###    fi
-###fi
-
 echo "Start dir is $start_dir. Here's whats inside:"
 ls -la
 
