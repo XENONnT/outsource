@@ -195,6 +195,7 @@ class Outsource:
                                    'records',
                                    merged_output
                                    )
+            merge_job.uses(merged_output, link=Link.OUTPUT)
             dax.addJob(merge_job)
             
             # add jobs, one for each input file
