@@ -8,7 +8,7 @@
 BASE_DIR=$1
 RUN_NUMBER=$2
 
-. /cvmfs/xenon.opensciencegrid.org/testing/releases/latest/setup.sh
+. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
 
 # checks...
 

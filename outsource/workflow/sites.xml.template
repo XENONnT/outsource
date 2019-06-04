@@ -39,7 +39,7 @@
         <profile namespace="condor" key="request_memory" > ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, 1800, 4000) </profile>
 
         <!-- always run under singularity -->
-        <profile namespace="condor" key="+SingularityImage" >"/cvmfs/singularity.opensciencegrid.org/opensciencegrid/osgvo-xenon:latest"</profile>
+        <profile namespace="condor" key="+SingularityImage" >"/cvmfs/singularity.opensciencegrid.org/opensciencegrid/osgvo-xenon:development"</profile>
 
         <!-- control the environment - this should match the Singularity image -->
         <profile namespace="env" key="GFAL_CONFIG_DIR">/etc/gfal2.d</profile>

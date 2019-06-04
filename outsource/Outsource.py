@@ -216,7 +216,7 @@ class Outsource:
                 job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id, 
                                                          job_output_tar.name)
                 if os.path.isfile(job_output_tar_local_path):
-                    logger.debug(" ... local copy found at: " + job_output_tar_local_path)
+                    logger.info(" ... local copy found at: " + job_output_tar_local_path)
                     job_output_tar.addPFN(PFN('file://' + job_output_tar_local_path, 'local'))
                     dax.addFile(job_output_tar)
             

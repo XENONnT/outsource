@@ -123,6 +123,8 @@ def main():
                                                  compressor=input_metadata['compressor'])
 
     plugin = st._get_plugins((out_dtype,), runid)[out_dtype]
+    st._set_plugin_config(plugin, runid, tolerant=False)
+    plugin.setup()
     output_key = strax.DataKey(runid, out_dtype, plugin.lineage)
 
     output_data = plugin.do_compute(chunk_i=args.chunk, **{in_dtype: in_data})

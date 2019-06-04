@@ -3,8 +3,6 @@
 # This script is called when a workflow exits (successfully or after failure)
 # See https://pegasus.isi.edu/documentation/notifications.php
 
-echo "$PEGASUS_SUBMIT_DIR ended with $PEGASUS_STATUS" >>/tmp/mats-test
-
 NOTIFICATION_EMAIL=$1
 
 export PATH=$PEGASUS_BIN_DIR:$PATH

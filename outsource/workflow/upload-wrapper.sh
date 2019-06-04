@@ -5,7 +5,7 @@ runid=$1
 dtype=$2
 rse=$3
 
-. /cvmfs/xenon.opensciencegrid.org/testing/releases/latest/setup.sh
+. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
 
 export RUCIO_ACCOUNT=production
 
