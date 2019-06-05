@@ -20,11 +20,17 @@ ls -la
 echo "---- data dir ----"
 ls -l data
 
+echo
+echo
+echo "Total amount of data before combine: "`du -s --si .`
+echo
+echo
+
 # source the environment
 . /opt/XENONnT/setup.sh
 
-./merge.py ${runid} ${dtype} --input_path data --output_path merged
+./combine.py ${runid} ${dtype} --input_path data --output_path combined
 
 # create the new output file
-tar czf ${output_file} merged
+tar czf ${output_file} combined
 

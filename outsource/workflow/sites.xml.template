@@ -34,9 +34,6 @@
     <site  handle="condorpool" arch="x86_64" os="LINUX">
         <profile namespace="pegasus" key="style" >condor</profile>
         <profile namespace="condor" key="universe" >vanilla</profile>
-        <profile namespace="condor" key="request_cpus" >1</profile>
-        <profile namespace="condor" key="request_disk" >2 GB</profile>
-        <profile namespace="condor" key="request_memory" > ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, 1800, 4000) </profile>
 
         <!-- always run under singularity -->
         <profile namespace="condor" key="+SingularityImage" >"/cvmfs/singularity.opensciencegrid.org/opensciencegrid/osgvo-xenon:development"</profile>

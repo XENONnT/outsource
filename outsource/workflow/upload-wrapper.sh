@@ -10,7 +10,7 @@ rse=$3
 export RUCIO_ACCOUNT=production
 
 # untar
-tarball=`ls *merged.tar.gz`
+tarball=`ls *combined.tar.gz`
 
 echo "tarball: $tarball"
 
@@ -19,8 +19,8 @@ tar xzf $tarball
 #echo "contents after untarring:"
 #ls -la
 
-echo "contents of 'merged':"
-ls -l merged
+echo "contents of 'combined':"
+ls -l combined
 
 ./rucio_upload.py ${runid} ${dtype} ${rse}
 

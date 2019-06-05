@@ -25,7 +25,7 @@ fi
 . /opt/XENONnT/setup.sh
 
 echo "Start dir is $start_dir. Here's whats inside:"
-ls -la
+ls -lah
 
 unset http_proxy
 export HOME=$PWD
@@ -48,7 +48,7 @@ tar czf ${output_tar} data/*_temp
 
 echo
 echo "Job is done. Here is the contents of the directory now:"
-ls -l
+ls -lah
 echo
 
 

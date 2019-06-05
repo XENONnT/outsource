@@ -23,6 +23,8 @@ EOF
 
 pegasus-status -v >>$TMPFILE 2>&1
 echo >>$TMPFILE
+echo >>$TMPFILE
+
 
 EXTRA_ARGS=""
 
@@ -31,5 +33,4 @@ if [ "X$NOTIFICATION_EMAIL" != "X" ]; then
 fi
 
 rm -f $TMPFILE
-
 
