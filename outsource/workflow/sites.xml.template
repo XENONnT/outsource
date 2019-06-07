@@ -10,13 +10,14 @@
         </directory>
 
         <!-- control the environment -->
-        <profile namespace="env" key="HOME">$HOME</profile>
-        <profile namespace="env" key="PATH">$PATH</profile>
-        <profile namespace="env" key="LD_LIBRARY_PATH">$LD_LIBRARY_PATH</profile>
-        <profile namespace="env" key="PYTHONPATH">$PYTHONPATH</profile>
         <profile namespace="env" key="GFAL_CONFIG_DIR">$GFAL_CONFIG_DIR</profile>
         <profile namespace="env" key="GFAL_PLUGIN_DIR">$GFAL_PLUGIN_DIR</profile>
         <profile namespace="env" key="GLOBUS_LOCATION"></profile>
+        <profile namespace="env" key="HOME">$HOME</profile>
+        <profile namespace="env" key="LD_LIBRARY_PATH">$LD_LIBRARY_PATH</profile>
+        <profile namespace="env" key="PATH">$PATH</profile>
+        <profile namespace="env" key="PEGASUS_SUBMITTING_USER">$USER</profile>
+        <profile namespace="env" key="PYTHONPATH">$PYTHONPATH</profile>
         <profile namespace="env" key="X509_USER_PROXY">$HOME/user_cert</profile>
 
         <!-- we don't want color/control characters in the outputs -->
@@ -45,6 +46,7 @@
         <profile namespace="env" key="LD_LIBRARY_PATH"></profile>
         <profile namespace="env" key="OSG_LOCATION"></profile>
         <profile namespace="env" key="PATH">/usr/bin:/bin</profile>
+        <profile namespace="env" key="PEGASUS_SUBMITTING_USER">$USER</profile>
         <profile namespace="env" key="PYTHONPATH"></profile>
 
         <!-- we don't want color/control characters in the outputs -->
