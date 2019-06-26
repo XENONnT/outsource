@@ -26,8 +26,8 @@
 
     <!-- this is our staging site, where intermediate data will be stored -->
     <site  handle="staging" arch="x86_64" os="LINUX">
-        <directory type="shared-scratch" path="/xenon/$USER/scratch">
-            <file-server operation="all" url="gsiftp://ceph-gridftp2.grid.uchicago.edu:2811/cephfs/srm/xenon/$USER/scratch"/>
+        <directory type="shared-scratch" path="/xenon_dcache/workflow_scratch/$USER">
+            <file-server operation="all" url="gsiftp://xenon-gridftp.grid.uchicago.edu:2811/xenon/workflow_scratch/$USER"/>
         </directory>
     </site>
 
