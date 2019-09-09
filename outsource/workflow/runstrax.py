@@ -5,6 +5,7 @@ import sys
 import strax
 import straxen
 import time
+from pprint import pprint
 from ast import literal_eval
 from utilix import db
 from admix.interfaces.rucio_summoner import RucioSummoner
@@ -93,23 +94,31 @@ def main():
             rses.append(r['rse_expression'])
 
     rse = determine_rse(rses, os.environ.get('GLIDEIN_Country', 'US'))
+    download_done = False
     tries = 3
     _try = 0
-    while _try < tries:
+    while not download_done and _try < tries:
         _try += 1
+        print('\nAttempting download of {file1} and {file2} from {rse} ...'\
+              .format(file1=file1, file2=file2, rse=rse))
         try:
             ds = rc.DownloadDids([file1, file2], download_path=rucio_dir, rse=rse,
                                  no_subdir=True, transfer_timeout=None)
+            download_done = True
         except:
             print(f"Download failed. Doing retry #{_try}")
             time.sleep(10)
             continue
 
     for ik in ds:
-        print(ik)
+        pprint(ik)
         if ik.get('clientState', 'fail') == 'DONE':
             print('Download of {file} from {site} completed.'.format(file=ik.get('did'),
                                                                      site=ik.get('rse_expression')))
+
+    if not download_done:
+        print('Unable to download the input data! Exiting...')
+        sys.exit(1)
 
     st = strax.Context(storage=[strax.DataDirectory(path='data')],
                        register=straxen.plugins.pax_interface.RecordsFromPax,
@@ -123,6 +132,8 @@ def main():
                                                  compressor=input_metadata['compressor'])
 
     plugin = st._get_plugins((out_dtype,), runid)[out_dtype]
+    st._set_plugin_config(plugin, runid, tolerant=False)
+    plugin.setup()
     output_key = strax.DataKey(runid, out_dtype, plugin.lineage)
 
     output_data = plugin.do_compute(chunk_i=args.chunk, **{in_dtype: in_data})

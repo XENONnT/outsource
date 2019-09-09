@@ -112,7 +112,7 @@ class Outsource:
         if config.has_option('Outsource', 'notification_email'):
             notification_email = config.get('Outsource', 'notification_email')
         dax.invoke('start', base_dir + '/workflow/events/wf-start ' + notification_email)
-        dax.invoke('at_end', base_dir + '/workflow/events/wf-end')
+        dax.invoke('at_end', base_dir + '/workflow/events/wf-end ' + notification_email)
         
         # Add executables to the DAX-level replica catalog
         
@@ -122,12 +122,12 @@ class Outsource:
 
         wrapper = Executable(name='strax-wrapper', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + base_dir + '/workflow/strax-wrapper.sh', 'local'))
-        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 5))
+        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 10))
         dax.addExecutable(wrapper)
 
-        merge = Executable(name='merge-wrapper.sh', arch='x86_64', installed=False)
-        merge.addPFN(PFN('file://' + base_dir + '/workflow/merge-wrapper.sh', 'local'))
-        dax.addExecutable(merge)
+        combine = Executable(name='combine-wrapper.sh', arch='x86_64', installed=False)
+        combine.addPFN(PFN('file://' + base_dir + '/workflow/combine-wrapper.sh', 'local'))
+        dax.addExecutable(combine)
         
         upload_wrapper = Executable(name='upload.sh', arch='x86_64', installed=False)
         upload_wrapper.addPFN(PFN('file://' + base_dir + '/workflow/upload-wrapper.sh', 'local'))
@@ -139,10 +139,10 @@ class Outsource:
         straxify.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/runstrax.py'), 'local'))
         dax.addFile(straxify)
 
-        # performs the merge
-        mergepy = File('merge.py')
-        mergepy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/merge.py'), 'local'))
-        dax.addFile(mergepy)
+        # performs the combine
+        combinepy = File('combine.py')
+        combinepy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/combine.py'), 'local'))
+        dax.addFile(combinepy)
 
         uploadpy = File('upload.py')
         uploadpy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/upload.py'), 'local'))
@@ -169,34 +169,37 @@ class Outsource:
             sites_expression, desired_sites = self._determine_target_sites(rses)
 
             requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
+            # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
+            if config.has_option('Outsource', 'hs06_test_run') and \
+               config.getboolean('Outsource', 'hs06_test_run') == True:
+                requirements_base = requirements_base + ' && GLIDEIN_ResourceName == "MWT2" && regexp("uct2-c4[1-7]", Machine)'
             # general compute jobs
             requirements = requirements_base + ' && (' + sites_expression + ')'
             if self._exclude_sites():
                 requirements = requirements + ' && (' + self._exclude_sites()  + ')'
-            # map some jobs to US
+            # map some jobs to US to limit data transfers - for example the combine jobs
             requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
             if self._exclude_sites():
                 requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
 
             
             # pre flight - runs on the submit host!
-            pre_flight_job = Job('pre-flight')
+            pre_flight_job = self._job('pre-flight', run_on_submit_node=True)
             pre_flight_job.addArguments(base_dir, str(dbcfg.number))
-            pre_flight_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
             dax.addJob(pre_flight_job)
             
-            # Set up the merge job first - we can then add to that job inside the chunk file loop
-            merge_job = Job('merge-wrapper.sh')
-            merge_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
-            merge_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
-            merge_job.uses(mergepy, link=Link.INPUT)
-            merged_output = '%06d-records_merged.tar.gz' % (dbcfg.number)
-            merge_job.addArguments(str(dbcfg.number),
+            # Set up the combine job first - we can then add to that job inside the chunk file loop
+            combine_job = self._job('combine-wrapper.sh', disk=50000)
+            combine_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
+            combine_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
+            combine_job.uses(combinepy, link=Link.INPUT)
+            combined_output = '%06d-records_combined.tar.gz' % (dbcfg.number)
+            combine_job.addArguments(str(dbcfg.number),
                                    'records',
-                                   merged_output
+                                   combined_output
                                    )
-            merge_job.uses(merged_output, link=Link.OUTPUT)
-            dax.addJob(merge_job)
+            combine_job.uses(combined_output, link=Link.OUTPUT)
+            dax.addJob(combine_job)
             
             # add jobs, one for each input file
             for chunk_file, chunk_props in self._data_find_chunks(rucio_dataset).items():
@@ -216,12 +219,12 @@ class Outsource:
                 job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id, 
                                                          job_output_tar.name)
                 if os.path.isfile(job_output_tar_local_path):
-                    logger.debug(" ... local copy found at: " + job_output_tar_local_path)
+                    logger.info(" ... local copy found at: " + job_output_tar_local_path)
                     job_output_tar.addPFN(PFN('file://' + job_output_tar_local_path, 'local'))
                     dax.addFile(job_output_tar)
             
                 # Add job
-                job = Job(name='strax-wrapper')
+                job = self._job(name='strax-wrapper')
                 if desired_sites and len(desired_sites) > 0:
                     # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
                     job.addProfile(Profile(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"'))
@@ -243,19 +246,18 @@ class Outsource:
                 # all strax jobs depend on the pre-flight one
                 dax.depends(parent=pre_flight_job, child=job)
 
-                # update merge job
-                merge_job.uses(job_output_tar, link=Link.INPUT, transfer=True)
-                dax.depends(parent=job, child=merge_job)
+                # update combine job
+                combine_job.uses(job_output_tar, link=Link.INPUT, transfer=True)
+                dax.depends(parent=job, child=combine_job)
                 
             # upload job  - runs on the submit host
-            upload_job = Job("upload.sh")
-            upload_job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
-            upload_job.uses(merged_output, link=Link.INPUT)
+            upload_job = self._job("upload.sh", run_on_submit_node=True)
+            upload_job.uses(combined_output, link=Link.INPUT)
             upload_job.addArguments(str(dbcfg.number),
                                     'records',
                                     'UC_DALI_USERDISK')
             dax.addJob(upload_job)
-            dax.depends(parent=merge_job, child=upload_job)
+            dax.depends(parent=combine_job, child=upload_job)
         
         # Write the DAX to stdout
         f = open(os.path.join(self._generated_dir(), 'dax.xml'), 'w')
@@ -299,6 +301,26 @@ class Outsource:
         if valid_hours < min_valid_hours:
             raise RuntimeError('User proxy is only valid for %d hours. Minimum required is %d hours.' \
                                %(valid_hours, min_valid_hours))
+
+
+    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=10000):
+        '''
+        Wrapper for a Pegasus job, also sets resource requirement profiles. Memory and
+        disk units are in MBs.
+        '''
+        job = Job(name)
+        job.addProfile(Profile(Namespace.CONDOR, 'request_cpus', str(cores)))
+        job.addProfile(Profile(Namespace.CONDOR, 'request_disk', str(disk)))
+
+        # increase memory if the first attempt fails
+        memory = 'ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, %d, %d)' \
+                 %(memory, memory * 3)
+        job.addProfile(Profile(Namespace.CONDOR, 'request_memory', memory))
+
+        if run_on_submit_node: 
+            job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
+
+        return job
 
 
     def _data_find_locations(self, dbcfg):

@@ -14,7 +14,7 @@ from admix.interfaces.keyword import Keyword
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Upload merged output to rucio")
+    parser = argparse.ArgumentParser(description="Upload combined output to rucio")
     parser.add_argument('dataset', help='Run number/name')
     parser.add_argument('dtype', help='dtype to upload')
     parser.add_argument('rse', help='Target RSE')
@@ -25,7 +25,7 @@ def main():
     dtype = args.dtype
     rse = args.rse
 
-    st = strax.Context(storage=[strax.DataDirectory(path="merged")],
+    st = strax.Context(storage=[strax.DataDirectory(path="combined")],
                        register=straxen.plugins.pax_interface.RecordsFromPax,
                        **straxen.contexts.common_opts)
 
@@ -35,7 +35,7 @@ def main():
     hash = output_key.lineage_hash
 
     dirname = f"{runid}-{dtype}-{hash}"
-    upload_path = os.path.join('merged', dirname)
+    upload_path = os.path.join('combined', dirname)
 
     rc_reader_path = "/home/ershockley/.xenon-rucio-config"
     rc_reader = ConfigRucioDataFormat()

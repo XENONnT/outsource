@@ -10,11 +10,11 @@ import straxen
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Merge strax output")
+    parser = argparse.ArgumentParser(description="Combine strax output")
     parser.add_argument('dataset', help='Run name')
-    parser.add_argument('dtype', help='dtype to merge')
+    parser.add_argument('dtype', help='dtype to combine')
     parser.add_argument('--input_path', help='path where the temp directory is')
-    parser.add_argument('--output_path', help='final location of merged data')
+    parser.add_argument('--output_path', help='final location of combined data')
 
     args = parser.parse_args()
 

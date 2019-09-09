@@ -31,6 +31,6 @@ Just like utilix, this tool expects a configuration file named `$HOME/.xenonnt.c
 
 Please use the Python3.6 XENONnT environment. On the OSG submit hosts, this can be set up by sourcing:
 
-    . /cvmfs/xenon.opensciencegrid.org/testing/releases/latest/setup.sh
+    . /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
 
     
