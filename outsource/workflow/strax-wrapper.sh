@@ -8,6 +8,8 @@ export output_tar=$4
 export chunk=$5
 
 
+echo $@
+
 start_dir=$PWD
 
 # set GLIDEIN_Country variable if not already
@@ -24,6 +26,8 @@ fi
 
 . /opt/XENONnT/setup.sh
 
+export RUCIO_ACCOUNT=production
+
 echo "Start dir is $start_dir. Here's whats inside:"
 ls -lah
 
@@ -33,7 +37,14 @@ export HOME=$PWD
 export XDG_CACHE_HOME=${start_dir}/.cache
 export XDG_CONFIG_HOME=${start_dir}/.config
 
+echo "--- RUCIO/X509 Stuff ---"
+env | grep X509
+env | grep RUCIO
+
+rucio whoami
+
 echo
+
 echo 'Processing now...'
 
 ./runstrax.py ${run_id} ${input_dtype} ${output_dtype} ${chunk} 2>&1

@@ -128,7 +128,7 @@ def main():
     input_key = strax.DataKey(runid, in_dtype, input_metadata['lineage'])
     in_data = st.storage[0].backends[0]._read_chunk(st.storage[0].find(input_key)[1], 
                                                  chunk_info=input_metadata['chunks'][args.chunk],
-                                                 dtype=literal_eval(input_metadata['dtype']), 
+                                                 dtype=literal_eval(input_metadata['dtype']),
                                                  compressor=input_metadata['compressor'])
 
     plugin = st._get_plugins((out_dtype,), runid)[out_dtype]
@@ -137,11 +137,12 @@ def main():
     output_key = strax.DataKey(runid, out_dtype, plugin.lineage)
 
     output_data = plugin.do_compute(chunk_i=args.chunk, **{in_dtype: in_data})
-    saver = st.storage[0].saver(output_key, plugin.metadata(runid))
+    saver = st.storage[0].saver(output_key, plugin.metadata(runid, out_dtype))
     saver.is_forked = True
 
     # To save one chunk, do this:
-    saver.save(output_data, chunk_i=args.chunk)
+    for key in output_data.keys():
+        saver.save(output_data[key], chunk_i=args.chunk)
 
 
 if __name__ == "__main__":
