@@ -104,21 +104,27 @@ def main():
         try:
             ds = rc.DownloadDids([file1, file2], download_path=rucio_dir, rse=rse,
                                  no_subdir=True, transfer_timeout=None)
+            # sometimes DownloadDids fails with a 'Protocol implementation not found' and
+            # a int instead of a list - catch this corner case here
+            if isinstance(ds, int):
+                print(f"Download try #{_try} failed.")
+                time.sleep(10)
+                continue
             download_done = True
         except:
             print(f"Download failed. Doing retry #{_try}")
             time.sleep(10)
             continue
 
+    if not download_done:
+        print('Unable to download the input data! Exiting...')
+        sys.exit(1)
+
     for ik in ds:
         pprint(ik)
         if ik.get('clientState', 'fail') == 'DONE':
             print('Download of {file} from {site} completed.'.format(file=ik.get('did'),
                                                                      site=ik.get('rse_expression')))
-
-    if not download_done:
-        print('Unable to download the input data! Exiting...')
-        sys.exit(1)
 
     st = strax.Context(storage=[strax.DataDirectory(path='data')],
                        register=straxen.plugins.pax_interface.RecordsFromPax,
