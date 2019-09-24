@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 from outsource.Outsource import Outsource
 from outsource.RunConfig import DBConfig
+import argparse
 
-if __name__ == '__main__':
-    # 16854
-    # 10635 didn't work due to rucio errors
-    configs = [DBConfig(10635)]
+
+def main():
+    parser = argparse.ArgumentParser("Outsource Testing")
+    parser.add_argument('--run', type=int, default=10635) # 16854 was used in the past
+
+    args = parser.parse_args()
+
+    configs = [DBConfig(args.run)]
     outsource = Outsource(configs)
     outsource.submit_workflow()
+
+
+if __name__ == '__main__':
+    main()
