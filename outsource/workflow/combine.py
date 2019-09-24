@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 import argparse
 import tempfile
 import os
@@ -32,7 +31,7 @@ def main():
 
     plugin = st._get_plugins((dtype,), runid)[dtype]
     output_key = strax.DataKey(runid, dtype, plugin.lineage)
-    saver = st.storage[0].saver(output_key, plugin.metadata(runid))
+    saver = st.storage[0].saver(output_key, plugin.metadata(runid, dtype))
     tmpdir, tmpname = os.path.split(saver.tempdirname)
     rmtree(saver.tempdirname)
     copytree(os.path.join(path, tmpname), saver.tempdirname)

@@ -253,6 +253,7 @@ class Outsource:
             # upload job  - runs on the submit host
             upload_job = self._job("upload.sh", run_on_submit_node=True)
             upload_job.uses(combined_output, link=Link.INPUT)
+            upload_job.uses(uploadpy, link=Link.INPUT)
             upload_job.addArguments(str(dbcfg.number),
                                     'records',
                                     'UC_DALI_USERDISK')

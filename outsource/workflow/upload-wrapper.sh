@@ -10,6 +10,10 @@ rse=$3
 
 export RUCIO_ACCOUNT=production
 
+rucio whoami
+
+env | grep X509
+
 # untar
 tarball=`ls *combined.tar.gz`
 
@@ -18,10 +22,17 @@ echo "tarball: $tarball"
 tar xzf $tarball
 
 echo "contents of 'combined':"
-ls -l combined
+ls -l combined/*
+
+
+if [[ !  $? -eq 0 ]]
+then
+    echo "combined does not exist. Exiting."
+    exit 2
+fi
 
 # rynge can not upload - but want to test everything except this step
 if [ "X$PEGASUS_SUBMITTING_USER" != "Xrynge" ]; then
-    ./rucio_upload.py ${runid} ${dtype} ${rse}
+    ./upload.py ${runid} ${dtype} ${rse}
 fi
 

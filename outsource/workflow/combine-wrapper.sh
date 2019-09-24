@@ -12,7 +12,7 @@ shift
 # the rest of the arguments are the inputs
 
 for TAR in `ls *.tar.gz`; do
-    tar xzvf $TAR
+    tar xzf $TAR
 done
 
 ls -la

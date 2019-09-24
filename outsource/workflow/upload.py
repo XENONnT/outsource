@@ -4,6 +4,12 @@ import os
 import argparse
 import datetime
 
+# make sure we don't use any custom paths from e.g. pth files
+import sys
+for p in list(sys.path):
+    if os.environ.get('HOME', ' 0123456789 ') in p:
+        sys.path.remove(p)
+
 import strax
 import straxen
 from utilix import db
@@ -21,6 +27,8 @@ def main():
 
     args = parser.parse_args()
 
+    print("Using this straxen: %s" % straxen.__file__)
+
     runid = args.dataset
     dtype = args.dtype
     rse = args.rse
@@ -36,6 +44,9 @@ def main():
 
     dirname = f"{runid}-{dtype}-{hash}"
     upload_path = os.path.join('combined', dirname)
+
+    print(f"Uploading {dirname}:")
+    os.listdir(upload_path)
 
     rc_reader_path = "/home/ershockley/.xenon-rucio-config"
     rc_reader = ConfigRucioDataFormat()
