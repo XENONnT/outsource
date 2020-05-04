@@ -12,6 +12,7 @@ from admix.interfaces.rucio_summoner import RucioSummoner
 
 EURO_SITES = ["CCIN2P3_USERDISK", 
               "NIKHEF_USERDISK",
+              "NIKHEF2_USERDISK",
               "WEIZMANN_USERDISK", 
               "CNAF_USERDISK", 
               "SURFSARA_USERDISK"]

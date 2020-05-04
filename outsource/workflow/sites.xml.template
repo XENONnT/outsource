@@ -48,6 +48,8 @@
         <profile namespace="env" key="PATH">/usr/bin:/bin</profile>
         <profile namespace="env" key="PEGASUS_SUBMITTING_USER">$USER</profile>
         <profile namespace="env" key="PYTHONPATH"></profile>
+        <!-- do not source the env automatically - it can mess with the transfer tools -->
+        <profile namespace="env" key="XENON_SOURCE">0</profile>
 
         <!-- we don't want color/control characters in the outputs -->
         <profile namespace="env" key="RUCIO_LOGGING_FORMAT">%(asctime)s  %(levelname)s  %(message)s</profile>

@@ -6,7 +6,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser("Outsource Testing")
-    parser.add_argument('--run', type=int, default=10635) # 16854 was used in the past
+    parser.add_argument('--run', type=int, default=7340)
 
     args = parser.parse_args()
 

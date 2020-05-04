@@ -89,12 +89,11 @@ class DBConfig(RunConfig):
 
     def __init__(self, number, **kwargs):
         self._number = number
-        self._name = db.get_name(number)
         self._run_doc = db.get_doc(self.number)
 
         # eventually get the input location, etc here using DB
-        rawdir = os.path.join('/xenon/xenon1t/raw', self.name)
-        output = os.path.join('/xenon/xenonnt_test/processed', self.name)
+        rawdir = os.path.join('/xenon/xenon1t/raw', str(self.number))
+        output = os.path.join('/xenon/xenonnt_test/processed', str(self.number))
 
         super().__init__(input_location=rawdir, output_location=output, **kwargs)
 
@@ -104,7 +103,7 @@ class DBConfig(RunConfig):
         if self.detector == 'tpc':
             idstring = "{:06d}".format(self.number)
         elif self.detector == 'muon_veto':
-            idstring = self.name
+            idstring = self.number
         else:
             raise NotImplementedError
         return "xe1t_{detector}_{id}".format(detector=self.detector, id=idstring)
@@ -112,10 +111,6 @@ class DBConfig(RunConfig):
     @property
     def detector(self):
         return self._detector
-
-    @property
-    def name(self):
-        return self._name
 
     @property
     def number(self):

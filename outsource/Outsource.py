@@ -26,12 +26,15 @@ class Outsource:
     # Data availability to site selection map
     _rse_site_map = {
         'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
-        'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        'UC_DALI_USERDISK':   {},
         'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
-        'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
-        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
         'CNAF_TAPE_USERDISK': {},
+        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
+        'LNGS_USERDISK':      {},
+        'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
         'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
+        'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
     }
 
     def __init__(self, dbcfgs, debug=False):
@@ -122,7 +125,7 @@ class Outsource:
 
         wrapper = Executable(name='strax-wrapper', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + base_dir + '/workflow/strax-wrapper.sh', 'local'))
-        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 10))
+        #wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 10))
         dax.addExecutable(wrapper)
 
         combine = Executable(name='combine-wrapper.sh', arch='x86_64', installed=False)
@@ -148,8 +151,8 @@ class Outsource:
         uploadpy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/upload.py'), 'local'))
         dax.addFile(uploadpy)
 
-        xenon_config = File('.xenonnt.conf')
-        xenon_config.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.xenonnt.conf'), 'local'))
+        xenon_config = File('.xenon_config')
+        xenon_config.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.xenon_config'), 'local'))
         dax.addFile(xenon_config)
 
         token = File('.dbtoken')
@@ -331,10 +334,10 @@ class Outsource:
 
         rucio_dataset = None
         rses = []
-        
+    
         for d in dbcfg.run_doc['data']:
             if d['host'] == 'rucio-catalogue' and d['status'] == 'transferred' and d['type'] == 'raw_records':
-                    rucio_dataset = d['location']
+                    rucio_dataset = d['did']
         
         if rucio_dataset:
             logger.info('Querying Rucio for RSEs for the data set ' + rucio_dataset)  
@@ -347,7 +350,9 @@ class Outsource:
                     rses.append(line[4])
             if len(rses) < 1:
                 logger.warning("Problem finding Rucio RSEs")
-                
+        
+        if len(rses) > 0:
+            logger.info('Found replicas at: ' + ', '.join(rses))
         return rucio_dataset, rses
     
     
@@ -359,10 +364,10 @@ class Outsource:
         chunks_files = {}
 
         if rucio_dataset:
-            logger.info('Querying Rucio for files in  the data set ' + rucio_dataset)  
+            logger.info('Querying Rucio for files in the data set ' + rucio_dataset)  
             out = subprocess.Popen(["rucio", "list-file-replicas", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
             out = str(out).split("\\n")
-            files = set([l.split(" ")[3] for l in out if '---' not in l and 'x1t' in l])
+            files = set([l.split(" ")[3] for l in out if '---' not in l and 'xnt' in l])
             for f in sorted([f for f in files if 'json' not in f]):
                 chunks_files[f] = {'rucio_available': True}
 
