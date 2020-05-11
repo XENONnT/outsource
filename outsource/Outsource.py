@@ -122,7 +122,7 @@ class Outsource:
 
         wrapper = Executable(name='strax-wrapper', arch='x86_64', installed=False)
         wrapper.addPFN(PFN('file://' + base_dir + '/workflow/strax-wrapper.sh', 'local'))
-        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 10))
+        wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 25))
         dax.addExecutable(wrapper)
 
         combine = Executable(name='combine-wrapper.sh', arch='x86_64', installed=False)
