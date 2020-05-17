@@ -6,11 +6,12 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser("Outsource Testing")
-    parser.add_argument('--run', type=int, default=7340)
+    parser.add_argument('--run', type=int, default=7696)
+    parser.add_argument('--context', default='xenonnt_online')
 
     args = parser.parse_args()
 
-    configs = [DBConfig(args.run)]
+    configs = [DBConfig(args.run, strax_context=args.context)]
     outsource = Outsource(configs)
     outsource.submit_workflow()
 

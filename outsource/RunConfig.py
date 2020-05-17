@@ -15,7 +15,6 @@ class RunConfigBase:
     _executable = os.path.join(base_dir, 'workflow', 'run-pax.sh')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
-    _pax_version = config.get('Outsource', 'pax_version')
 
 
 class RunConfig(RunConfigBase):
@@ -23,7 +22,7 @@ class RunConfig(RunConfigBase):
 
     This base class has essentially the same info as a dictionary passed as input"""
 
-    required_attributes = ['input_location', 'output_location']
+    required_attributes = ['strax_context', 'input_location', 'output_location']
 
     def __init__(self, **kwargs):
         
@@ -54,8 +53,8 @@ class RunConfig(RunConfigBase):
         return self._output_location
 
     @property
-    def pax_version(self):
-        return self._pax_version
+    def strax_context(self):
+        return self._strax_context
 
     @property
     def update_run_db(self):

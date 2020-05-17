@@ -38,24 +38,44 @@ def main():
     runid_str = "%06d" % runid
     input_metadata = st.get_metadata(runid_str, in_dtype)
     input_key = strax.DataKey(runid_str, in_dtype, input_metadata['lineage'])
-    for chunk in args.chunks:
-        in_data = st.storage[0].backends[0]._read_chunk(st.storage[0].find(input_key)[1],
-                                                        chunk_info=input_metadata['chunks'][int(chunk)],
-                                                        dtype=literal_eval(input_metadata['dtype']),
-                                                        compressor=input_metadata['compressor'])
 
-        plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
-        st._set_plugin_config(plugin, runid_str, tolerant=False)
-        plugin.setup()
-        output_key = strax.DataKey(runid_str, out_dtype, plugin.lineage)
+    # initialize plugin needed for processing
+    plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
+    st._set_plugin_config(plugin, runid_str, tolerant=False)
+    plugin.setup()
 
-        output_data = plugin.do_compute(chunk_i=chunk, **{in_dtype: in_data})
-        saver = st.storage[0].saver(output_key, plugin.metadata(runid, out_dtype))
+    # setup savers
+    savers = dict()
+    for keystring in plugin.provides:
+        key = strax.DataKey(runid_str, keystring, plugin.lineage)
+        saver = st.storage[0].saver(key, plugin.metadata(runid, keystring))
         saver.is_forked = True
+        savers[keystring] = saver
 
-        # To save one chunk, do this:
-        for key in output_data.keys():
-            saver.save(output_data[key], chunk_i=chunk)
+    # setup a few more variables
+    backend = st.storage[0].backends[0]
+    dtype = literal_eval(input_metadata['dtype'])
+    chunk_kwargs = dict(data_type=input_metadata['data_type'],
+                        data_kind=input_metadata['data_kind'],
+                        dtype=dtype)
+
+    # process the chunks
+    for chunk in args.chunks:
+        # read in the input data for this chunk
+        in_data = backend._read_and_format_chunk(backend_key=st.storage[0].find(input_key)[1],
+                                                 metadata=input_metadata,
+                                                 chunk_info=input_metadata['chunks'][int(chunk)],
+                                                 dtype=dtype,
+                                                 time_range=None,
+                                                 chunk_construction_kwargs=chunk_kwargs
+                                                )
+
+        # process this chunk
+        output_data = plugin.do_compute(chunk_i=chunk, **{in_dtype: in_data})
+
+        # save the output -- you have to loop because there could be > 1 output dtypes
+        for keystring, strax_chunk in output_data.items():
+            savers[keystring].save(strax_chunk, chunk_i=int(chunk))
 
 
 if __name__ == "__main__":
