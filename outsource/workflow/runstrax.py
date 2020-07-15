@@ -23,6 +23,7 @@ def main():
 
     # directory where we will be putting everything
     data_dir = './data'
+
     # get context
     st = eval(f'straxen.contexts.{args.context}()')
     st.storage = [strax.DataDirectory(data_dir)]

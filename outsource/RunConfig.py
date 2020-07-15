@@ -15,6 +15,7 @@ class RunConfigBase:
     _executable = os.path.join(base_dir, 'workflow', 'run-pax.sh')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
+    _chunks_per_job = 1
 
 
 class RunConfig(RunConfigBase):
@@ -79,6 +80,10 @@ class RunConfig(RunConfigBase):
     @property
     def priority(self):
         return self._priority
+
+    @property
+    def chunks_per_job(self):
+        return self._chunks_per_job
 
 
 class DBConfig(RunConfig):
