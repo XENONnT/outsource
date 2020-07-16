@@ -6,7 +6,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser("Outsource Testing")
-    parser.add_argument('--run', type=int, default=7696)
+    parser.add_argument('--run', type=int, default=7695)
     parser.add_argument('--context', default='xenonnt_online')
 
     args = parser.parse_args()
