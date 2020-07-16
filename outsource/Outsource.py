@@ -197,11 +197,13 @@ class Outsource:
             combine_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
             combine_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
             combine_job.uses(combinepy, link=Link.INPUT)
+            combine_job.uses(xenon_config, link=Link.INPUT)
             combined_output = '%06d-records_combined.tar.gz' % (dbcfg.number)
             combine_job.addArguments(str(dbcfg.number),
-                                   'records',
-                                   combined_output
-                                   )
+                                     'records',
+                                     combined_output,
+                                     dbcfg.strax_context
+                                    )
             combine_job.uses(combined_output, link=Link.OUTPUT)
             dax.addJob(combine_job)
             
@@ -258,9 +260,12 @@ class Outsource:
             upload_job = self._job("upload.sh", run_on_submit_node=True)
             upload_job.uses(combined_output, link=Link.INPUT)
             upload_job.uses(uploadpy, link=Link.INPUT)
+            upload_job.uses(xenon_config, link=Link.INPUT)
             upload_job.addArguments(str(dbcfg.number),
                                     'records',
-                                    'UC_DALI_USERDISK')
+                                    'UC_OSG_USERDISK',
+                                    dbcfg.strax_context
+                                    )
             dax.addJob(upload_job)
             dax.depends(parent=combine_job, child=upload_job)
         
