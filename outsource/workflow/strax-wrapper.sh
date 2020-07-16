@@ -49,7 +49,7 @@ echo
 
 echo 'Processing now...'
 
-./runstrax.py ${run_id} --input_dtype ${input_dtype} --output_dtype ${output_dtype} --context ${context} --chunks ${chunk} 2>&1
+./runstrax.py ${run_id} --input_dtype ${input_dtype} --output_dtype ${output_dtype} --context ${context} --chunks ${chunks} 2>&1
 
 if [[ $? -ne 0 ]];
 then 
