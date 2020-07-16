@@ -5,10 +5,15 @@ set -e
 runid=$1
 dtype=$2
 rse=$3
+context=$4
 
-. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
+# source the environment
+. /opt/XENONnT/setup.sh
+
+# . /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
 
 export RUCIO_ACCOUNT=production
+export XENON_CONFIG=$PWD/.xenon_config
 
 rucio whoami
 
@@ -33,6 +38,6 @@ fi
 
 # rynge can not upload - but want to test everything except this step
 if [ "X$PEGASUS_SUBMITTING_USER" != "Xrynge" ]; then
-    ./upload.py ${runid} ${dtype} ${rse}
+    ./upload.py ${runid} ${dtype} ${rse} --context ${context}
 fi
 
