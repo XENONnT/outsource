@@ -10,7 +10,7 @@ import straxen
 
 def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
-    parser.add_argument('dataset', help='Run name')
+    parser.add_argument('dataset', help='Run number', type=int)
     parser.add_argument('dtype', help='dtype to combine')
     parser.add_argument('--context', help='Strax context')
     parser.add_argument('--input_path', help='path where the temp directory is')
@@ -21,7 +21,8 @@ def main():
     if os.path.exists(args.output_path):
         raise(FileExistsError("Output path %s already exists" % args.output_path))
 
-    runid_str = args.dataset
+    runid = args.dataset
+    runid_str = "%06d" % runid
     dtype = args.dtype
     path = args.input_path
     tmp_path = tempfile.mkdtemp()
@@ -42,6 +43,7 @@ def main():
         saver.is_forked = True
 
         tmpdir, tmpname = os.path.split(saver.tempdirname)
+        print(tmpdir, tmpname)
         rmtree(saver.tempdirname)
         copytree(os.path.join(path, tmpname), saver.tempdirname)
         saver.is_forked = True

@@ -5,6 +5,7 @@ set -e
 runid=$1
 dtype=$2
 output_file=$3
+context=$4
 
 echo $*
 
@@ -29,8 +30,10 @@ echo
 # source the environment
 . /opt/XENONnT/setup.sh
 
-./combine.py ${runid} ${dtype} --input_path data --output_path combined
+export XENON_CONFIG=$PWD/.xenon_config
+
+./combine.py ${runid} ${dtype} --input_path data --output_path combined --context ${context}
 
 # create the new output file
-tar czf ${output_file} combined
+tar czvf ${output_file} combined
 
