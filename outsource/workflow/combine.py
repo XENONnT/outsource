@@ -6,6 +6,9 @@ import os
 from shutil import copytree, rmtree
 import strax
 import straxen
+from utilix import db
+from admix.interfaces.rucio_summoner import RucioSummoner
+from admix.utils.naming import make_did
 
 
 def main():
@@ -25,31 +28,34 @@ def main():
     runid_str = "%06d" % runid
     dtype = args.dtype
     path = args.input_path
-    tmp_path = tempfile.mkdtemp()
+    output_path = args.output_path
 
     # get context
     st = eval(f'straxen.contexts.{args.context}()')
-    st.storage = [strax.DataDirectory(tmp_path)]
+    st.storage = [strax.DataDirectory(output_path)]
 
     # initialize plugin needed for processing
     plugin = st._get_plugins((dtype,), runid_str)[dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    # setup savers
+    # setup rucio client
+    rc = RucioSummoner()
+
+
     for keystring in plugin.provides:
+        dirname = f"{runid_str}-{keystring}-{hash}"
+        upload_path = os.path.join(output_path, dirname)
+
         key = strax.DataKey(runid_str, keystring, plugin.lineage)
         saver = st.storage[0].saver(key, plugin.metadata(runid_str, keystring))
         saver.is_forked = True
 
         tmpdir, tmpname = os.path.split(saver.tempdirname)
-        print(tmpdir, tmpname)
         rmtree(saver.tempdirname)
         copytree(os.path.join(path, tmpname), saver.tempdirname)
         saver.is_forked = True
         saver.close()
-
-    copytree(tmp_path, args.output_path)
 
 
 if __name__ == "__main__":

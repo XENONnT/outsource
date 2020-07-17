@@ -43,7 +43,6 @@ def main():
 
     rc = RucioSummoner()
 
-
     for keystring in plugin.provides:
         key = strax.DataKey(runid_str, keystring, plugin.lineage)
         hash = key.lineage_hash
@@ -51,6 +50,7 @@ def main():
 
         dirname = f"{runid_str}-{keystring}-{hash}"
         upload_path = os.path.join('combined', dirname)
+
 
         print(f"Uploading {dirname}")
         os.listdir(upload_path)
@@ -82,7 +82,10 @@ def main():
             new_data_dict['lifetime'] = new_rule['expires'],
             new_data_dict['protocol'] = 'rucio'
             new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
+            new_data_dict['checksum'] = 'shit'
             db.update_data(runid, new_data_dict)
+        else:
+            print(f"Rucio rule already exists for {did}")
 
 
 if __name__ == "__main__":

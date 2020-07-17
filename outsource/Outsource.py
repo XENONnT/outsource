@@ -132,11 +132,6 @@ class Outsource:
         combine = Executable(name='combine-wrapper.sh', arch='x86_64', installed=False)
         combine.addPFN(PFN('file://' + base_dir + '/workflow/combine-wrapper.sh', 'local'))
         dax.addExecutable(combine)
-        
-        upload_wrapper = Executable(name='upload.sh', arch='x86_64', installed=False)
-        upload_wrapper.addPFN(PFN('file://' + base_dir + '/workflow/upload-wrapper.sh', 'local'))
-        dax.addExecutable(upload_wrapper)
-
 
         # straxify is what processes the data. Gets called by the executable run-pax.sh
         straxify = File('runstrax.py')
@@ -197,14 +192,13 @@ class Outsource:
             combine_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
             combine_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
             combine_job.uses(combinepy, link=Link.INPUT)
+            combine_job.uses(uploadpy, link=Link.INPUT)
             combine_job.uses(xenon_config, link=Link.INPUT)
-            combined_output = '%06d-records_combined.tar.gz' % (dbcfg.number)
             combine_job.addArguments(str(dbcfg.number),
                                      'records',
-                                     combined_output,
-                                     dbcfg.strax_context
+                                     dbcfg.strax_context,
+                                     'UC_OSG_USERDISK'
                                     )
-            combine_job.uses(combined_output, link=Link.OUTPUT)
             dax.addJob(combine_job)
             
             # add jobs, one for each input file
@@ -255,20 +249,7 @@ class Outsource:
                 # update combine job
                 combine_job.uses(job_output_tar, link=Link.INPUT, transfer=True)
                 dax.depends(parent=job, child=combine_job)
-                
-            # upload job  - runs on the submit host
-            upload_job = self._job("upload.sh", run_on_submit_node=True)
-            upload_job.uses(combined_output, link=Link.INPUT)
-            upload_job.uses(uploadpy, link=Link.INPUT)
-            upload_job.uses(xenon_config, link=Link.INPUT)
-            upload_job.addArguments(str(dbcfg.number),
-                                    'records',
-                                    'UC_OSG_USERDISK',
-                                    dbcfg.strax_context
-                                    )
-            dax.addJob(upload_job)
-            dax.depends(parent=combine_job, child=upload_job)
-        
+
         # Write the DAX to stdout
         f = open(os.path.join(self._generated_dir(), 'dax.xml'), 'w')
         dax.writeXML(f)

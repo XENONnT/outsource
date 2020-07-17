@@ -4,8 +4,8 @@ set -e
 
 runid=$1
 dtype=$2
-output_file=$3
 context=$4
+rse=$5
 
 echo $*
 
@@ -32,8 +32,9 @@ echo
 
 export XENON_CONFIG=$PWD/.xenon_config
 
+# combine the data
 ./combine.py ${runid} ${dtype} --input_path data --output_path combined --context ${context}
+# upload to rucio and update runDB
+./upload.py ${runid} ${dtype} ${rse} --context ${context}
 
-# create the new output file
-tar czvf ${output_file} combined
 
