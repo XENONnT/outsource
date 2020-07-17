@@ -78,7 +78,7 @@ def main():
             new_data_dict['did'] = did
             new_data_dict['status'] = "transferred"
             new_data_dict['host'] = "rucio-catalogue"
-            new_data_dict['type'] = dtype
+            new_data_dict['type'] = keystring
             new_data_dict['lifetime'] = new_rule['expires'],
             new_data_dict['protocol'] = 'rucio'
             new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()

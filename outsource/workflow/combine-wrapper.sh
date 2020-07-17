@@ -4,8 +4,8 @@ set -e
 
 runid=$1
 dtype=$2
-context=$4
-rse=$5
+context=$3
+rse=$4
 
 echo $*
 
@@ -23,7 +23,7 @@ ls -l data
 
 echo
 echo
-echo "Total amount of data before combine: "`du -s --si .`
+#echo "Total amount of data before combine: "`du -s --si .`
 echo
 echo
 
@@ -31,6 +31,7 @@ echo
 . /opt/XENONnT/setup.sh
 
 export XENON_CONFIG=$PWD/.xenon_config
+export RUCIO_ACCOUNT=production
 
 # combine the data
 ./combine.py ${runid} ${dtype} --input_path data --output_path combined --context ${context}
