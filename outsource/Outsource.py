@@ -7,6 +7,7 @@ import re
 import socket
 import subprocess
 import sys
+import numpy as np
 
 from pprint import pprint
 
@@ -131,11 +132,6 @@ class Outsource:
         combine = Executable(name='combine-wrapper.sh', arch='x86_64', installed=False)
         combine.addPFN(PFN('file://' + base_dir + '/workflow/combine-wrapper.sh', 'local'))
         dax.addExecutable(combine)
-        
-        upload_wrapper = Executable(name='upload.sh', arch='x86_64', installed=False)
-        upload_wrapper.addPFN(PFN('file://' + base_dir + '/workflow/upload-wrapper.sh', 'local'))
-        dax.addExecutable(upload_wrapper)
-
 
         # straxify is what processes the data. Gets called by the executable run-pax.sh
         straxify = File('runstrax.py')
@@ -152,7 +148,7 @@ class Outsource:
         dax.addFile(uploadpy)
 
         xenon_config = File('.xenon_config')
-        xenon_config.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.xenon_config'), 'local'))
+        xenon_config.addPFN(PFN('file://' + config.config_path, 'local'))
         dax.addFile(xenon_config)
 
         token = File('.dbtoken')
@@ -196,28 +192,29 @@ class Outsource:
             combine_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
             combine_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
             combine_job.uses(combinepy, link=Link.INPUT)
-            combined_output = '%06d-records_combined.tar.gz' % (dbcfg.number)
+            combine_job.uses(uploadpy, link=Link.INPUT)
+            combine_job.uses(xenon_config, link=Link.INPUT)
             combine_job.addArguments(str(dbcfg.number),
-                                   'records',
-                                   combined_output
-                                   )
-            combine_job.uses(combined_output, link=Link.OUTPUT)
+                                     'records',
+                                     dbcfg.strax_context,
+                                     'UC_OSG_USERDISK'
+                                    )
             dax.addJob(combine_job)
             
             # add jobs, one for each input file
-            for chunk_file, chunk_props in self._data_find_chunks(rucio_dataset).items():
-    
-                logger.debug(" ... adding job for chunk file: " + chunk_file)
-        
-                filepath, file_extenstion = os.path.splitext(chunk_file)
-    
-                file_rucio_dataset = None
-                if chunk_props['rucio_available']:
-                    file_rucio_dataset = rucio_dataset
-            
+            # TODO is there a DB query we can do instead?
+            chunk_list = self._data_find_chunks(rucio_dataset)
+
+            njobs = int(np.ceil(len(chunk_list) / dbcfg.chunks_per_job))
+
+            for job_i in range(njobs):
+                chunks = chunk_list[dbcfg.chunks_per_job*job_i:dbcfg.chunks_per_job*(job_i + 1)]
+                chunk_str = " ".join([str(c) for c in chunks])
+
+                logger.debug(" ... adding job for chunk files: " + chunk_str)
+
                 # output files
-                chunk_id_str = chunk_file.split('-')[-1]
-                job_output_tar = File('%06d-records-%s.tar.gz' % (dbcfg.number, chunk_id_str))
+                job_output_tar = File('%06d-output-%04d.tar.gz' % (dbcfg.number, job_i))
                 # do we already have a local copy?
                 job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id, 
                                                          job_output_tar.name)
@@ -233,16 +230,16 @@ class Outsource:
                     job.addProfile(Profile(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"'))
                 job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
                 job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority)))
-                # Note that any changes to this argument list, also means run-pax.sh has to be updated
+                # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                 job.addArguments(str(dbcfg.number),
+                                 dbcfg.strax_context,
                                  'raw_records',
                                  'records',
                                  job_output_tar,
-                                 str(int(chunk_id_str)),
-                                 )
+                                 chunk_str)
                 job.uses(straxify, link=Link.INPUT)
-                job.uses(job_output_tar, link=Link.OUTPUT, transfer=True)
                 job.uses(xenon_config, link=Link.INPUT)
+                job.uses(job_output_tar, link=Link.OUTPUT, transfer=True)
                 job.uses(token, link=Link.INPUT)
                 dax.addJob(job)
 
@@ -252,17 +249,7 @@ class Outsource:
                 # update combine job
                 combine_job.uses(job_output_tar, link=Link.INPUT, transfer=True)
                 dax.depends(parent=job, child=combine_job)
-                
-            # upload job  - runs on the submit host
-            upload_job = self._job("upload.sh", run_on_submit_node=True)
-            upload_job.uses(combined_output, link=Link.INPUT)
-            upload_job.uses(uploadpy, link=Link.INPUT)
-            upload_job.addArguments(str(dbcfg.number),
-                                    'records',
-                                    'UC_DALI_USERDISK')
-            dax.addJob(upload_job)
-            dax.depends(parent=combine_job, child=upload_job)
-        
+
         # Write the DAX to stdout
         f = open(os.path.join(self._generated_dir(), 'dax.xml'), 'w')
         dax.writeXML(f)
@@ -361,21 +348,15 @@ class Outsource:
         Look up which chunk files are in the dataset - return a dict where the keys are the
         chunks, and the values a dict of locations
         '''
-        chunks_files = {}
+        chunks_files = []
 
-        if rucio_dataset:
-            logger.info('Querying Rucio for files in the data set ' + rucio_dataset)  
-            out = subprocess.Popen(["rucio", "list-file-replicas", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
-            out = str(out).split("\\n")
-            files = set([l.split(" ")[3] for l in out if '---' not in l and 'xnt' in l])
-            for f in sorted([f for f in files if 'json' not in f]):
-                chunks_files[f] = {'rucio_available': True}
-
-        # make sure all the properties are defined for all the files - we want a neat dict to 
-        # smooth access later on
-        for fname, props in chunks_files.items():
-            if 'rucio_available' not in props:
-                props['rucio_available'] = False
+        logger.info('Querying Rucio for files in the data set ' + rucio_dataset)
+        # TODO use rucio python API or admix
+        out = subprocess.Popen(["rucio", "list-file-replicas", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
+        out = str(out).split("\\n")
+        files = set([l.split(" ")[3] for l in out if '---' not in l and 'xnt' in l])
+        for i, f in enumerate(sorted([f for f in files if 'json' not in f])):
+            chunks_files.append(i)
         
         return chunks_files
 
