@@ -129,7 +129,7 @@ class Outsource:
         #wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 10))
         dax.addExecutable(wrapper)
 
-        combine = Executable(name='combine-wrapper.sh', arch='x86_64', installed=False)
+        combine = Executable(name='combine-wrapper', arch='x86_64', installed=False)
         combine.addPFN(PFN('file://' + base_dir + '/workflow/combine-wrapper.sh', 'local'))
         dax.addExecutable(combine)
 
@@ -188,7 +188,7 @@ class Outsource:
             dax.addJob(pre_flight_job)
             
             # Set up the combine job first - we can then add to that job inside the chunk file loop
-            combine_job = self._job('combine-wrapper.sh', disk=50000)
+            combine_job = self._job('combine-wrapper', disk=50000)
             combine_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
             combine_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
             combine_job.uses(combinepy, link=Link.INPUT)
@@ -200,6 +200,20 @@ class Outsource:
                                      'UC_OSG_USERDISK'
                                     )
             dax.addJob(combine_job)
+
+            # Set up the combine job first - we can then add to that job inside the chunk file loop
+            combine_job2 = self._job('combine-wrapper', disk=20000)
+            combine_job2.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
+            combine_job2.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
+            combine_job2.uses(combinepy, link=Link.INPUT)
+            combine_job2.uses(uploadpy, link=Link.INPUT)
+            combine_job2.uses(xenon_config, link=Link.INPUT)
+            combine_job2.addArguments(str(dbcfg.number),
+                                      'peaklets',
+                                      dbcfg.strax_context,
+                                      'UC_OSG_USERDISK'
+                                     )
+            dax.addJob(combine_job2)
             
             # add jobs, one for each input file
             # TODO is there a DB query we can do instead?
@@ -214,7 +228,8 @@ class Outsource:
                 logger.debug(" ... adding job for chunk files: " + chunk_str)
 
                 # output files
-                job_output_tar = File('%06d-output-%04d.tar.gz' % (dbcfg.number, job_i))
+                # for records
+                job_output_tar = File('%06d-output-records-%04d.tar.gz' % (dbcfg.number, job_i))
                 # do we already have a local copy?
                 job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id, 
                                                          job_output_tar.name)
@@ -222,6 +237,16 @@ class Outsource:
                     logger.info(" ... local copy found at: " + job_output_tar_local_path)
                     job_output_tar.addPFN(PFN('file://' + job_output_tar_local_path, 'local'))
                     dax.addFile(job_output_tar)
+
+                # for peaks
+                job_output_tar2 = File('%06d-output-peaks-%04d.tar.gz' % (dbcfg.number, job_i))
+                # do we already have a local copy?
+                job_output_tar_local_path2 = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
+                                                         job_output_tar2.name)
+                if os.path.isfile(job_output_tar_local_path2):
+                    logger.info(" ... local copy found at: " + job_output_tar_local_path2)
+                    job_output_tar2.addPFN(PFN('file://' + job_output_tar_local_path2, 'local'))
+                    dax.addFile(job_output_tar2)
             
                 # Add job
                 job = self._job(name='strax-wrapper')
@@ -233,7 +258,6 @@ class Outsource:
                 # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                 job.addArguments(str(dbcfg.number),
                                  dbcfg.strax_context,
-                                 'raw_records',
                                  'records',
                                  job_output_tar,
                                  chunk_str)
@@ -249,6 +273,33 @@ class Outsource:
                 # update combine job
                 combine_job.uses(job_output_tar, link=Link.INPUT, transfer=True)
                 dax.depends(parent=job, child=combine_job)
+
+                # add second processing job, this is records to peaklets
+                peakjob = self._job(name='strax-wrapper')
+                if desired_sites and len(desired_sites) > 0:
+                    # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
+                    peakjob.addProfile(Profile(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"'))
+                peakjob.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
+                peakjob.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority)))
+                # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
+                peakjob.addArguments(str(dbcfg.number),
+                                 dbcfg.strax_context,
+                                 'records',
+                                 'peaklets',
+                                 job_output_tar,
+                                 chunk_str)
+                peakjob.uses(straxify, link=Link.INPUT)
+                peakjob.uses(xenon_config, link=Link.INPUT)
+                peakjob.uses(job_output_tar2, link=Link.OUTPUT, transfer=True)
+                peakjob.uses(token, link=Link.INPUT)
+                dax.addJob(peakjob)
+
+                # peak job depends on the combination of the records job
+                dax.depends(parent=combine_job, child=peakjob)
+
+                # update combine job
+                combine_job2.uses(job_output_tar2, link=Link.INPUT, transfer=True)
+                dax.depends(parent=peakjob, child=combine_job2)
 
         # Write the DAX to stdout
         f = open(os.path.join(self._generated_dir(), 'dax.xml'), 'w')
