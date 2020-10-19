@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-from outsource.Outsource import Outsource
-from outsource.RunConfig import DBConfig
+
+import sys
 import argparse
 
+sys.path.insert(0, '.')
+
+from outsource.Outsource import Outsource
+from outsource.RunConfig import DBConfig
 
 def main():
     parser = argparse.ArgumentParser("Outsource Testing")

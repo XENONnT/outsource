@@ -1,6 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import json
+import getpass
 import logging
 import os
 import re
@@ -11,16 +12,15 @@ import numpy as np
 
 from pprint import pprint
 
-from outsource.Shell import Shell
 from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
-
-logger = logging.getLogger("outsource")
+from outsource.Shell import Shell
 
 # Pegasus environment
-sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python2.7/site-packages'))
+sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
 os.environ['PATH'] = os.path.join(pegasus_path, 'bin') + ':' + os.environ['PATH']
-from Pegasus.DAX3 import *
+from Pegasus.api import *
 
+logger = logging.getLogger()
 
 class Outsource:
 
@@ -60,7 +60,7 @@ class Outsource:
             logger.setLevel(logging.DEBUG)
             console.setLevel(logging.DEBUG)
         # formatter
-        formatter = logging.Formatter("%(asctime)s %(levelname)7s:  %(message)s")
+        formatter = logging.Formatter("%(asctime)s %(levelname)7s:  %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
         console.setFormatter(formatter)
         if (logger.hasHandlers()):
             logger.handlers.clear()
@@ -99,61 +99,56 @@ class Outsource:
         # ensure we have a proxy with enough time left
         self._validate_x509_proxy()
 
-        self._generate_dax()
+        wf = self._generate_workflow()
 
-        self._plan_and_submit()
+        self._plan_and_submit(wf)
     
-    def _generate_dax(self):
+    def _generate_workflow(self):
         '''
-        Use the Pegasus DAX API to build an abstract graph of the workflow
+        Use the Pegasus API to build an abstract graph of the workflow
         '''
         
         # Create a abstract dag
-        dax = ADAG('xenonnt')
+        wf = Workflow('xenonnt')
+        tc = TransformationCatalog()
+        rc = ReplicaCatalog()
+        sc = self._generate_sc()
         
         # event callouts
         notification_email = ''
         if config.has_option('Outsource', 'notification_email'):
             notification_email = config.get('Outsource', 'notification_email')
-        dax.invoke('start', base_dir + '/workflow/events/wf-start ' + notification_email)
-        dax.invoke('at_end', base_dir + '/workflow/events/wf-end ' + notification_email)
-        
-        # Add executables to the DAX-level replica catalog
-        
-        pre_flight = Executable(name='pre-flight', arch='x86_64', installed=False)
-        pre_flight.addPFN(PFN('file://' + base_dir + '/workflow/pre-flight-wrapper.sh', 'local'))
-        dax.addExecutable(pre_flight)
+        wf.add_shell_hook(EventType.START, pegasus_path + '/share/pegasus/notification/email -t ' + notification_email)
+        wf.add_shell_hook(EventType.END, pegasus_path + '/share/pegasus/notification/email -t ' + notification_email)
 
-        wrapper = Executable(name='strax-wrapper', arch='x86_64', installed=False)
-        wrapper.addPFN(PFN('file://' + base_dir + '/workflow/strax-wrapper.sh', 'local'))
-        #wrapper.addProfile(Profile(Namespace.PEGASUS, 'clusters.size', 10))
-        dax.addExecutable(wrapper)
+        # add executables to the wf-level transformation catalog
+        for fname in [
+                'combine-wrapper.sh',
+                'pre-flight-wrapper.sh',
+                'strax-wrapper.sh',
+                ]:
+            t = Transformation(fname,
+                               site='local',
+                               pfn='file://' + base_dir + '/workflow/' + fname,
+                               is_stageable=True)
+            tc.add_transformations(t)
 
-        combine = Executable(name='combine-wrapper', arch='x86_64', installed=False)
-        combine.addPFN(PFN('file://' + base_dir + '/workflow/combine-wrapper.sh', 'local'))
-        dax.addExecutable(combine)
-
-        # straxify is what processes the data. Gets called by the executable run-pax.sh
+        # scripts some exectuables might need
         straxify = File('runstrax.py')
-        straxify.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/runstrax.py'), 'local'))
-        dax.addFile(straxify)
-
-        # performs the combine
+        rc.add_replica('local', 'runstrax.py', 'file://' + base_dir + '/workflow/runstrax.py')
+        
         combinepy = File('combine.py')
-        combinepy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/combine.py'), 'local'))
-        dax.addFile(combinepy)
-
+        rc.add_replica('local', 'combine.py', 'file://' + base_dir + '/workflow/combine.py')
+        
         uploadpy = File('upload.py')
-        uploadpy.addPFN(PFN('file://' + os.path.join(base_dir, 'workflow/upload.py'), 'local'))
-        dax.addFile(uploadpy)
+        rc.add_replica('local', 'upload.py', 'file://' + base_dir + '/workflow/upload.py')
 
+        # add common data files to the replica catalog
         xenon_config = File('.xenon_config')
-        xenon_config.addPFN(PFN('file://' + config.config_path, 'local'))
-        dax.addFile(xenon_config)
+        rc.add_replica('local', '.xenon_config', 'file://' + config.config_path)
 
         token = File('.dbtoken')
-        token.addPFN(PFN('file://' + os.path.join(os.environ['HOME'], '.dbtoken'), 'local'))
-        dax.addFile(token)
+        rc.add_replica('local', '.dbtoken', 'file://' + os.path.join(os.environ['HOME'], '.dbtoken'))
 
         for dbcfg in self._dbcfgs:
             
@@ -180,26 +175,23 @@ class Outsource:
             requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
             if self._exclude_sites():
                 requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
-
             
             # pre flight - runs on the submit host!
-            pre_flight_job = self._job('pre-flight', run_on_submit_node=True)
-            pre_flight_job.addArguments(base_dir, str(dbcfg.number))
-            dax.addJob(pre_flight_job)
+            pre_flight_job = self._job('pre-flight-wrapper.sh', run_on_submit_node=True)
+            pre_flight_job.add_args(base_dir, str(dbcfg.number))
+            wf.add_jobs(pre_flight_job)
             
             # Set up the combine job first - we can then add to that job inside the chunk file loop
-            combine_job = self._job('combine-wrapper', disk=50000)
-            combine_job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
-            combine_job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
-            combine_job.uses(combinepy, link=Link.INPUT)
-            combine_job.uses(uploadpy, link=Link.INPUT)
-            combine_job.uses(xenon_config, link=Link.INPUT)
-            combine_job.addArguments(str(dbcfg.number),
-                                     'records',
-                                     dbcfg.strax_context,
-                                     'UC_OSG_USERDISK'
-                                    )
-            dax.addJob(combine_job)
+            combine_job = self._job('combine-wrapper.sh', disk=50000)
+            combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
+            combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
+            combine_job.add_inputs(combinepy, uploadpy, xenon_config)
+            combine_job.add_args(str(dbcfg.number),
+                                 'records',
+                                 dbcfg.strax_context,
+                                 'UC_OSG_USERDISK'
+                                )
+            wf.add_jobs(combine_job)
 
             # Set up the combine job first - we can then add to that job inside the chunk file loop
             combine_job2 = self._job('combine-wrapper', disk=20000)
@@ -213,8 +205,8 @@ class Outsource:
                                       dbcfg.strax_context,
                                       'UC_OSG_USERDISK'
                                      )
-            dax.addJob(combine_job2)
-            
+            wf.add_jobs(combine_job2)
+
             # add jobs, one for each input file
             # TODO is there a DB query we can do instead?
             chunk_list = self._data_find_chunks(rucio_dataset)
@@ -231,12 +223,10 @@ class Outsource:
                 # for records
                 job_output_tar = File('%06d-output-records-%04d.tar.gz' % (dbcfg.number, job_i))
                 # do we already have a local copy?
-                job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id, 
-                                                         job_output_tar.name)
+                job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id, str(job_output_tar))
                 if os.path.isfile(job_output_tar_local_path):
                     logger.info(" ... local copy found at: " + job_output_tar_local_path)
-                    job_output_tar.addPFN(PFN('file://' + job_output_tar_local_path, 'local'))
-                    dax.addFile(job_output_tar)
+                    job_output_tar.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
 
                 # for peaks
                 job_output_tar2 = File('%06d-output-peaks-%04d.tar.gz' % (dbcfg.number, job_i))
@@ -245,34 +235,32 @@ class Outsource:
                                                          job_output_tar2.name)
                 if os.path.isfile(job_output_tar_local_path2):
                     logger.info(" ... local copy found at: " + job_output_tar_local_path2)
-                    job_output_tar2.addPFN(PFN('file://' + job_output_tar_local_path2, 'local'))
-                    dax.addFile(job_output_tar2)
-            
+                    job_output_tar2.add_replica('local', job_output_tar2, 'file://' + job_output_tar_local_path2)
+
                 # Add job
-                job = self._job(name='strax-wrapper')
+                job = self._job(name='strax-wrapper.sh')
                 if desired_sites and len(desired_sites) > 0:
                     # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
-                    job.addProfile(Profile(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"'))
-                job.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
-                job.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority)))
+                    job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
+                job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                 # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
+
                 job.addArguments(str(dbcfg.number),
                                  dbcfg.strax_context,
                                  'records',
                                  job_output_tar,
                                  chunk_str)
-                job.uses(straxify, link=Link.INPUT)
-                job.uses(xenon_config, link=Link.INPUT)
-                job.uses(job_output_tar, link=Link.OUTPUT, transfer=True)
-                job.uses(token, link=Link.INPUT)
-                dax.addJob(job)
+                job.add_inputs(straxify, xenon_config, token)
+                job.add_outputs(job_output_tar, stage_out=True)
+                wf.add_jobs(job)
 
                 # all strax jobs depend on the pre-flight one
-                dax.depends(parent=pre_flight_job, child=job)
+                wf.add_dependency(job, parents=[pre_flight_job])
 
                 # update combine job
-                combine_job.uses(job_output_tar, link=Link.INPUT, transfer=True)
-                dax.depends(parent=job, child=combine_job)
+                combine_job.add_inputs(job_output_tar)
+                wf.add_dependency(job, children=[combine_job])
 
                 # add second processing job, this is records to peaklets
                 peakjob = self._job(name='strax-wrapper')
@@ -284,44 +272,45 @@ class Outsource:
                 # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                 peakjob.addArguments(str(dbcfg.number),
                                  dbcfg.strax_context,
-                                 'records',
                                  'peaklets',
-                                 job_output_tar,
+                                 job_output_tar2,
                                  chunk_str)
-                peakjob.uses(straxify, link=Link.INPUT)
-                peakjob.uses(xenon_config, link=Link.INPUT)
-                peakjob.uses(job_output_tar2, link=Link.OUTPUT, transfer=True)
-                peakjob.uses(token, link=Link.INPUT)
-                dax.addJob(peakjob)
+                peakjob.add_inputs(straxify, xenon_config, token)
+                peakjob.add_outputs(job_output_tar2, stage_out=True)
+                wf.add_jobs(peakjob)
 
-                # peak job depends on the combination of the records job
-                dax.depends(parent=combine_job, child=peakjob)
+                # the peak job depends on the combination of the records one
+                wf.add_dependency(peakjob, parents=[combine_job])
 
-                # update combine job
-                combine_job2.uses(job_output_tar2, link=Link.INPUT, transfer=True)
-                dax.depends(parent=peakjob, child=combine_job2)
+                # update peak combine job
+                combine_job2.add_inputs(job_output_tar2)
+                wf.add_dependency(peakjob, children=[combine_job2])
 
-        # Write the DAX to stdout
-        f = open(os.path.join(self._generated_dir(), 'dax.xml'), 'w')
-        dax.writeXML(f)
-        f.close()
-       
-        
-    def _plan_and_submit(self):
+
+        # Write the wf to stdout
+        os.chdir(self._generated_dir())
+        wf.add_replica_catalog(rc)
+        wf.add_transformation_catalog(tc)
+        wf.add_site_catalog(sc)
+        wf.write()
+
+        return wf
+
+    def _plan_and_submit(self, wf):
         '''
-        Call out to plan-env-helper.sh to start the workflow
+        submit the workflow
         '''
-        
-        cmd = ' '.join([os.path.join(base_dir, 'workflow/plan-env-helper.sh'),
-                        pegasus_path,
-                        base_dir,
-                        work_dir,
-                        self._generated_dir(),
-                        runs_dir,
-                        self._wf_id])
-        shell = Shell(cmd, log_cmd = False, log_outerr = True)
-        shell.run()
- 
+
+        os.chdir(self._generated_dir())
+        wf.plan(conf=base_dir + '/workflow/pegasus.conf',
+                submit=True,
+                sites=['condorpool'],
+                staging_sites={'condorpool': 'staging'},
+                output_sites=['local'],
+                dir=runs_dir,
+                relative_dir=self._wf_id
+               )
+
 
     def _generated_dir(self):
         return os.path.join(work_dir, 'generated', self._wf_id)
@@ -351,16 +340,19 @@ class Outsource:
         disk units are in MBs.
         '''
         job = Job(name)
-        job.addProfile(Profile(Namespace.CONDOR, 'request_cpus', str(cores)))
-        job.addProfile(Profile(Namespace.CONDOR, 'request_disk', str(disk)))
+
+        if run_on_submit_node: 
+            job.add_selector_profile(execution_site='local')
+            # no other attributes on a local job
+            return job
+
+        job.add_profiles(Namespace.CONDOR, 'request_cpus', str(cores))
+        job.add_profiles(Namespace.CONDOR, 'request_disk', str(disk))
 
         # increase memory if the first attempt fails
         memory = 'ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, %d, %d)' \
                  %(memory, memory * 3)
-        job.addProfile(Profile(Namespace.CONDOR, 'request_memory', memory))
-
-        if run_on_submit_node: 
-            job.addProfile(Profile(Namespace.HINTS, 'execution.site', 'local'))
+        job.add_profiles(Namespace.CONDOR, 'request_memory', memory)
 
         return job
 
@@ -378,9 +370,12 @@ class Outsource:
                     rucio_dataset = d['did']
         
         if rucio_dataset:
-            logger.info('Querying Rucio for RSEs for the data set ' + rucio_dataset)  
-            out = subprocess.Popen(["rucio", "list-rules", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
-            out = out.decode("utf-8").split("\n")
+            logger.info('Querying Rucio for RSEs for the data set ' + rucio_dataset)
+            sh = Shell('. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh && rucio list-rules ' + rucio_dataset)
+            sh.run()
+            out = sh.get_outerr().split('\n')
+            #out = subprocess.Popen(["rucio", "list-rules", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
+            #out = out.decode("utf-8").split("\n")
             
             for line in out:
                 line = re.sub(' +', ' ', line).split(" ")
@@ -403,8 +398,9 @@ class Outsource:
 
         logger.info('Querying Rucio for files in the data set ' + rucio_dataset)
         # TODO use rucio python API or admix
-        out = subprocess.Popen(["rucio", "list-file-replicas", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
-        out = str(out).split("\\n")
+        sh = Shell('. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh && rucio list-file-replicas ' + rucio_dataset)
+        sh.run()
+        out = sh.get_outerr().split('\n')
         files = set([l.split(" ")[3] for l in out if '---' not in l and 'xnt' in l])
         for i, f in enumerate(sorted([f for f in files if 'json' not in f])):
             chunks_files.append(i)
@@ -454,6 +450,58 @@ class Outsource:
         for site in sites:
             exprs.append('GLIDEIN_Site =!= "%s"' %(site))
         return ' && '.join(exprs)
+
+
+    def _generate_sc(self):
+
+        sc = SiteCatalog()
+
+        # local site - this is the submit host
+        local = Site("local")
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path='{}/scratch/{}'.format(work_dir, self._wf_id))
+        scratch_dir.add_file_servers(FileServer('file:///{}/scratch/{}'.format(work_dir, self._wf_id), Operation.ALL))
+        storage_dir = Directory(Directory.LOCAL_STORAGE, path='{}/outputs/{}'.format(work_dir, self._wf_id))
+        storage_dir.add_file_servers(FileServer('file:///{}/outputs/{}'.format(work_dir, self._wf_id), Operation.ALL))
+        local.add_directories(scratch_dir, storage_dir)
+
+        local.add_profiles(Namespace.ENV, HOME=os.environ['HOME'])
+        local.add_profiles(Namespace.ENV, GFAL_CONFIG_DIR='/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/etc/gfal2.d')
+        local.add_profiles(Namespace.ENV, GFAL_PLUGIN_DIR='/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib64/gfal2-plugins/')
+        local.add_profiles(Namespace.ENV, GLOBUS_LOCATION='')
+        local.add_profiles(Namespace.ENV, PATH='/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/bin:/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/condabin:/usr/bin:/bin')
+        local.add_profiles(Namespace.ENV, LD_LIBRARY_PATH='/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib64:/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib')
+        local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ['USER'])
+        local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ['HOME'] + '/user_cert')
+        local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
+
+        # staging site
+        staging = Site("staging")
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/xenon_dcache/workflow_scratch/{}'.format(getpass.getuser()))
+        scratch_dir.add_file_servers(FileServer('gsiftp://xenon-gridftp.grid.uchicago.edu:2811/xenon/workflow_scratch/{}'.format(getpass.getuser()), Operation.ALL))
+        staging.add_directories(scratch_dir)
+
+        # condorpool
+        condorpool = Site("condorpool")
+        condorpool.add_profiles(Namespace.PEGASUS, style='condor')
+        condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
+
+        condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage', value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/osg_dev:latest"')
+
+        # ignore the site settings - the container will set all this up inside
+        condorpool.add_profiles(Namespace.ENV, OSG_LOCATION='')
+        condorpool.add_profiles(Namespace.ENV, GLOBUS_LOCATION='')
+        condorpool.add_profiles(Namespace.ENV, PYTHONPATH='')
+        condorpool.add_profiles(Namespace.ENV, PERL5LIB='')
+        condorpool.add_profiles(Namespace.ENV, LD_LIBRARY_PATH='')
+
+        condorpool.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ['USER'])
+        condorpool.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
+
+        sc.add_sites(local,
+                     staging,
+                     condorpool)
+
+        return sc
 
 
 # This should be temporary hopefully, but just to get things working now
