@@ -284,7 +284,6 @@ class Outsource:
                 # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                 peakjob.addArguments(str(dbcfg.number),
                                  dbcfg.strax_context,
-                                 'records',
                                  'peaklets',
                                  job_output_tar,
                                  chunk_str)
