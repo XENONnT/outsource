@@ -193,18 +193,16 @@ class Outsource:
                                 )
             wf.add_jobs(combine_job)
 
-            # Set up the combine job first - we can then add to that job inside the chunk file loop
-            combine_job2 = self._job('combine-wrapper', disk=20000)
-            combine_job2.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements_us))
-            combine_job2.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5)))
-            combine_job2.uses(combinepy, link=Link.INPUT)
-            combine_job2.uses(uploadpy, link=Link.INPUT)
-            combine_job2.uses(xenon_config, link=Link.INPUT)
-            combine_job2.addArguments(str(dbcfg.number),
-                                      'peaklets',
-                                      dbcfg.strax_context,
-                                      'UC_OSG_USERDISK'
-                                     )
+            # Set up the second combine job (for peaklets)
+            combine_job2 = self._job('combine-wrapper.sh', disk=50000)
+            combine_job2.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
+            combine_job2.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
+            combine_job2.add_inputs(combinepy, uploadpy, xenon_config)
+            combine_job2.add_args(str(dbcfg.number),
+                                  'peaklets',
+                                  dbcfg.strax_context,
+                                  'UC_OSG_USERDISK'
+                                 )
             wf.add_jobs(combine_job2)
 
             # add jobs, one for each input file
@@ -223,7 +221,8 @@ class Outsource:
                 # for records
                 job_output_tar = File('%06d-output-records-%04d.tar.gz' % (dbcfg.number, job_i))
                 # do we already have a local copy?
-                job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id, str(job_output_tar))
+                job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
+                                                         str(job_output_tar))
                 if os.path.isfile(job_output_tar_local_path):
                     logger.info(" ... local copy found at: " + job_output_tar_local_path)
                     job_output_tar.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
@@ -232,7 +231,7 @@ class Outsource:
                 job_output_tar2 = File('%06d-output-peaks-%04d.tar.gz' % (dbcfg.number, job_i))
                 # do we already have a local copy?
                 job_output_tar_local_path2 = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
-                                                         job_output_tar2.name)
+                                                         str(job_output_tar2))
                 if os.path.isfile(job_output_tar_local_path2):
                     logger.info(" ... local copy found at: " + job_output_tar_local_path2)
                     job_output_tar2.add_replica('local', job_output_tar2, 'file://' + job_output_tar_local_path2)
@@ -246,7 +245,7 @@ class Outsource:
                 job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                 # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
 
-                job.addArguments(str(dbcfg.number),
+                job.add_args(str(dbcfg.number),
                                  dbcfg.strax_context,
                                  'records',
                                  job_output_tar,
@@ -263,14 +262,14 @@ class Outsource:
                 wf.add_dependency(job, children=[combine_job])
 
                 # add second processing job, this is records to peaklets
-                peakjob = self._job(name='strax-wrapper')
+                peakjob = self._job(name='strax-wrapper.sh')
                 if desired_sites and len(desired_sites) > 0:
                     # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
-                    peakjob.addProfile(Profile(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"'))
-                peakjob.addProfile(Profile(Namespace.CONDOR, 'requirements', requirements))
-                peakjob.addProfile(Profile(Namespace.CONDOR, 'priority', str(dbcfg.priority)))
+                    peakjob.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
+                peakjob.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                peakjob.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                 # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
-                peakjob.addArguments(str(dbcfg.number),
+                peakjob.add_args(str(dbcfg.number),
                                  dbcfg.strax_context,
                                  'peaklets',
                                  job_output_tar2,
