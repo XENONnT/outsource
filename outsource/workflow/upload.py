@@ -79,10 +79,10 @@ def main():
             new_data_dict['status'] = "transferred"
             new_data_dict['host'] = "rucio-catalogue"
             new_data_dict['type'] = keystring
-            new_data_dict['lifetime'] = new_rule['expires'],
-            new_data_dict['protocol'] = 'rucio'
+            #new_data_dict['lifetime'] = new_rule['expires'],
+            #new_data_dict['protocol'] = 'rucio'
             new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
-            new_data_dict['checksum'] = 'shit'
+            new_data_dict['creation_place'] = "OSG"
             db.update_data(runid, new_data_dict)
         else:
             print(f"Rucio rule already exists for {did}")

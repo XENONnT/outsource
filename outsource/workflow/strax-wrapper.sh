@@ -4,10 +4,9 @@
 args=( "$@" )
 export run_id=$1
 export context=$2
-export input_dtype=$3
-export output_dtype=$4
-export output_tar=$5
-export chunks=${args[@]:5}
+export output_dtype=$3
+export output_tar=$4
+export chunks=${args[@]:4}
 
 echo $@
 
@@ -49,7 +48,7 @@ echo
 
 echo 'Processing now...'
 
-./runstrax.py ${run_id} --input_dtype ${input_dtype} --output_dtype ${output_dtype} --context ${context} --chunks ${chunks} 2>&1
+./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --chunks ${chunks} 2>&1
 
 if [[ $? -ne 0 ]];
 then 

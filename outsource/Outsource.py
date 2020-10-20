@@ -120,7 +120,7 @@ class Outsource:
             notification_email = config.get('Outsource', 'notification_email')
         wf.add_shell_hook(EventType.START, pegasus_path + '/share/pegasus/notification/email -t ' + notification_email)
         wf.add_shell_hook(EventType.END, pegasus_path + '/share/pegasus/notification/email -t ' + notification_email)
-        
+
         # add executables to the wf-level transformation catalog
         for fname in [
                 'combine-wrapper.sh',
@@ -192,7 +192,19 @@ class Outsource:
                                  'UC_OSG_USERDISK'
                                 )
             wf.add_jobs(combine_job)
-            
+
+            # Set up the second combine job (for peaklets)
+            combine_job2 = self._job('combine-wrapper.sh', disk=50000)
+            combine_job2.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
+            combine_job2.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
+            combine_job2.add_inputs(combinepy, uploadpy, xenon_config)
+            combine_job2.add_args(str(dbcfg.number),
+                                  'peaklets',
+                                  dbcfg.strax_context,
+                                  'UC_OSG_USERDISK'
+                                 )
+            wf.add_jobs(combine_job2)
+
             # add jobs, one for each input file
             # TODO is there a DB query we can do instead?
             chunk_list = self._data_find_chunks(rucio_dataset)
@@ -206,13 +218,24 @@ class Outsource:
                 logger.debug(" ... adding job for chunk files: " + chunk_str)
 
                 # output files
-                job_output_tar = File('%06d-output-%04d.tar.gz' % (dbcfg.number, job_i))
+                # for records
+                job_output_tar = File('%06d-output-records-%04d.tar.gz' % (dbcfg.number, job_i))
                 # do we already have a local copy?
-                job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id, str(job_output_tar))
+                job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
+                                                         str(job_output_tar))
                 if os.path.isfile(job_output_tar_local_path):
                     logger.info(" ... local copy found at: " + job_output_tar_local_path)
                     job_output_tar.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
-            
+
+                # for peaks
+                job_output_tar2 = File('%06d-output-peaks-%04d.tar.gz' % (dbcfg.number, job_i))
+                # do we already have a local copy?
+                job_output_tar_local_path2 = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
+                                                         str(job_output_tar2))
+                if os.path.isfile(job_output_tar_local_path2):
+                    logger.info(" ... local copy found at: " + job_output_tar_local_path2)
+                    job_output_tar2.add_replica('local', job_output_tar2, 'file://' + job_output_tar_local_path2)
+
                 # Add job
                 job = self._job(name='strax-wrapper.sh')
                 if desired_sites and len(desired_sites) > 0:
@@ -221,12 +244,12 @@ class Outsource:
                 job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                 job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                 # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
+
                 job.add_args(str(dbcfg.number),
-                             dbcfg.strax_context,
-                             'raw_records',
-                             'records',
-                             job_output_tar,
-                             chunk_str)
+                                 dbcfg.strax_context,
+                                 'records',
+                                 job_output_tar,
+                                 chunk_str)
                 job.add_inputs(straxify, xenon_config, token)
                 job.add_outputs(job_output_tar, stage_out=True)
                 wf.add_jobs(job)
@@ -238,6 +261,31 @@ class Outsource:
                 combine_job.add_inputs(job_output_tar)
                 wf.add_dependency(job, children=[combine_job])
 
+                # add second processing job, this is records to peaklets
+                peakjob = self._job(name='strax-wrapper.sh')
+                if desired_sites and len(desired_sites) > 0:
+                    # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
+                    peakjob.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
+                peakjob.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                peakjob.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
+                # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
+                peakjob.add_args(str(dbcfg.number),
+                                 dbcfg.strax_context,
+                                 'peaklets',
+                                 job_output_tar2,
+                                 chunk_str)
+                peakjob.add_inputs(straxify, xenon_config, token)
+                peakjob.add_outputs(job_output_tar2, stage_out=True)
+                wf.add_jobs(peakjob)
+
+                # the peak job depends on the combination of the records one
+                wf.add_dependency(peakjob, parents=[combine_job])
+
+                # update peak combine job
+                combine_job2.add_inputs(job_output_tar2)
+                wf.add_dependency(peakjob, children=[combine_job2])
+
+
         # Write the wf to stdout
         os.chdir(self._generated_dir())
         wf.add_replica_catalog(rc)
@@ -247,7 +295,6 @@ class Outsource:
 
         return wf
 
-        
     def _plan_and_submit(self, wf):
         '''
         submit the workflow
@@ -437,7 +484,7 @@ class Outsource:
         condorpool.add_profiles(Namespace.PEGASUS, style='condor')
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
 
-        condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage', value='"/cvmfs/singularity.opensciencegrid.org/opensciencegrid/osgvo-xenon:development"')
+        condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage', value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/osg_dev:latest"')
 
         # ignore the site settings - the container will set all this up inside
         condorpool.add_profiles(Namespace.ENV, OSG_LOCATION='')

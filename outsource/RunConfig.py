@@ -110,7 +110,7 @@ class DBConfig(RunConfig):
             idstring = self.number
         else:
             raise NotImplementedError
-        return "xe1t_{detector}_{id}".format(detector=self.detector, id=idstring)
+        return "xent_{detector}_{id}".format(detector=self.detector, id=idstring)
 
     @property
     def detector(self):

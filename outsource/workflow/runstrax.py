@@ -14,8 +14,7 @@ import admix
 def main():
     parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
     parser.add_argument('dataset', help='Run number', type=int)
-    parser.add_argument('--input_dtype', help='strax input')
-    parser.add_argument('--output_dtype', help='strax output')
+    parser.add_argument('--output', help='desired strax(en) output')
     parser.add_argument('--context', help='name of context')
     parser.add_argument('--chunks', nargs='*', help='chunk ids to download')
 
@@ -29,21 +28,20 @@ def main():
     st.storage = [strax.DataDirectory(data_dir)]
 
     runid = args.dataset
-    in_dtype = args.input_dtype
-    out_dtype = args.output_dtype
-    hash = db.get_hash(args.context, in_dtype)
-
-    # download the input data
-    admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
-
     runid_str = "%06d" % runid
-    input_metadata = st.get_metadata(runid_str, in_dtype)
-    input_key = strax.DataKey(runid_str, in_dtype, input_metadata['lineage'])
+    out_dtype = args.output
 
-    # initialize plugin needed for processing
+    # initialize plugin needed for processing this output type
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
+
+    # download all the required datatypes to produce this output file
+    for in_dtype in plugin.depends_on:
+        # get hash for this dtype
+        hash = db.get_hash(args.context, in_dtype, straxen.__version__)
+        # download the input data
+        admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
 
     # setup savers
     savers = dict()
@@ -54,6 +52,10 @@ def main():
         savers[keystring] = saver
 
     # setup a few more variables
+    # TODO not sure exactly how this works when an output plugin depends on >1 plugin
+    in_dtype = plugin.depends_on[0]
+    input_metadata = st.get_metadata(runid_str, in_dtype)
+    input_key = strax.DataKey(runid_str, in_dtype, input_metadata['lineage'])
     backend = st.storage[0].backends[0]
     dtype = literal_eval(input_metadata['dtype'])
     chunk_kwargs = dict(data_type=input_metadata['data_type'],
