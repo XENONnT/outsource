@@ -5,22 +5,26 @@ import getpass
 import logging
 import os
 import re
-import socket
-import subprocess
 import sys
 import numpy as np
 
 from pprint import pprint
 
+from utilix import db
 from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 from outsource.Shell import Shell
+
+from admix.interfaces.rucio_summoner import RucioSummoner
 
 # Pegasus environment
 sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
 os.environ['PATH'] = os.path.join(pegasus_path, 'bin') + ':' + os.environ['PATH']
 from Pegasus.api import *
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
+
+rc = RucioSummoner()
 
 class Outsource:
 
@@ -150,140 +154,150 @@ class Outsource:
         token = File('.dbtoken')
         rc.add_replica('local', '.dbtoken', 'file://' + os.path.join(os.environ['HOME'], '.dbtoken'))
 
+        # remove compute jobs after 3 hours
+        # periodic_remove = "((JobStatus == 2) & ((CurrentTime - EnteredCurrentStatus) > (60 * 60 * 3)))"
+
+        requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
+        requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
+
         for dbcfg in self._dbcfgs:
+
+            # check if this run needs to be processed
+            if len(dbcfg.needs_processed) > 1:
+                logger.info('Adding run ' + str(dbcfg.number) + ' to the workflow')
+            else:
+                logger.info(f"Run {dbcfg.number} is already processed with context {dbcfg.strax_context} and "
+                             f"straxen version {dbcfg.straxen_version}")
+
+            combine_jobs = []
+
+            # get dtypes to process
+            for dtype_i, dtype in enumerate(dbcfg.needs_processed):
+                logger.info(f"|-----> adding {dtype}")
+                rses = dbcfg.rses[dtype]
+                if len(rses) == 0:
+                    if dtype == 'raw_records':
+                        raise RuntimeError(f'Unable to find a raw records location for {dbcfg.number}')
+                    else:
+                        logger.debug(f'No data found for {dbcfg.number} {dtype}... '
+                                     f'hopefully those will be created by the workflow')
+
             
-            logger.info('Adding run ' + str(dbcfg.number) + ' to the workflow')
-        
-            # figure our where input data exists
-            rucio_dataset, rses = self._data_find_locations(dbcfg)
-            if len(rses) == 0:
-                raise RuntimeError('Unable to find a data location for ' + str(dbcfg.number))
-            
-            # determine the job requirements based on the data locations
-            sites_expression, desired_sites = self._determine_target_sites(rses)
+                # determine the job requirements based on the data locations
+                sites_expression, desired_sites = self._determine_target_sites(rses)
 
-            requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
-            # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
-            if config.has_option('Outsource', 'hs06_test_run') and \
-               config.getboolean('Outsource', 'hs06_test_run') == True:
-                requirements_base = requirements_base + ' && GLIDEIN_ResourceName == "MWT2" && regexp("uct2-c4[1-7]", Machine)'
-            # general compute jobs
-            requirements = requirements_base + ' && (' + sites_expression + ')'
-            if self._exclude_sites():
-                requirements = requirements + ' && (' + self._exclude_sites()  + ')'
-            # map some jobs to US to limit data transfers - for example the combine jobs
-            requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
-            if self._exclude_sites():
-                requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
-            
-            # pre flight - runs on the submit host!
-            pre_flight_job = self._job('pre-flight-wrapper.sh', run_on_submit_node=True)
-            pre_flight_job.add_args(base_dir, str(dbcfg.number))
-            wf.add_jobs(pre_flight_job)
-            
-            # Set up the combine job first - we can then add to that job inside the chunk file loop
-            combine_job = self._job('combine-wrapper.sh', disk=50000)
-            combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
-            combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
-            combine_job.add_inputs(combinepy, uploadpy, xenon_config)
-            combine_job.add_args(str(dbcfg.number),
-                                 'records',
-                                 dbcfg.strax_context,
-                                 'UC_OSG_USERDISK'
-                                )
-            wf.add_jobs(combine_job)
+                # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
+                if config.has_option('Outsource', 'hs06_test_run') and \
+                   config.getboolean('Outsource', 'hs06_test_run') == True:
+                    requirements_base = requirements_base + ' && GLIDEIN_ResourceName == "MWT2" && regexp("uct2-c4[1-7]", Machine)'
 
-            # Set up the second combine job (for peaklets)
-            combine_job2 = self._job('combine-wrapper.sh', disk=50000)
-            combine_job2.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
-            combine_job2.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
-            combine_job2.add_inputs(combinepy, uploadpy, xenon_config)
-            combine_job2.add_args(str(dbcfg.number),
-                                  'peaklets',
-                                  dbcfg.strax_context,
-                                  'UC_OSG_USERDISK'
-                                 )
-            wf.add_jobs(combine_job2)
+                # general compute jobs
+                requirements = requirements_base + (' && (' + sites_expression + ')') * (len(sites_expression) > 0)
+                if self._exclude_sites():
+                    requirements = requirements + ' && (' + self._exclude_sites()  + ')'
+                    requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
 
-            # add jobs, one for each input file
-            # TODO is there a DB query we can do instead?
-            chunk_list = self._data_find_chunks(rucio_dataset)
+                # pre flight - runs on the submit host!
+                pre_flight_job = self._job('pre-flight-wrapper.sh', run_on_submit_node=True)
+                pre_flight_job.add_args(base_dir, str(dbcfg.number))
+                wf.add_jobs(pre_flight_job)
 
-            njobs = int(np.ceil(len(chunk_list) / dbcfg.chunks_per_job))
+                # Set up the combine job first - we can then add to that job inside the chunk file loop
+                combine_job = self._job('combine-wrapper.sh', disk=50000)
+                combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
+                combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
+                combine_job.add_inputs(combinepy, uploadpy, xenon_config)
+                combine_job.add_args(str(dbcfg.number),
+                                     dtype,
+                                     dbcfg.strax_context,
+                                     config.get('Outsource', '%s_rse' % dtype,
+                                                fallback='UC_OSG_USERDISK')
+                                    )
 
-            for job_i in range(njobs):
-                chunks = chunk_list[dbcfg.chunks_per_job*job_i:dbcfg.chunks_per_job*(job_i + 1)]
-                chunk_str = " ".join([str(c) for c in chunks])
+                wf.add_jobs(combine_job)
+                combine_jobs.append(combine_job)
 
-                logger.debug(" ... adding job for chunk files: " + chunk_str)
+                # # Set up the second combine job (for peaklets)
+                # combine_job2 = self._job('combine-wrapper.sh', disk=50000)
+                # combine_job2.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
+                # combine_job2.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
+                # combine_job2.add_inputs(combinepy, uploadpy, xenon_config)
+                # combine_job2.add_args(str(dbcfg.number),
+                #                       'peaklets',
+                #                       dbcfg.strax_context,
+                #                       'UC_OSG_USERDISK'
+                #                      )
+                # wf.add_jobs(combine_job2)
 
-                # output files
-                # for records
-                job_output_tar = File('%06d-output-records-%04d.tar.gz' % (dbcfg.number, job_i))
-                # do we already have a local copy?
-                job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
-                                                         str(job_output_tar))
-                if os.path.isfile(job_output_tar_local_path):
-                    logger.info(" ... local copy found at: " + job_output_tar_local_path)
-                    job_output_tar.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
+                # add jobs, one for each input file
+                # TODO is there a DB query we can do instead?
+                n_chunks = dbcfg.nchunks(dtype)
+                # hopefully temporary
+                if n_chunks is None:
+                    scope = 'xnt_%06d' % dbcfg.number
+                    dataset = "raw_records-%s" % (db.get_hash(dbcfg.strax_context, 'raw_records', dbcfg.straxen_version))
+                    did =  "%s:%s" % (scope, dataset)
+                    chunk_list = self._data_find_chunks(did)
+                    n_chunks = len(chunk_list)
 
-                # for peaks
-                job_output_tar2 = File('%06d-output-peaks-%04d.tar.gz' % (dbcfg.number, job_i))
-                # do we already have a local copy?
-                job_output_tar_local_path2 = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
-                                                         str(job_output_tar2))
-                if os.path.isfile(job_output_tar_local_path2):
-                    logger.info(" ... local copy found at: " + job_output_tar_local_path2)
-                    job_output_tar2.add_replica('local', job_output_tar2, 'file://' + job_output_tar_local_path2)
+                chunk_list = np.arange(n_chunks)
+                njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
 
-                # Add job
-                job = self._job(name='strax-wrapper.sh')
-                if desired_sites and len(desired_sites) > 0:
-                    # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
-                    job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
-                job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
-                job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
+                # Loop over the chunks
+                for job_i in range(njobs):
+                    chunks = chunk_list[dbcfg.chunks_per_job*job_i:dbcfg.chunks_per_job*(job_i + 1)]
+                    chunk_str = " ".join([str(c) for c in chunks])
 
-                job.add_args(str(dbcfg.number),
-                                 dbcfg.strax_context,
-                                 'records',
-                                 job_output_tar,
-                                 chunk_str)
-                job.add_inputs(straxify, xenon_config, token)
-                job.add_outputs(job_output_tar, stage_out=True)
-                wf.add_jobs(job)
+                    logger.debug(" ... adding job for chunk files: " + chunk_str)
 
-                # all strax jobs depend on the pre-flight one
-                wf.add_dependency(job, parents=[pre_flight_job])
+                    # output files
+                    # for records
+                    job_output_tar = File('%06d-output-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
+                    # do we already have a local copy?
+                    job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, str(job_output_tar))
+                    if os.path.isfile(job_output_tar_local_path):
+                        logger.info(" ... local copy found at: " + job_output_tar_local_path)
+                        rc.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
 
-                # update combine job
-                combine_job.add_inputs(job_output_tar)
-                wf.add_dependency(job, children=[combine_job])
+                    # # for peaks
+                    # job_output_tar2 = File('%06d-output-peaks-%04d.tar.gz' % (dbcfg.number, job_i))
+                    # # do we already have a local copy?
+                    # job_output_tar_local_path2 = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
+                    #                                          str(job_output_tar2))
+                    # if os.path.isfile(job_output_tar_local_path2):
+                    #     logger.info(" ... local copy found at: " + job_output_tar_local_path2)
+                    #     job_output_tar2.add_replica('local', job_output_tar2, 'file://' + job_output_tar_local_path2)
 
-                # add second processing job, this is records to peaklets
-                peakjob = self._job(name='strax-wrapper.sh')
-                if desired_sites and len(desired_sites) > 0:
-                    # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
-                    peakjob.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
-                peakjob.add_profiles(Namespace.CONDOR, 'requirements', requirements)
-                peakjob.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
-                peakjob.add_args(str(dbcfg.number),
-                                 dbcfg.strax_context,
-                                 'peaklets',
-                                 job_output_tar2,
-                                 chunk_str)
-                peakjob.add_inputs(straxify, xenon_config, token)
-                peakjob.add_outputs(job_output_tar2, stage_out=True)
-                wf.add_jobs(peakjob)
+                    # Add job
+                    job = self._job(name='strax-wrapper.sh')
+                    if desired_sites and len(desired_sites) > 0:
+                        # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
+                        job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
+                    job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                    job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
+                    #job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
 
-                # the peak job depends on the combination of the records one
-                wf.add_dependency(peakjob, parents=[combine_job])
+                    # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
+                    job.add_args(str(dbcfg.number),
+                                     dbcfg.strax_context,
+                                     dtype,
+                                     job_output_tar,
+                                     chunk_str)
+                    job.add_inputs(straxify, xenon_config, token)
+                    job.add_outputs(job_output_tar, stage_out=True)
+                    wf.add_jobs(job)
 
-                # update peak combine job
-                combine_job2.add_inputs(job_output_tar2)
-                wf.add_dependency(peakjob, children=[combine_job2])
+                    # all strax jobs depend on the pre-flight one
+                    wf.add_dependency(job, parents=[pre_flight_job])
+
+                    # update combine job
+                    combine_job.add_inputs(job_output_tar)
+                    wf.add_dependency(job, children=[combine_job])
+
+                    # if there are multiple levels to the workflow, need to have current strax-wrapper depend on
+                    # previous combine
+                    if dtype_i > 0:
+                        wf.add_dependency(job, parents=[combine_jobs[dtype_i - 1]])
 
 
         # Write the wf to stdout
@@ -323,7 +337,7 @@ class Outsource:
         '''
         ensure $HOME/user_cert exists and has enough time left
         '''
-        logger.info('Verifying that the ~/user_cert proxy has enough lifetime')  
+        logger.debug('Verifying that the ~/user_cert proxy has enough lifetime')
         min_valid_hours = 20
         shell = Shell('grid-proxy-info -timeleft -file ~/user_cert')
         shell.run()
@@ -356,54 +370,23 @@ class Outsource:
         return job
 
 
-    def _data_find_locations(self, dbcfg):
-        '''
-        Check Rucio and other locations to determine where input files exist
-        '''
-
-        rucio_dataset = None
-        rses = []
-    
-        for d in dbcfg.run_doc['data']:
-            if d['host'] == 'rucio-catalogue' and d['status'] == 'transferred' and d['type'] == 'raw_records':
-                    rucio_dataset = d['did']
-        
-        if rucio_dataset:
-            logger.info('Querying Rucio for RSEs for the data set ' + rucio_dataset)
-            sh = Shell('. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh && rucio list-rules ' + rucio_dataset)
-            sh.run()
-            out = sh.get_outerr().split('\n')
-            #out = subprocess.Popen(["rucio", "list-rules", rucio_dataset], stdout=subprocess.PIPE).stdout.read()
-            #out = out.decode("utf-8").split("\n")
-            
-            for line in out:
-                line = re.sub(' +', ' ', line).split(" ")
-                if len(line) > 4 and line[3][:2] == "OK":
-                    rses.append(line[4])
-            if len(rses) < 1:
-                logger.warning("Problem finding Rucio RSEs")
-        
-        if len(rses) > 0:
-            logger.info('Found replicas at: ' + ', '.join(rses))
-        return rucio_dataset, rses
-    
-    
     def _data_find_chunks(self, rucio_dataset):
         '''
         Look up which chunk files are in the dataset - return a dict where the keys are the
         chunks, and the values a dict of locations
         '''
-        chunks_files = []
 
-        logger.info('Querying Rucio for files in the data set ' + rucio_dataset)
+        logger.debug('Querying Rucio for files in the data set ' + rucio_dataset)
         # TODO use rucio python API or admix
-        sh = Shell('. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh && rucio list-file-replicas ' + rucio_dataset)
-        sh.run()
-        out = sh.get_outerr().split('\n')
-        files = set([l.split(" ")[3] for l in out if '---' not in l and 'xnt' in l])
-        for i, f in enumerate(sorted([f for f in files if 'json' not in f])):
-            chunks_files.append(i)
-        
+        # sh = Shell('. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh && rucio list-file-replicas ' + rucio_dataset)
+        # sh.run()
+        # out = sh.get_outerr().split('\n')
+        # files = set([l.split(" ")[3] for l in out if '---' not in l and 'xnt' in l])
+        # for i, f in enumerate(sorted([f for f in files if 'json' not in f])):
+        #     chunks_files.append(i)
+        result = rc.ListFiles(rucio_dataset)
+        chunks_files = [f['name'] for f in result if 'json' not in f['name']]
+
         return chunks_files
 
 
@@ -428,8 +411,8 @@ class Outsource:
 
         final_expr = ' || '.join(exprs)
         desired_sites = ','.join(sites)
-        logger.info('Site expression from RSEs list: ' + final_expr)
-        logger.info('XENON_DESIRED_Sites from RSEs list (mostly used for European sites): ' + desired_sites)
+        logger.debug('Site expression from RSEs list: ' + final_expr)
+        logger.debug('XENON_DESIRED_Sites from RSEs list (mostly used for European sites): ' + desired_sites)
         return final_expr, desired_sites
 
 
@@ -441,9 +424,7 @@ class Outsource:
         if not config.has_option('Outsource', 'exclude_sites'):
             return ''
 
-        sites = [x.strip() for x in config.get('Outsource', 'exclude_sites').split(',')]
-        if len(sites) == 0:
-            return ''
+        sites = config.get_list('Outsource', 'exclude_sites')
 
         exprs = []
         for site in sites:
@@ -484,7 +465,8 @@ class Outsource:
         condorpool.add_profiles(Namespace.PEGASUS, style='condor')
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
 
-        condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage', value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/osg_dev:latest"')
+        condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
+                                value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/osg_dev:latest"')
 
         # ignore the site settings - the container will set all this up inside
         condorpool.add_profiles(Namespace.ENV, OSG_LOCATION='')
@@ -502,29 +484,3 @@ class Outsource:
 
         return sc
 
-
-# This should be temporary hopefully, but just to get things working now
-def write_json_file(doc, output):
-    # take a run doc, write to json file
-    with open(output, "w") as f:
-        # fix doc so that all '|' become '.' in json
-        fixed_doc = fix_keys(doc)
-        json.dump(fixed_doc, f)
-
-    if os.stat(output).st_uid == os.getuid():
-        os.chmod(output, 0o777)
-
-
-def fix_keys(dictionary):
-    # Need this due to mongoDB syntax issues, I think
-    for key, value in dictionary.items():
-        if type(value) in [type(dict())]:
-            dictionary[key] = fix_keys(value)
-        if '|' in key:
-            dictionary[key.replace('|', '.')] = dictionary.pop(key)
-    return dictionary
-
-
-if __name__ == '__main__':
-    outsource = Outsource()
-    outsource.submit_workflow()

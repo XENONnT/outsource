@@ -16,9 +16,7 @@ for TAR in `ls *.tar.gz`; do
     tar xzf $TAR
 done
 
-ls -la
-
-echo "---- data dir ----"
+echo "data dir:"
 ls -l data
 
 echo
@@ -27,14 +25,20 @@ echo
 echo
 echo
 
-# source the environment
-. /opt/XENONnT/setup.sh
-
 export XENON_CONFIG=$PWD/.xenon_config
 export RUCIO_ACCOUNT=production
 
+# source the environment
+. /opt/XENONnT/setup.sh
+
+echo
+echo
+rucio whoami
+echo
+echo
+
 # combine the data
-./combine.py ${runid} ${dtype} --input_path data --output_path combined --context ${context}
+./combine.py ${runid} ${dtype} --input data --context ${context}
 # upload to rucio and update runDB
 ./upload.py ${runid} ${dtype} ${rse} --context ${context}
 
