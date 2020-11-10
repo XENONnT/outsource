@@ -4,6 +4,12 @@ import time
 from .Config import config, base_dir, work_dir
 from utilix import db
 
+# HARDCODE alert
+# we could also import strax(en), but this makes outsource submission not dependent on strax
+# maybe we could put this in database?
+DEPENDS_ON = {'records': ['raw_records'],
+              'peaklets': ['records']
+              }
 
 
 class RunConfigBase:
@@ -23,10 +29,9 @@ class RunConfig(RunConfigBase):
 
     This base class has essentially the same info as a dictionary passed as input"""
 
-    required_attributes = ['strax_context', 'input_location', 'output_location']
+    required_attributes = ['strax_context', 'straxen_version']
 
     def __init__(self, **kwargs):
-        
         # default job priority
         self._priority = 50
         
@@ -88,38 +93,72 @@ class RunConfig(RunConfigBase):
 
 class DBConfig(RunConfig):
     """Uses runDB to build _dbcfgs info"""
-    # default detector is tpc
-    _detector = 'tpc'
+    needs_processed=None
 
     def __init__(self, number, **kwargs):
         self._number = number
         self._run_doc = db.get_doc(self.number)
-
-        # eventually get the input location, etc here using DB
-        rawdir = os.path.join('/xenon/xenon1t/raw', str(self.number))
-        output = os.path.join('/xenon/xenonnt_test/processed', str(self.number))
-
-        super().__init__(input_location=rawdir, output_location=output, **kwargs)
+        super().__init__(**kwargs)
+        # get the datatypes that need to be processed
+        self.needs_processed = self.process_these()
+        # determine which rse the input data is on
+        self.rses = self.rse_data_find()
 
 
     @property
     def workflow_id(self):
-        if self.detector == 'tpc':
-            idstring = "{:06d}".format(self.number)
-        elif self.detector == 'muon_veto':
-            idstring = self.number
-        else:
-            raise NotImplementedError
-        return "xent_{detector}_{id}".format(detector=self.detector, id=idstring)
-
-    @property
-    def detector(self):
-        return self._detector
+        idstring = "{:06d}".format(self.number)
+        return "xent_{id}".format(id=idstring)
 
     @property
     def number(self):
         return self._number
 
     @property
+    def strax_context(self):
+        return self._strax_context
+
+    @property
+    def straxen_version(self):
+        return self._straxen_version
+
+    @property
     def run_doc(self):
         return self._run_doc
+
+    def process_these(self):
+        """Returns the list of datatypes we need to process"""
+        # do we need to process?
+        requested_dtypes = config.get_list('Outsource', 'dtypes')
+        # for this context and straxen version, see if we have that data yet
+        ret = []
+        for dtype in requested_dtypes:
+            hash = db.get_hash(self.strax_context, dtype, self.straxen_version)
+            rses = db.get_rses(self._number, dtype, hash)
+            # if this data is not on any rse, reprocess it
+            if len(rses) == 0:
+                ret.append(dtype)
+        return ret
+
+    def rse_data_find(self):
+        if self.needs_processed is None:
+            self.needs_processed = self.process_these()
+        rses = dict()
+        for dtype in self.needs_processed:
+            input_dtypes = DEPENDS_ON[dtype]
+            _rses_tmp = []
+            for input_dtype in input_dtypes:
+                hash = db.get_hash(self.strax_context, input_dtype, self.straxen_version)
+                _rses_tmp.extend(db.get_rses(self.number, input_dtype, hash))
+            rses[dtype] = list(set(_rses_tmp))
+        return rses
+
+    def depends_on(self, dtype):
+        return DEPENDS_ON[dtype]
+
+    def nchunks(self, dtype):
+        hash = db.get_hash(self.strax_context, dtype, self.straxen_version)
+        for d in self.run_doc['data']:
+            if d['type'] == dtype and hash in d['did']:
+                # one file is the metadata, so subtract
+                return d['meta']['file_count'] - 1

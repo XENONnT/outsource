@@ -13,6 +13,7 @@ for p in list(sys.path):
 import strax
 import straxen
 from utilix import db
+import numpy as np
 
 from admix.interfaces.rucio_summoner import RucioSummoner
 from admix.utils.naming import make_did
@@ -27,8 +28,6 @@ def main():
 
     args = parser.parse_args()
 
-    tmp_path = tempfile.mkdtemp()
-
 
     runid = args.dataset
     runid_str = "%06d" % runid
@@ -37,7 +36,7 @@ def main():
 
     # get context
     st = eval(f'straxen.contexts.{args.context}()')
-    st.storage = [strax.DataDirectory(tmp_path)]
+    st.storage = [strax.DataDirectory('data')]
 
     plugin = st._get_plugins((dtype,), runid_str)[dtype]
 
@@ -49,7 +48,7 @@ def main():
         # TODO check with utilix DB call that the hashes match?
 
         dirname = f"{runid_str}-{keystring}-{hash}"
-        upload_path = os.path.join('combined', dirname)
+        upload_path = os.path.join('data', dirname)
 
 
         print(f"Uploading {dirname}")
@@ -61,8 +60,38 @@ def main():
         # check if a rule already exists for this DID
         rucio_rule = rc.GetRule(upload_structure=did)
 
+        file_count = len(os.listdir(upload_path))
+        # TODO check number of files is consistent with what we expect
+
+        md = st.get_meta(runid_str, keystring)
+
+        chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
+        data_size_mb = int(np.sum(chunk_mb))
+        avg_data_size_mb = int(np.average(chunk_mb))
+        lineage_hash = md['lineage_hash']
+
+        new_data_dict = dict()
+        new_data_dict['location'] = rse
+        new_data_dict['did'] = did
+        new_data_dict['status'] = "uploading"
+        new_data_dict['host'] = "rucio-catalogue"
+        new_data_dict['type'] = keystring
+        new_data_dict['protocol'] = 'rucio'
+        new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
+        new_data_dict['creation_place'] = "OSG"
+        new_data_dict['file_count'] = file_count
+        new_data_dict['meta'] = dict(lineage=lineage_hash,
+                                     avg_chunk_mb=avg_data_size_mb,
+                                     size_mb=data_size_mb,
+                                     strax_version=strax.__version__,
+                                     straxen_version=straxen.__version__
+                                     )
+
         # if not in rucio already and no rule exists, upload into rucio
         if not rucio_rule['exists']:
+
+            db.update_data(runid, new_data_dict)
+
             result = rc.Upload(did,
                                upload_path,
                                rse,
@@ -71,19 +100,9 @@ def main():
             # check that upload was successful
             new_rule = rc.GetRule(upload_structure=did, rse=rse)
 
-            # TODO check number of files
-
-            new_data_dict={}
-            new_data_dict['location'] = rse
-            new_data_dict['did'] = did
-            new_data_dict['status'] = "transferred"
-            new_data_dict['host'] = "rucio-catalogue"
-            new_data_dict['type'] = keystring
-            #new_data_dict['lifetime'] = new_rule['expires'],
-            #new_data_dict['protocol'] = 'rucio'
-            new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
-            new_data_dict['creation_place'] = "OSG"
-            db.update_data(runid, new_data_dict)
+            if new_rule['state'] == 'OK':
+                new_data_dict['status'] = 'transferred'
+                db.update_data(runid, new_data_dict)
         else:
             print(f"Rucio rule already exists for {did}")
 
