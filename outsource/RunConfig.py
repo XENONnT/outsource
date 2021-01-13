@@ -53,8 +53,9 @@ class RunConfig(RunConfigBase):
     required_attributes = ['strax_context', 'straxen_version']
 
     def __init__(self, **kwargs):
-        # default job priority
-        self._priority = 50
+        # default job priority - workflows will be given priority
+        # in the order they were submitted.
+        self._priority = 2250000000 - int(time.time())
         
         for key, val in kwargs.items():
             setattr(self, "_" + key, val)
