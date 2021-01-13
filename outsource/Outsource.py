@@ -159,15 +159,18 @@ class Outsource:
 
         requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
         requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
+        requirements_for_combine = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
+                                                       '!regexp("campuscluster.illinois.edu", Machine)'
 
         for dbcfg in self._dbcfgs:
 
             # check if this run needs to be processed
-            if len(dbcfg.needs_processed) > 1:
+            if len(dbcfg.needs_processed) > 0:
                 logger.info('Adding run ' + str(dbcfg.number) + ' to the workflow')
             else:
                 logger.info(f"Run {dbcfg.number} is already processed with context {dbcfg.strax_context} and "
                              f"straxen version {dbcfg.straxen_version}")
+                continue
 
             combine_jobs = []
 
@@ -204,33 +207,22 @@ class Outsource:
 
                 # Set up the combine job first - we can then add to that job inside the chunk file loop
                 combine_job = self._job('combine-wrapper.sh', disk=50000)
-                combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
+                combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_combine)
                 combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
                 combine_job.add_inputs(combinepy, uploadpy, xenon_config)
                 combine_job.add_args(str(dbcfg.number),
                                      dtype,
                                      dbcfg.strax_context,
                                      config.get('Outsource', '%s_rse' % dtype,
-                                                fallback='UC_OSG_USERDISK')
+                                                fallback='UC_OSG_USERDISK'),
+                                     dbcfg.rucio_arg,
+                                     dbcfg.rundb_arg
                                     )
 
                 wf.add_jobs(combine_job)
                 combine_jobs.append(combine_job)
 
-                # # Set up the second combine job (for peaklets)
-                # combine_job2 = self._job('combine-wrapper.sh', disk=50000)
-                # combine_job2.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
-                # combine_job2.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
-                # combine_job2.add_inputs(combinepy, uploadpy, xenon_config)
-                # combine_job2.add_args(str(dbcfg.number),
-                #                       'peaklets',
-                #                       dbcfg.strax_context,
-                #                       'UC_OSG_USERDISK'
-                #                      )
-                # wf.add_jobs(combine_job2)
-
                 # add jobs, one for each input file
-                # TODO is there a DB query we can do instead?
                 n_chunks = dbcfg.nchunks(dtype)
                 # hopefully temporary
                 if n_chunks is None:
@@ -251,22 +243,12 @@ class Outsource:
                     logger.debug(" ... adding job for chunk files: " + chunk_str)
 
                     # output files
-                    # for records
                     job_output_tar = File('%06d-output-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
                     # do we already have a local copy?
                     job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, str(job_output_tar))
                     if os.path.isfile(job_output_tar_local_path):
                         logger.info(" ... local copy found at: " + job_output_tar_local_path)
                         rc.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
-
-                    # # for peaks
-                    # job_output_tar2 = File('%06d-output-peaks-%04d.tar.gz' % (dbcfg.number, job_i))
-                    # # do we already have a local copy?
-                    # job_output_tar_local_path2 = os.path.join(work_dir, 'outputs', self._wf_id, self._wf_id,
-                    #                                          str(job_output_tar2))
-                    # if os.path.isfile(job_output_tar_local_path2):
-                    #     logger.info(" ... local copy found at: " + job_output_tar_local_path2)
-                    #     job_output_tar2.add_replica('local', job_output_tar2, 'file://' + job_output_tar_local_path2)
 
                     # Add job
                     job = self._job(name='strax-wrapper.sh')
@@ -316,10 +298,10 @@ class Outsource:
 
         os.chdir(self._generated_dir())
         wf.plan(conf=base_dir + '/workflow/pegasus.conf',
-                submit=True,
+                submit=False,
                 sites=['condorpool'],
                 staging_sites={'condorpool': 'staging'},
-                output_sites=['local'],
+                output_sites=['output'],
                 dir=runs_dir,
                 relative_dir=self._wf_id
                )
@@ -377,16 +359,8 @@ class Outsource:
         '''
 
         logger.debug('Querying Rucio for files in the data set ' + rucio_dataset)
-        # TODO use rucio python API or admix
-        # sh = Shell('. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh && rucio list-file-replicas ' + rucio_dataset)
-        # sh.run()
-        # out = sh.get_outerr().split('\n')
-        # files = set([l.split(" ")[3] for l in out if '---' not in l and 'xnt' in l])
-        # for i, f in enumerate(sorted([f for f in files if 'json' not in f])):
-        #     chunks_files.append(i)
         result = rc.ListFiles(rucio_dataset)
         chunks_files = [f['name'] for f in result if 'json' not in f['name']]
-
         return chunks_files
 
 
@@ -397,7 +371,6 @@ class Outsource:
         
         # want a temporary copy so we can modify it
         my_rses = rses.copy()
-        
         exprs = []
         sites = []
         for rse in my_rses:
@@ -406,8 +379,8 @@ class Outsource:
                     exprs.append(self._rse_site_map[rse]['expr'])
                 if 'desired_sites' in self._rse_site_map[rse]:
                     sites.append(self._rse_site_map[rse]['desired_sites'])
-            else:
-                raise RuntimeError('We do not know how to handle the RSE: ' + rse)
+        #if len(sites) == 0 and len(exprs) == 0:
+        #    raise RuntimeError(f'no valid sites in {my_rses}')
 
         final_expr = ' || '.join(exprs)
         desired_sites = ','.join(sites)
@@ -454,6 +427,14 @@ class Outsource:
         local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ['HOME'] + '/user_cert')
         local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
 
+        # output site
+        output = Site("output")
+        _outputdir = f'/xenon/xenonnt/processing-scratch/outputs/{getpass.getuser()}'
+        output_dir = Directory(Directory.LOCAL_STORAGE, path=_outputdir)
+        output_dir.add_file_servers(FileServer('gsiftp://ceph-gridftp2.grid.uchicago.edu:2811/cephfs/srm' + _outputdir,
+                                               Operation.ALL))
+        output.add_directories(output_dir)
+
         # staging site
         staging = Site("staging")
         scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/xenon_dcache/workflow_scratch/{}'.format(getpass.getuser()))
@@ -466,7 +447,7 @@ class Outsource:
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
 
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
-                                value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/osg_dev:latest"')
+                                value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"')
 
         # ignore the site settings - the container will set all this up inside
         condorpool.add_profiles(Namespace.ENV, OSG_LOCATION='')
@@ -480,6 +461,7 @@ class Outsource:
 
         sc.add_sites(local,
                      staging,
+                     output,
                      condorpool)
 
         return sc

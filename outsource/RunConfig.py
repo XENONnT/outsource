@@ -15,13 +15,34 @@ DEPENDS_ON = {'records': ['raw_records'],
 class RunConfigBase:
     """Base class that sets the defaults"""
 
-    _update_run_db = False
+    _ignore_db = False
+    _ignore_rucio = False
     _force_rerun = False
     _x509_proxy = os.path.join(os.environ['HOME'], 'user_cert')
     _executable = os.path.join(base_dir, 'workflow', 'run-pax.sh')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
-    _chunks_per_job = 1
+    _chunks_per_job = 20
+
+    @property
+    def rundb_arg(self):
+        return "--ignore-db" if self._ignore_db else ""
+
+    @property
+    def rucio_arg(self):
+        return "--ignore-rucio" if self._ignore_rucio else ""
+
+    @property
+    def workflow_id(self):
+        return self._workflow_id
+
+    @property
+    def input_location(self):
+        return self._input_location
+
+    @property
+    def output_location(self):
+        return self._output_location
 
 
 class RunConfig(RunConfigBase):
@@ -46,25 +67,11 @@ class RunConfig(RunConfigBase):
         if throw_error:
             raise AttributeError()
 
-    @property
-    def workflow_id(self):
-        return self._workflow_id
-
-    @property
-    def input_location(self):
-        return self._input_location
-
-    @property
-    def output_location(self):
-        return self._output_location
 
     @property
     def strax_context(self):
         return self._strax_context
 
-    @property
-    def update_run_db(self):
-        return self._update_run_db
 
     @property
     def force_rerun(self):
@@ -159,6 +166,8 @@ class DBConfig(RunConfig):
     def nchunks(self, dtype):
         hash = db.get_hash(self.strax_context, dtype, self.straxen_version)
         for d in self.run_doc['data']:
-            if d['type'] == dtype and hash in d['did']:
-                # one file is the metadata, so subtract
-                return d['meta']['file_count'] - 1
+            if d['type'] == dtype and hash in d.get('did', '_not_a_hash_'):
+                if 'meta' in d:
+                    if 'file_count' in d['meta']:
+                        # one file is the metadata, so subtract
+                        return d['meta']['file_count'] - 1
