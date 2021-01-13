@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 import os
 import argparse
 import datetime
@@ -14,6 +15,7 @@ import strax
 import straxen
 from utilix import db
 import numpy as np
+import time
 
 from admix.interfaces.rucio_summoner import RucioSummoner
 from admix.utils.naming import make_did
@@ -25,9 +27,10 @@ def main():
     parser.add_argument('dtype', help='dtype to upload')
     parser.add_argument('rse', help='Target RSE')
     parser.add_argument('--context', help='Strax context')
+    parser.add_argument('--ignore-db', help='flag to not update runsDB', dest='ignore_rundb',
+                        action='store_true')
 
     args = parser.parse_args()
-
 
     runid = args.dataset
     runid_str = "%06d" % runid
@@ -50,9 +53,8 @@ def main():
         dirname = f"{runid_str}-{keystring}-{hash}"
         upload_path = os.path.join('data', dirname)
 
-
-        print(f"Uploading {dirname}")
-        os.listdir(upload_path)
+        nfiles = len(os.listdir(upload_path))
+        print(f"Uploading {dirname}, which has {nfiles} files")
 
         # make a rucio DID
         did = make_did(runid, keystring, hash)
@@ -82,6 +84,7 @@ def main():
         new_data_dict['file_count'] = file_count
         new_data_dict['meta'] = dict(lineage=lineage_hash,
                                      avg_chunk_mb=avg_data_size_mb,
+                                     file_count=file_count,
                                      size_mb=data_size_mb,
                                      strax_version=strax.__version__,
                                      straxen_version=straxen.__version__
@@ -89,22 +92,27 @@ def main():
 
         # if not in rucio already and no rule exists, upload into rucio
         if not rucio_rule['exists']:
-
-            db.update_data(runid, new_data_dict)
+            t0 = time.time()
+            if not args.ignore_rundb:
+                db.update_data(runid, new_data_dict)
 
             result = rc.Upload(did,
                                upload_path,
                                rse,
                                lifetime=None)
 
+            tf = time.time()
+            upload_time = (tf - t0)/60
+            print(f"=== Upload of {did} took {upload_time} minutes")
             # check that upload was successful
             new_rule = rc.GetRule(upload_structure=did, rse=rse)
 
-            if new_rule['state'] == 'OK':
+            if new_rule['state'] == 'OK' and not args.ignore_rundb:
                 new_data_dict['status'] = 'transferred'
                 db.update_data(runid, new_data_dict)
         else:
             print(f"Rucio rule already exists for {did}")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
