@@ -418,8 +418,6 @@ class Outsource:
         local.add_directories(scratch_dir, storage_dir)
 
         local.add_profiles(Namespace.ENV, HOME=os.environ['HOME'])
-        local.add_profiles(Namespace.ENV, GFAL_CONFIG_DIR='/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/etc/gfal2.d')
-        local.add_profiles(Namespace.ENV, GFAL_PLUGIN_DIR='/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib64/gfal2-plugins/')
         local.add_profiles(Namespace.ENV, GLOBUS_LOCATION='')
         local.add_profiles(Namespace.ENV, PATH='/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/bin:/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/condabin:/usr/bin:/bin')
         local.add_profiles(Namespace.ENV, LD_LIBRARY_PATH='/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib64:/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib')
