@@ -208,7 +208,7 @@ class Outsource:
                 # Set up the combine job first - we can then add to that job inside the chunk file loop
                 combine_job = self._job('combine-wrapper.sh', disk=50000)
                 combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_combine)
-                combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority * 5))
+                combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                 combine_job.add_inputs(combinepy, uploadpy, xenon_config)
                 combine_job.add_args(str(dbcfg.number),
                                      dtype,
