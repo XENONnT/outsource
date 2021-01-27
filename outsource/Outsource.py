@@ -301,7 +301,7 @@ class Outsource:
                 submit=False,
                 sites=['condorpool'],
                 staging_sites={'condorpool': 'staging'},
-                output_sites=['output'],
+                output_sites=None, #['output'],
                 dir=runs_dir,
                 relative_dir=self._wf_id
                )
@@ -426,12 +426,12 @@ class Outsource:
         local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
 
         # output site
-        output = Site("output")
-        _outputdir = f'/xenon/xenonnt/processing-scratch/outputs/{getpass.getuser()}'
-        output_dir = Directory(Directory.LOCAL_STORAGE, path=_outputdir)
-        output_dir.add_file_servers(FileServer('gsiftp://ceph-gridftp2.grid.uchicago.edu:2811/cephfs/srm' + _outputdir,
-                                               Operation.ALL))
-        output.add_directories(output_dir)
+        # output = Site("output")
+        # _outputdir = f'/xenon/xenonnt/processing-scratch/outputs/{getpass.getuser()}'
+        # output_dir = Directory(Directory.LOCAL_STORAGE, path=_outputdir)
+        # output_dir.add_file_servers(FileServer('gsiftp://ceph-gridftp2.grid.uchicago.edu:2811/cephfs/srm' + _outputdir,
+        #                                        Operation.ALL))
+        # output.add_directories(output_dir)
 
         # staging site
         staging = Site("staging")
@@ -459,7 +459,7 @@ class Outsource:
 
         sc.add_sites(local,
                      staging,
-                     output,
+                     #output,
                      condorpool)
 
         return sc
