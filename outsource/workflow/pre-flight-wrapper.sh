@@ -5,12 +5,19 @@
 # things work before starting the processing. The last
 # step is to update the db.
 
-BASE_DIR=$1
-RUN_NUMBER=$2
+export RUNID=$1
+export DTYPE=$2
+export CONTEXT=$3
+export RSE=$4
 
-. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
+set -e
 
-# checks...
+# source the environment
+. /opt/XENONnT/setup.sh
+export XENON_CONFIG=$PWD/.xenon_config
+export RUCIO_ACCOUNT=production
+
+./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE
 
 
 # rundb...

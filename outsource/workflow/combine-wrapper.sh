@@ -7,6 +7,7 @@ dtype=$2
 context=$3
 rse=$4
 dbflag=
+rucioflag=
 
 echo $*
 
@@ -20,7 +21,7 @@ upload_rucio=true
 while true; do
     case $1 in
         --ignore-db) export update_db=false; export dbflag='--ignore-db' ;;
-        --ignore-rucio) export upload_rucio=false ;;
+        --ignore-rucio) export upload_rucio=false; export rucioflag='--ignore-rucio';;
         --) break ;;
     esac
     shift
@@ -52,25 +53,19 @@ echo
 export XENON_CONFIG=$PWD/.xenon_config
 export RUCIO_ACCOUNT=production
 
-#echo
-#echo
-#rucio whoami
-#echo
-#echo
 
 # combine the data
-time ./combine.py ${runid} ${dtype} --input data --context ${context}
+time ./combine.py ${runid} ${dtype} --input data --context ${context} --rse ${rse} ${dbflag} ${rucioflag}
 
 # check data dir again
 echo "data dir:"
 ls -l data
 
-
 # upload to rucio and update runDB unless specified otherwise
-if [ $upload_rucio == 'true' ]; then
-  time ./upload.py ${runid} ${dtype} ${rse} --context ${context} ${dbflag}
-else
-  echo "Skipping rucio upload due to --ignore-rucio flag"
-fi
+#if [ $upload_rucio == 'true' ]; then
+#  time ./upload.py ${runid} ${dtype} ${rse} --context ${context} ${dbflag}
+#else
+#  echo "Skipping rucio upload due to --ignore-rucio flag"
+#fi
 
 

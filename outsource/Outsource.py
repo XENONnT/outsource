@@ -138,6 +138,9 @@ class Outsource:
             tc.add_transformations(t)
 
         # scripts some exectuables might need
+        preflightpy = File('pre-flight.py')
+        rc.add_replica('local', 'pre-flight.py', 'file://' + base_dir + '/workflow/pre-flight.py')
+
         straxify = File('runstrax.py')
         rc.add_replica('local', 'runstrax.py', 'file://' + base_dir + '/workflow/runstrax.py')
         
@@ -201,12 +204,18 @@ class Outsource:
                     requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
 
                 # pre flight - runs on the submit host!
-                pre_flight_job = self._job('pre-flight-wrapper.sh', run_on_submit_node=True)
-                pre_flight_job.add_args(base_dir, str(dbcfg.number))
+                pre_flight_job = self._job('pre-flight-wrapper.sh')
+                pre_flight_job.add_args(str(dbcfg.number),
+                                        dtype,
+                                        dbcfg.strax_context,
+                                        config.get('Outsource', '%s_rse' % dtype,
+                                                   fallback='UC_OSG_USERDISK')
+                                        )
+                pre_flight_job.add_inputs(preflightpy, xenon_config)
                 wf.add_jobs(pre_flight_job)
 
                 # Set up the combine job first - we can then add to that job inside the chunk file loop
-                combine_job = self._job('combine-wrapper.sh', disk=50000)
+                combine_job = self._job('combine-wrapper.sh', disk=5000)
                 combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_combine)
                 combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                 combine_job.add_inputs(combinepy, uploadpy, xenon_config)
@@ -424,6 +433,7 @@ class Outsource:
         local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ['USER'])
         local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ['HOME'] + '/user_cert')
         local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
+        local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT='production')
 
         # output site
         # output = Site("output")
@@ -443,7 +453,6 @@ class Outsource:
         condorpool = Site("condorpool")
         condorpool.add_profiles(Namespace.PEGASUS, style='condor')
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
-
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
                                 value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"')
 
@@ -456,6 +465,7 @@ class Outsource:
 
         condorpool.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ['USER'])
         condorpool.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
+        condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT='production')
 
         sc.add_sites(local,
                      staging,
