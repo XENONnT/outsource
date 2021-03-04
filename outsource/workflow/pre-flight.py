@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 from argparse import ArgumentParser
 from rucio.client.client import Client
-from straxen import __version__ as straxen_version
+import straxen
+import strax
 from utilix import db
 from admix.utils.naming import make_did
 
@@ -18,36 +19,44 @@ def main():
     # setup rucio client
     C = Client()
 
-    hash = db.get_hash(args.context, args.dtype, straxen_version)
+    runid = args.runid
+    runid_str = "%06d" % runid
+    dtype  = args.dtype
 
-    # need to create the dataset we will be uploading data to out on the grid
-    dataset = make_did(args.runid, args.dtype, hash)
-    scope, name = dataset.split(':')
+    # get context
+    st = eval(f'straxen.contexts.{args.context}()')
 
-    # check if this dataset exists
-    existing_datasets = [i for i in C.list_dids(scope, filters=dict(type='dataset'))]
+    # initialize plugin needed for processing this output type
+    plugin = st._get_plugins((dtype,), runid_str)[dtype]
 
-    print(name)
-    print(existing_datasets)
+    st._set_plugin_config(plugin, runid_str, tolerant=False)
+    plugin.setup()
 
-    if name not in existing_datasets:
-        C.add_dataset(scope, name)
-        print(f"Dataset {dataset} created")
-    print(f"WARNING: the dataset {dataset} already exists")
+    for keystring in plugin.provides:
+        key = strax.DataKey(runid_str, keystring, plugin.lineage)
+        hash = key.lineage_hash
 
-    #check if a rule already exists
-    existing_rules = [i['rse_expression'] for i in C.list_did_rules(scope, name)]
-    print(existing_rules)
-    print(args.rse)
+        # need to create the dataset we will be uploading data to out on the grid
+        dataset = make_did(args.runid, args.dtype, hash)
+        scope, name = dataset.split(':')
 
-    if args.rse not in existing_rules:
-        # 1 is the number of copies
-        C.add_replication_rule([dict(scope=scope, name=name)], 1, args.rse)
-        print(f"Replication rule at {args.rse} created")
+        # check if this dataset exists
+        existing_datasets = [i for i in C.list_dids(scope, filters=dict(type='dataset'))]
 
-    # TODO do a step to update the status for this data type?
+        if name not in existing_datasets:
+            C.add_dataset(scope, name)
+            print(f"Dataset {dataset} created")
+        print(f"WARNING: the dataset {dataset} already exists")
 
+        #check if a rule already exists
+        existing_rules = [i['rse_expression'] for i in C.list_did_rules(scope, name)]
 
+        if args.rse not in existing_rules:
+            # 1 is the number of copies
+            C.add_replication_rule([dict(scope=scope, name=name)], 1, args.rse)
+            print(f"Replication rule at {args.rse} created")
+
+        # TODO do a step to update the status for this data type?
 
 
 if __name__ == "__main__":

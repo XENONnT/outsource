@@ -16,7 +16,7 @@ def main():
 
     args = parser.parse_args()
 
-    configs = [DBConfig(args.run, strax_context=args.context, straxen_version='0.14.3',
+    configs = [DBConfig(args.run, strax_context=args.context, straxen_version='0.14.4',
                         ignore_rucio=False, ignore_db=False)]
     outsource = Outsource(configs)
     outsource.submit_workflow()

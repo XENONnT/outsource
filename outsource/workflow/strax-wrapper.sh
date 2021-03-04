@@ -10,8 +10,7 @@ export chunks=${args[@]:4}
 
 echo $@
 
-
-
+echo "Chunks: $chunks"
 start_dir=$PWD
 
 . /opt/XENONnT/setup.sh
@@ -29,7 +28,7 @@ if [ -e /image-build-info.txt ]; then
     echo
 fi
 #
-export RUCIO_ACCOUNT=xenon-analysis
+export RUCIO_ACCOUNT=production
 #
 #echo "Start dir is $start_dir. Here's whats inside:"
 #ls -lah
@@ -44,17 +43,35 @@ echo "--- RUCIO/X509 Stuff ---"
 env | grep X509
 env | grep RUCIO
 
+rucio whoami
+
 echo
 
 echo 'Processing now...'
 
-./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --chunks ${chunks} 2>&1
+chunkarg=""
+if [ -n "${chunks}" ]
+then
+  chunkarg="--chunks ${chunks}"
+fi
+#echo "CHUNKARG: $chunkarg"
+
+#echo "./runstrax.py ${run_id} --output ${output_dtype} --context ${context} ${chunkarg}"
+#exit
+./runstrax.py ${run_id} --output ${output_dtype} --context ${context} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then 
     echo "exiting with status 25"
     exit 25
 fi
+
+if [ -z "${chunks}" ]
+then
+  echo "No chunks passed, so exiting now with status 0"
+  exit 0
+fi
+
 
 tar czfv ${output_tar} data/*_temp
 

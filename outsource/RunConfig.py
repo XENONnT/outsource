@@ -8,7 +8,8 @@ from utilix import db
 # we could also import strax(en), but this makes outsource submission not dependent on strax
 # maybe we could put this in database?
 DEPENDS_ON = {'records': ['raw_records'],
-              'peaklets': ['records']
+              'peaklets': ['records'],
+              'event_info_double': ['peaklets']
               }
 
 
@@ -22,7 +23,7 @@ class RunConfigBase:
     _executable = os.path.join(base_dir, 'workflow', 'run-pax.sh')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
-    _chunks_per_job = 20
+    _chunks_per_job = 10
 
     @property
     def rundb_arg(self):

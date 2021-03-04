@@ -12,6 +12,8 @@ from admix.interfaces.rucio_summoner import RucioSummoner
 from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
 from utilix import db
+from pprint import pprint
+
 
 def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
@@ -111,9 +113,9 @@ def main():
 
 
         # we should have n+1 files in rucio (counting metadata)
-        # if len(rucio_files) != expected_chunks + 1:
-        #     raise RuntimeError(f"File mismatch! There are {len(rucio_files)} but the metadata thinks there "
-        #                        f"should be {expected_chunks} chunks + 1 metadata")
+        if len(rucio_files) != expected_chunks + 1:
+            raise RuntimeError(f"File mismatch! There are {len(rucio_files)} but the metadata thinks there "
+                               f"should be {expected_chunks} chunks + 1 metadata")
 
 
         chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
@@ -142,7 +144,7 @@ def main():
             new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
             new_data_dict['creation_place'] = "OSG"
             #new_data_dict['file_count'] = file_count
-            new_data_dict['meta'] = dict(lineage=plugin.lineage,
+            new_data_dict['meta'] = dict(#lineage=plugin.lineage_hash,
                                          avg_chunk_mb=avg_data_size_mb,
                                          file_count=len(rucio_files),
                                          size_mb=data_size_mb,
@@ -150,8 +152,9 @@ def main():
                                          straxen_version=straxen.__version__
                                          )
 
-            db.update_data(runid, new_data_dict)
-            print(f"Database updated for {keystring}")
+            pprint(new_data_dict)
+            #db.update_data(runid, new_data_dict)
+            #print(f"Database updated for {keystring}")
         else:
             print("Skipping database update.")
 

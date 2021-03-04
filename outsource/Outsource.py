@@ -215,80 +215,110 @@ class Outsource:
                 wf.add_jobs(pre_flight_job)
 
                 # Set up the combine job first - we can then add to that job inside the chunk file loop
-                combine_job = self._job('combine-wrapper.sh', disk=5000)
-                combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_combine)
-                combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                combine_job.add_inputs(combinepy, uploadpy, xenon_config)
-                combine_job.add_args(str(dbcfg.number),
-                                     dtype,
-                                     dbcfg.strax_context,
-                                     config.get('Outsource', '%s_rse' % dtype,
-                                                fallback='UC_OSG_USERDISK'),
-                                     dbcfg.rucio_arg,
-                                     dbcfg.rundb_arg
-                                    )
+                # only need combine job for low-level stuff
+                if dtype in ['records', 'peaklets']:
+                    combine_job = self._job('combine-wrapper.sh', disk=5000)
+                    combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_combine)
+                    combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
+                    combine_job.add_inputs(combinepy, uploadpy, xenon_config)
+                    combine_job.add_args(str(dbcfg.number),
+                                         dtype,
+                                         dbcfg.strax_context,
+                                         config.get('Outsource', '%s_rse' % dtype,
+                                                    fallback='UC_OSG_USERDISK'),
+                                         dbcfg.rucio_arg,
+                                         dbcfg.rundb_arg
+                                        )
 
-                wf.add_jobs(combine_job)
-                combine_jobs.append(combine_job)
+                    wf.add_jobs(combine_job)
+                    combine_jobs.append(combine_job)
 
-                # add jobs, one for each input file
-                n_chunks = dbcfg.nchunks(dtype)
-                # hopefully temporary
-                if n_chunks is None:
-                    scope = 'xnt_%06d' % dbcfg.number
-                    dataset = "raw_records-%s" % (db.get_hash(dbcfg.strax_context, 'raw_records', dbcfg.straxen_version))
-                    did =  "%s:%s" % (scope, dataset)
-                    chunk_list = self._data_find_chunks(did)
-                    n_chunks = len(chunk_list)
+                    # add jobs, one for each input file
+                    n_chunks = dbcfg.nchunks(dtype)
+                    # hopefully temporary
+                    if n_chunks is None:
+                        scope = 'xnt_%06d' % dbcfg.number
+                        dataset = "raw_records-%s" % (db.get_hash(dbcfg.strax_context, 'raw_records', dbcfg.straxen_version))
+                        did =  "%s:%s" % (scope, dataset)
+                        chunk_list = self._data_find_chunks(did)
+                        n_chunks = len(chunk_list)
 
-                chunk_list = np.arange(n_chunks)
-                njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
+                    chunk_list = np.arange(n_chunks)
+                    njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
 
-                # Loop over the chunks
-                for job_i in range(njobs):
-                    chunks = chunk_list[dbcfg.chunks_per_job*job_i:dbcfg.chunks_per_job*(job_i + 1)]
-                    chunk_str = " ".join([str(c) for c in chunks])
+                    # Loop over the chunks
+                    for job_i in range(njobs):
+                        chunks = chunk_list[dbcfg.chunks_per_job*job_i:dbcfg.chunks_per_job*(job_i + 1)]
+                        chunk_str = " ".join([str(c) for c in chunks])
 
-                    logger.debug(" ... adding job for chunk files: " + chunk_str)
+                        logger.debug(" ... adding job for chunk files: " + chunk_str)
 
-                    # output files
-                    job_output_tar = File('%06d-output-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
-                    # do we already have a local copy?
-                    job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, str(job_output_tar))
-                    if os.path.isfile(job_output_tar_local_path):
-                        logger.info(" ... local copy found at: " + job_output_tar_local_path)
-                        rc.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
+                        # output files
+                        job_output_tar = File('%06d-output-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
+                        # do we already have a local copy?
+                        job_output_tar_local_path = os.path.join(work_dir, 'outputs', self._wf_id, str(job_output_tar))
+                        if os.path.isfile(job_output_tar_local_path):
+                            logger.info(" ... local copy found at: " + job_output_tar_local_path)
+                            rc.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
 
+                        # Add job
+                        job = self._job(name='strax-wrapper.sh')
+                        if desired_sites and len(desired_sites) > 0:
+                            # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
+                            job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
+                        job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                        job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
+                        #job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
+
+                        # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
+                        job.add_args(str(dbcfg.number),
+                                         dbcfg.strax_context,
+                                         dtype,
+                                         job_output_tar,
+                                         chunk_str,
+                                     )
+                        job.add_inputs(straxify, xenon_config, token)
+                        job.add_outputs(job_output_tar, stage_out=True)
+                        wf.add_jobs(job)
+
+                        # all strax jobs depend on the pre-flight one
+                        wf.add_dependency(job, parents=[pre_flight_job])
+
+                        # update combine job
+                        combine_job.add_inputs(job_output_tar)
+                        wf.add_dependency(job, children=[combine_job])
+
+                        if dtype_i > 0:
+                            wf.add_dependency(job, parents=[combine_jobs[dtype_i - 1]])
+
+                else:
+                    # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='strax-wrapper.sh')
-                    if desired_sites and len(desired_sites) > 0:
-                        # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
-                        job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
+                    job = self._job(name='strax-wrapper.sh', disk=30000, memory=4000)
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                    #job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
+                    # job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
 
                     # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                     job.add_args(str(dbcfg.number),
-                                     dbcfg.strax_context,
-                                     dtype,
-                                     job_output_tar,
-                                     chunk_str)
+                                 dbcfg.strax_context,
+                                 dtype,
+                                 "no_output_here"
+                                 )
+
                     job.add_inputs(straxify, xenon_config, token)
-                    job.add_outputs(job_output_tar, stage_out=True)
                     wf.add_jobs(job)
 
                     # all strax jobs depend on the pre-flight one
                     wf.add_dependency(job, parents=[pre_flight_job])
 
-                    # update combine job
-                    combine_job.add_inputs(job_output_tar)
-                    wf.add_dependency(job, children=[combine_job])
 
                     # if there are multiple levels to the workflow, need to have current strax-wrapper depend on
                     # previous combine
                     if dtype_i > 0:
                         wf.add_dependency(job, parents=[combine_jobs[dtype_i - 1]])
+
+
 
 
         # Write the wf to stdout
