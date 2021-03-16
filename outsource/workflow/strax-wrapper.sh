@@ -4,14 +4,35 @@
 args=( "$@" )
 export run_id=$1
 export context=$2
-export output_dtype=$3
-export output_tar=$4
-export chunks=${args[@]:4}
+export cmt=$3
+export output_dtype=$4
+export output_tar=$5
+export rse=$6
+export dbflag=
+export rucioflag=
+export chunks=${args[@]:6}
 
 echo $@
 
 echo "Chunks: $chunks"
 start_dir=$PWD
+
+# check if we passed any flags to ignore rundb and/or ignore upload
+options=$(getopt -l "ignore-db,ignore-rucio" -a -o "dr" -- $@)
+eval set -- "$options"
+
+update_db=true
+upload_rucio=true
+
+while true; do
+    case $1 in
+        --ignore-db) export dbflag='--ignore-db' ;;
+        --ignore-rucio) export rucioflag='--ignore-rucio';;
+        --) break ;;
+    esac
+    shift
+done
+
 
 . /opt/XENONnT/setup.sh
 
@@ -30,8 +51,8 @@ fi
 #
 export RUCIO_ACCOUNT=production
 #
-#echo "Start dir is $start_dir. Here's whats inside:"
-#ls -lah
+echo "Start dir is $start_dir. Here's whats inside:"
+ls -lah
 
 unset http_proxy
 export XENON_CONFIG=$PWD/.xenon_config
@@ -54,17 +75,18 @@ if [ -n "${chunks}" ]
 then
   chunkarg="--chunks ${chunks}"
 fi
-#echo "CHUNKARG: $chunkarg"
 
-#echo "./runstrax.py ${run_id} --output ${output_dtype} --context ${context} ${chunkarg}"
-#exit
-./runstrax.py ${run_id} --output ${output_dtype} --context ${context} ${chunkarg}
+./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --cmt ${cmt} --rse ${rse} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then 
     echo "exiting with status 25"
     exit 25
 fi
+
+echo "Here is what is in the data directory after processing:"
+ls -lah data/*
+
 
 if [ -z "${chunks}" ]
 then

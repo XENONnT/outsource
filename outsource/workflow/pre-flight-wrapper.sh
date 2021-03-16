@@ -9,6 +9,7 @@ export RUNID=$1
 export DTYPE=$2
 export CONTEXT=$3
 export RSE=$4
+export CMT=$5
 
 set -e
 
@@ -17,11 +18,5 @@ set -e
 export XENON_CONFIG=$PWD/.xenon_config
 export RUCIO_ACCOUNT=production
 
-./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE
+./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE --cmt $CMT
 
-
-# rundb...
-#python $BASE_DIR/workflow/update_run_db.py update-status --run-id=$RUN_NUMBER --dtype=records --status=processing
-
-
- 

@@ -15,6 +15,22 @@ from utilix import db
 from pprint import pprint
 
 
+def apply_global_version(context, cmt_version):
+    context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))
+    context.set_config(dict(s2_xy_correction_map=("CMT_model", ('s2_xy_map', cmt_version), True)))
+    context.set_config(dict(elife_file=("elife_model", cmt_version, True)))
+    context.set_config(dict(mlp_model=("CMT_model", ("mlp_model", cmt_version), True)))
+    context.set_config(dict(gcn_model=("CMT_model", ("gcn_model", cmt_version), True)))
+    context.set_config(dict(cnn_model=("CMT_model", ("cnn_model", cmt_version), True)))
+
+
+def get_hashes(st):
+    hashes = set([(d, st.key_for('0', d).lineage_hash)
+                  for p in st._plugin_class_registry.values()
+                  for d in p.provides if p.save_when == strax.SaveWhen.ALWAYS])
+    return {dtype: h for dtype, h in hashes}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
     parser.add_argument('dataset', help='Run number', type=int)
@@ -22,6 +38,7 @@ def main():
     parser.add_argument('--context', help='Strax context')
     parser.add_argument('--input', help='path where the temp directory is')
     parser.add_argument('--rse', help='RSE to upload to')
+    parser.add_argument('--cmt', help='CMT global version')
     parser.add_argument('--ignore-db', help='flag to not update runsDB', dest='ignore_rundb',
                         action='store_true')
     parser.add_argument('--ignore-rucio', help='flag to not upload to rucio', dest='ignore_rucio',
@@ -35,8 +52,9 @@ def main():
     path = args.input
 
     # get context
-    st = eval(f'straxen.contexts.{args.context}()')
+    st = getattr(straxen.contexts, args.context)()
     st.storage = [strax.DataDirectory('./')]
+    apply_global_version(st, args.cmt)
 
     # initialize plugin needed for processing
     plugin = st._get_plugins((dtype,), runid_str)[dtype]
@@ -96,12 +114,12 @@ def main():
             updonkey.upload(to_upload)
         except:
             print(f'Upload of {keystring} failed')
+            #raise
         print(f"Upload of {len(files)} files in {this_dir} finished successfully")
         for f in files:
             print(f"{scope}:{f}")
 
         print()
-
 
         # now check the rucio data matche what we expect
         rucio_files = [f for f in donkey.list_files(scope, dset_name)]
@@ -111,12 +129,10 @@ def main():
 
         expected_chunks = len([c for c in md['chunks'] if c['n']>0])
 
-
         # we should have n+1 files in rucio (counting metadata)
         if len(rucio_files) != expected_chunks + 1:
             raise RuntimeError(f"File mismatch! There are {len(rucio_files)} but the metadata thinks there "
                                f"should be {expected_chunks} chunks + 1 metadata")
-
 
         chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
         data_size_mb = int(np.sum(chunk_mb))
@@ -153,8 +169,8 @@ def main():
                                          )
 
             pprint(new_data_dict)
-            #db.update_data(runid, new_data_dict)
-            #print(f"Database updated for {keystring}")
+            db.update_data(runid, new_data_dict)
+            print(f"Database updated for {keystring}")
         else:
             print("Skipping database update.")
 
@@ -162,7 +178,10 @@ def main():
         # if everything is good, let's close the dataset
         # this will make it so no more data can be added to this dataset
         if status == 'transferred':
-            donkey.close(scope, dset_name)
+            try:
+                donkey.close(scope, dset_name)
+            except:
+                print(f"Closing {scope}:{dset_name} failed")
 
 
 if __name__ == "__main__":

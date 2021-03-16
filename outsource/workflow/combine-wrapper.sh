@@ -5,7 +5,8 @@ set -e
 runid=$1
 dtype=$2
 context=$3
-rse=$4
+cmt=$4
+rse=$5
 dbflag=
 rucioflag=
 
@@ -55,7 +56,7 @@ export RUCIO_ACCOUNT=production
 
 
 # combine the data
-time ./combine.py ${runid} ${dtype} --input data --context ${context} --rse ${rse} ${dbflag} ${rucioflag}
+time ./combine.py ${runid} ${dtype} --input data --context ${context} --rse ${rse} --cmt ${cmt} ${dbflag} ${rucioflag}
 
 # check data dir again
 echo "data dir:"

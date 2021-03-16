@@ -15,23 +15,43 @@ from admix.utils.naming import make_did
 from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
 import datetime
+from pprint import pprint
 
-def find_data_to_download(runid, target, st, context_name):
+
+def apply_global_version(context, cmt_version):
+    context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))
+    context.set_config(dict(s2_xy_correction_map=("CMT_model", ('s2_xy_map', cmt_version), True)))
+    context.set_config(dict(elife_file=("elife_model", cmt_version, True)))
+    context.set_config(dict(mlp_model=("CMT_model", ("mlp_model", cmt_version), True)))
+    context.set_config(dict(gcn_model=("CMT_model", ("gcn_model", cmt_version), True)))
+    context.set_config(dict(cnn_model=("CMT_model", ("cnn_model", cmt_version), True)))
+
+
+def get_hashes(st):
+    hashes = set([(d, st.key_for('0', d).lineage_hash)
+                  for p in st._plugin_class_registry.values()
+                  for d in p.provides
+                  ]
+                 )
+    return {dtype: h for dtype, h in hashes}
+
+
+def find_data_to_download(runid, target, st):
     runid_str = str(runid)
 
+    hashes = get_hashes(st)
     bottom = "peaklets"
-    #bottom_hash = db.get_hash(context_name, bottom, straxen.__version__)
-    #bottom_dset = f"{bottom}-{bottom_hash}"
 
-    print(bottom)
+    if bottom not in hashes:
+        raise ValueError(f"The dtype {bottom} is not in this context!")
+
+    bottom_hash = hashes[bottom]
+    print(bottom, bottom_hash)
 
     to_download = []
 
-
-    def find_data(_target, st):
-        # peaklets is the bottom of the chain -- just exit if we get there
-        # this is really tricky since we use recursive function and is just hack
-        if any([d[0] == bottom for d in to_download]):
+    def find_data(_target):
+        if any([d[0] == bottom and d[1] == bottom_hash for d in to_download]):
             return
 
         # initialize plugin needed for processing
@@ -41,35 +61,37 @@ def find_data_to_download(runid, target, st, context_name):
 
         # download all the required datatypes to produce this output file
         for in_dtype in _plugin.depends_on:
-            print(_target, in_dtype)
-            print(to_download)
             # get hash for this dtype
-            hash = db.get_hash(context_name, in_dtype, straxen.__version__)
+            hash = hashes.get(in_dtype)
+            print(_target, in_dtype, hash, bottom, bottom_hash)
             rses = db.get_rses(int(runid_str), in_dtype, hash)
+            print(rses)
             # print(in_dtype, rses)
             if len(rses) == 0:
                 # need to download data to make ths one
-                find_data(in_dtype, st)
+                find_data(in_dtype)
             else:
-                info = (in_dtype, hash) #make_did(runid, in_dtype, hash)
+                info = (in_dtype, hash)
                 if info not in to_download:
                     to_download.append(info)
-            if in_dtype == bottom:
+            if in_dtype == bottom and hash == bottom_hash:
+                print(f"Reached {bottom}. Returning.")
                 return
 
     # fills the to_download list
-    find_data(target, st)
-
+    find_data(target)
     return to_download
 
 
 def main():
+
     parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
     parser.add_argument('dataset', help='Run number', type=int)
     parser.add_argument('--output', help='desired strax(en) output')
     parser.add_argument('--context', help='name of context')
     parser.add_argument('--chunks', nargs='*', help='chunk ids to download')
     parser.add_argument('--rse', type=str, default="UC_OSG_USERDISK")
+    parser.add_argument('--cmt', type=str, default='ONLINE')
 
     args = parser.parse_args()
 
@@ -77,14 +99,16 @@ def main():
     data_dir = './data'
 
     # make sure this is empty
-    if os.path.exists(data_dir):
-        rmtree(data_dir)
+    # if os.path.exists(data_dir):
+    #     rmtree(data_dir)
 
     # get context
-    st = eval(f'straxen.contexts.{args.context}()')
+    st = getattr(straxen.contexts, args.context)()
     st.storage = [strax.DataDirectory(data_dir)]
-    st.context_config['forbid_creation_of'] = straxen.daqreader.DAQReader.provides
-    #st.set_config(dict(gain_model=('CMT_model', ("to_pe_model", "v2"))))
+
+    apply_global_version(st, args.cmt)
+
+    hashes = get_hashes(st)
 
     runid = args.dataset
     runid_str = "%06d" % runid
@@ -96,20 +120,20 @@ def main():
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    print(args.chunks)
     # download all the required datatypes to produce this output file
     if args.chunks:
         for in_dtype in plugin.depends_on:
             # get hash for this dtype
-            hash = db.get_hash(args.context, in_dtype, straxen.__version__)
+            hash = hashes[in_dtype]
             # download the input data
-            admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
+            if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
+                admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
     else:
         # download all the data we need
-        to_download = find_data_to_download(runid, out_dtype, st, args.context)
+        to_download = find_data_to_download(runid, out_dtype, st)
         for in_dtype, hash in to_download:
-            admix.download(runid, in_dtype, hash, location=data_dir)
-
+            if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
+                admix.download(runid, in_dtype, hash, location=data_dir)
 
     # keep track of the data we just downloaded -- will be important for the upload step later
     downloaded_data = os.listdir(data_dir)
@@ -117,7 +141,6 @@ def main():
     for dd in downloaded_data:
         print(dd)
     print("-------------------\n")
-
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
     if args.chunks is None:
@@ -125,18 +148,18 @@ def main():
         # then we just process the whole thing
         for keystring in plugin.provides:
             print(f"Making {keystring}")
-            st.make(runid_str, keystring)
-
-        #print("Processing done. Exiting.")
-
-        # now upload data to rucio
-        #return
+            st.make(runid_str, keystring,
+                    max_workers=8,
+                    allow_multiple=True,
+                    )
+            print(f"DONE processing {keystring}")
 
     # process chunk-by-chunk
     else:
         # setup savers
         savers = dict()
         for keystring in plugin.provides:
+            print(f"Making {keystring}")
             key = strax.DataKey(runid_str, keystring, plugin.lineage)
             saver = st.storage[0].saver(key, plugin.metadata(runid, keystring))
             saver.is_forked = True
@@ -154,31 +177,25 @@ def main():
                             data_kind=input_metadata['data_kind'],
                             dtype=dtype)
 
-        # process the chunks
-        if args.chunks is not None:
-            for chunk in args.chunks:
-                # read in the input data for this chunk
-                in_data = backend._read_and_format_chunk(backend_key=st.storage[0].find(input_key)[1],
-                                                         metadata=input_metadata,
-                                                         chunk_info=input_metadata['chunks'][int(chunk)],
-                                                         dtype=dtype,
-                                                         time_range=None,
-                                                         chunk_construction_kwargs=chunk_kwargs
-                                                        )
+        for chunk in args.chunks:
+            # read in the input data for this chunk
+            in_data = backend._read_and_format_chunk(backend_key=st.storage[0].find(input_key)[1],
+                                                     metadata=input_metadata,
+                                                     chunk_info=input_metadata['chunks'][int(chunk)],
+                                                     dtype=dtype,
+                                                     time_range=None,
+                                                     chunk_construction_kwargs=chunk_kwargs
+                                                    )
+            # process this chunk
+            output_data = plugin.do_compute(chunk_i=chunk, **{in_dtype: in_data})
 
-                # process this chunk
-                output_data = plugin.do_compute(chunk_i=chunk, **{in_dtype: in_data})
-
-                # save the output -- you have to loop because there could be > 1 output dtypes
-                for keystring, strax_chunk in output_data.items():
-                    savers[keystring].save(strax_chunk, chunk_i=int(chunk))
+            # save the output -- you have to loop because there could be > 1 output dtypes
+            for keystring, strax_chunk in output_data.items():
+                savers[keystring].save(strax_chunk, chunk_i=int(chunk))
     print("Done processing. Now we upload to rucio")
 
-
     # initiate the rucio client
-    # the rucio logo is a donkey
-    donkey = Client()
-    updonkey = UploadClient()
+    upload_client = UploadClient()
 
     # if we processed the entire run, we upload everything including metadata
     # otherwise, we just upload the chunks
@@ -198,10 +215,6 @@ def main():
         # remove the _temp if we are processing chunks in parallel
         if args.chunks is not None:
             this_hash = this_hash.replace('_temp', '')
-            # make sure we have the expected number of outputs
-            if len(files) != len(args.chunks) + 1:
-                raise RuntimeError("The number of output files does not match the number of chunks (+1 metadata) !")
-
         dataset = make_did(int(this_run), this_dtype, this_hash)
 
         scope, dset_name = dataset.split(':')
@@ -215,6 +228,13 @@ def main():
         if len(files) == 0:
             print(f"No files to upload in {dirname}. Skipping.")
             continue
+
+        # make sure we have the expected number of outputs
+        if args.chunks is not None:
+            if len(files) != len(args.chunks):
+                raise RuntimeError(f"The number of output files ({len(files)}) "
+                                   f"does not match the number of chunks for ({len(args.chunks)})!"
+                                   )
 
         # prepare list of dicts to be uploaded
         to_upload = []
@@ -233,25 +253,19 @@ def main():
 
         # now do the upload!
         try:
-            updonkey.upload(to_upload)
+            upload_client.upload(to_upload)
             print(f"Upload of {len(files)} files in {dirname} finished successfully")
         except:
             print(f"Upload of {dset_name} failed for some reason")
         for f in files:
             print(f"{scope}:{f}")
 
-        # cleanup the files we uploaded
-        for f in files:
-            print(f"Removing {f}")
-            os.remove(os.path.join(data_dir, dirname, f))
-
         # if we processed the whole thing, update the runDB here
         if args.chunks is None:
             md = st.get_meta(runid_str, this_dtype)
             chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
-            data_size_mb = int(np.sum(chunk_mb))
-            avg_data_size_mb = int(np.average(chunk_mb))
-
+            data_size_mb = np.sum(chunk_mb)
+            avg_data_size_mb = np.mean(chunk_mb)
 
             # update runDB
             new_data_dict = dict()
@@ -274,19 +288,13 @@ def main():
             db.update_data(runid, new_data_dict)
             print(f"Database updated for {this_dtype}")
 
+            # cleanup the files we uploaded
+            for f in files:
+                print(f"Removing {f}")
+                os.remove(os.path.join(data_dir, dirname, f))
+
     print("ALL DONE!")
 
 
-def debug_datafind():
-    runid = 8107
-    target = 'event_info_double'
-    st = straxen.contexts.xenonnt_online()
-    st.context_config['forbid_creation_of'] = straxen.daqreader.DAQReader.provides
-
-    data = find_data_to_download(runid, target, st, 'xenonnt_online')
-    print(data)
-
 if __name__ == "__main__":
     main()
-    #debug_datafind()
-

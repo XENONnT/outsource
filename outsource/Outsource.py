@@ -158,12 +158,14 @@ class Outsource:
         rc.add_replica('local', '.dbtoken', 'file://' + os.path.join(os.environ['HOME'], '.dbtoken'))
 
         # remove compute jobs after 3 hours
-        # periodic_remove = "((JobStatus == 2) & ((CurrentTime - EnteredCurrentStatus) > (60 * 60 * 3)))"
+        periodic_remove = "((JobStatus == 2) & ((CurrentTime - EnteredCurrentStatus) > (60 * 60 * 3)))"
 
         requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
         requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
-        requirements_for_combine = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
-                                                       '!regexp("campuscluster.illinois.edu", Machine)'
+        requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
+                                                         '!regexp("campuscluster.illinois.edu", Machine)'
+        # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
+        requirements_for_highlevel = requirements_base + ' && HAS_AVX' # && OSG_HOST_KERNEL_VERSION >= 31000'
 
         for dbcfg in self._dbcfgs:
 
@@ -171,7 +173,7 @@ class Outsource:
             if len(dbcfg.needs_processed) > 0:
                 logger.info('Adding run ' + str(dbcfg.number) + ' to the workflow')
             else:
-                logger.info(f"Run {dbcfg.number} is already processed with context {dbcfg.strax_context} and "
+                logger.info(f"Run {dbcfg.number} is already processed with context {dbcfg.context_name} and "
                              f"straxen version {dbcfg.straxen_version}")
                 continue
 
@@ -203,29 +205,30 @@ class Outsource:
                     requirements = requirements + ' && (' + self._exclude_sites()  + ')'
                     requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
 
-                # pre flight - runs on the submit host!
-                pre_flight_job = self._job('pre-flight-wrapper.sh')
-                pre_flight_job.add_args(str(dbcfg.number),
-                                        dtype,
-                                        dbcfg.strax_context,
-                                        config.get('Outsource', '%s_rse' % dtype,
-                                                   fallback='UC_OSG_USERDISK')
-                                        )
-                pre_flight_job.add_inputs(preflightpy, xenon_config)
-                wf.add_jobs(pre_flight_job)
-
                 # Set up the combine job first - we can then add to that job inside the chunk file loop
                 # only need combine job for low-level stuff
                 if dtype in ['records', 'peaklets']:
+                    # job that creates rucio datasets and will update DB
+                    pre_flight_job = self._job('pre-flight-wrapper.sh')
+                    pre_flight_job.add_args(str(dbcfg.number),
+                                            dtype,
+                                            dbcfg.context_name,
+                                            'UC_OSG_USERDISK',
+                                            dbcfg.cmt_global
+                                            )
+                    pre_flight_job.add_inputs(preflightpy, xenon_config)
+                    wf.add_jobs(pre_flight_job)
+
+
                     combine_job = self._job('combine-wrapper.sh', disk=5000)
-                    combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_combine)
+                    combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                     combine_job.add_inputs(combinepy, uploadpy, xenon_config)
                     combine_job.add_args(str(dbcfg.number),
                                          dtype,
-                                         dbcfg.strax_context,
-                                         config.get('Outsource', '%s_rse' % dtype,
-                                                    fallback='UC_OSG_USERDISK'),
+                                         dbcfg.context_name,
+                                         dbcfg.cmt_global,
+                                         'UC_OSG_USERDISK',
                                          dbcfg.rucio_arg,
                                          dbcfg.rundb_arg
                                         )
@@ -238,7 +241,7 @@ class Outsource:
                     # hopefully temporary
                     if n_chunks is None:
                         scope = 'xnt_%06d' % dbcfg.number
-                        dataset = "raw_records-%s" % (db.get_hash(dbcfg.strax_context, 'raw_records', dbcfg.straxen_version))
+                        dataset = "raw_records-%s" % dbcfg.hashes['raw_records']
                         did =  "%s:%s" % (scope, dataset)
                         chunk_list = self._data_find_chunks(did)
                         n_chunks = len(chunk_list)
@@ -272,10 +275,12 @@ class Outsource:
 
                         # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                         job.add_args(str(dbcfg.number),
-                                         dbcfg.strax_context,
-                                         dtype,
-                                         job_output_tar,
-                                         chunk_str,
+                                     dbcfg.context_name,
+                                     dbcfg.cmt_global,
+                                     dtype,
+                                     job_output_tar,
+                                     'UC_OSG_USERDISK',
+                                     chunk_str,
                                      )
                         job.add_inputs(straxify, xenon_config, token)
                         job.add_outputs(job_output_tar, stage_out=True)
@@ -294,16 +299,18 @@ class Outsource:
                 else:
                     # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='strax-wrapper.sh', disk=30000, memory=4000)
-                    job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                    job = self._job(name='strax-wrapper.sh', disk=50000, memory=5000, cores=8)
+                    job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                    # job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
+                    #job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
 
                     # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                     job.add_args(str(dbcfg.number),
-                                 dbcfg.strax_context,
+                                 dbcfg.context_name,
+                                 dbcfg.cmt_global,
                                  dtype,
-                                 "no_output_here"
+                                 "no_output_here",
+                                 'UC_OSG_USERDISK',
                                  )
 
                     job.add_inputs(straxify, xenon_config, token)
@@ -317,8 +324,6 @@ class Outsource:
                     # previous combine
                     if dtype_i > 0:
                         wf.add_dependency(job, parents=[combine_jobs[dtype_i - 1]])
-
-
 
 
         # Write the wf to stdout
@@ -485,6 +490,9 @@ class Outsource:
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
                                 value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"')
+        condorpool.add_profiles(Namespace.CONDOR, key='periodic_remove',
+                                value="(JobStatus == 2) && ((CurrentTime - EnteredCurrentStatus) > 18000)"
+                                )
 
         # ignore the site settings - the container will set all this up inside
         condorpool.add_profiles(Namespace.ENV, OSG_LOCATION='')
