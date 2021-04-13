@@ -8,31 +8,25 @@ export cmt=$3
 export output_dtype=$4
 export output_tar=$5
 export rse=$6
-export dbflag=
-export rucioflag=
-export chunks=${args[@]:6}
+export ignore_rucio=$7
+export ignore_db=$8
+export chunks=${args[@]:8}
 
 echo $@
 
 echo "Chunks: $chunks"
 start_dir=$PWD
 
-# check if we passed any flags to ignore rundb and/or ignore upload
-options=$(getopt -l "ignore-db,ignore-rucio" -a -o "dr" -- $@)
-eval set -- "$options"
-
+rucioflag=
 dbflag=
-rucioflag=true
 
-while true; do
-    case $1 in
-        --ignore-db) export dbflag='--ignore-db' ;;
-        --ignore-rucio) export rucioflag='--ignore-rucio';;
-        --) break ;;
-    esac
-    shift
-done
+if [[ ${ignore_rucio} ]]; then
+    rucioflag='--ignore-rucio'
+fi
 
+if [[ ${ignore_db} ]]; then
+    dbflag='--ignore-db'
+fi
 
 . /opt/XENONnT/setup.sh
 

@@ -304,14 +304,24 @@ class Outsource:
                         #job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
 
                         # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
+                        if len(dbcfg.rucio_arg) == 0:
+                            ignore_rucio = 'true'
+                        else:
+                            ignore_rucio = 'false'
+
+                        if len(dbcfg.rundb_arg) == 0:
+                            ignore_db = 'true'
+                        else:
+                            ignore_db = 'false'
+
                         job.add_args(str(dbcfg.number),
                                      dbcfg.context_name,
                                      dbcfg.cmt_global,
                                      dtype,
                                      job_output_tar,
                                      'UC_OSG_USERDISK',
-                                     dbcfg.rucio_arg,
-                                     dbcfg.rundb_arg,
+                                     ignore_rucio,
+                                     ignore_db,
                                      chunk_str,
                                      )
 
