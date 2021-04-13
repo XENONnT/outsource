@@ -21,8 +21,8 @@ start_dir=$PWD
 options=$(getopt -l "ignore-db,ignore-rucio" -a -o "dr" -- $@)
 eval set -- "$options"
 
-update_db=true
-upload_rucio=true
+dbflag=
+rucioflag=true
 
 while true; do
     case $1 in
@@ -79,7 +79,7 @@ then
   chunkarg="--chunks ${chunks}"
 fi
 
-./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --cmt ${cmt} --rse ${rse} ${chunkarg}
+./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --cmt ${cmt} --rse ${rse} ${dbflag} ${rucioflag} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then 

@@ -99,6 +99,8 @@ def main():
     parser.add_argument('--chunks', nargs='*', help='chunk ids to download')
     parser.add_argument('--rse', type=str, default="UC_OSG_USERDISK")
     parser.add_argument('--cmt', type=str, default='ONLINE')
+    parser.add_argument('--ignore-rucio', action='store_true', dest='ignore_rucio')
+    parser.add_argument('--ignore-db', action='store_true', dest='ignore_db')
 
     args = parser.parse_args()
 
@@ -144,7 +146,7 @@ def main():
                 admix.download(runid, in_dtype, hash, location=data_dir)
 
     download_time = time.time() - t0 # seconds
-    print(f"=== Download time (minutes): {download_time/60}")
+    print(f"=== Download time (minutes): {download_time/60:0.2f}")
 
     t0 = time.time()
 
@@ -206,7 +208,7 @@ def main():
             for keystring, strax_chunk in output_data.items():
                 savers[keystring].save(strax_chunk, chunk_i=int(chunk))
     process_time = time.time() - t0
-    print(f"=== Processing time (minutes): {process_time/60} === ")
+    print(f"=== Processing time (minutes): {process_time/60:0.2f} === ")
     print("Done processing. Now check if we should upload to rucio")
 
     # initiate the rucio client
@@ -223,6 +225,10 @@ def main():
     for d in processed_data:
         print(d)
     print("------------------------\n")
+
+    if args.ignore_rucio:
+        print("Ignoring rucio upload. Exiting. ")
+        return
 
     for dirname in processed_data:
         # get rucio dataset
@@ -324,31 +330,33 @@ def main():
 
         # if we processed the whole thing, update the runDB here
         if args.chunks is None:
-            md = st.get_meta(runid_str, this_dtype)
-            chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
-            data_size_mb = np.sum(chunk_mb)
-            avg_data_size_mb = np.mean(chunk_mb)
+            # skip if ignore_db flag passed
+            if not args.ignore_db:
+                md = st.get_meta(runid_str, this_dtype)
+                chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
+                data_size_mb = np.sum(chunk_mb)
+                avg_data_size_mb = np.mean(chunk_mb)
 
-            # update runDB
-            new_data_dict = dict()
-            new_data_dict['location'] = args.rse
-            new_data_dict['did'] = dataset
-            new_data_dict['status'] = 'transferred'
-            new_data_dict['host'] = "rucio-catalogue"
-            new_data_dict['type'] = this_dtype
-            new_data_dict['protocol'] = 'rucio'
-            new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
-            new_data_dict['creation_place'] = "OSG"
-            new_data_dict['meta'] = dict(lineage=plugin.lineage,
-                                         avg_chunk_mb=avg_data_size_mb,
-                                         file_count=len(files),
-                                         size_mb=data_size_mb,
-                                         strax_version=strax.__version__,
-                                         straxen_version=straxen.__version__
-                                         )
+                # update runDB
+                new_data_dict = dict()
+                new_data_dict['location'] = args.rse
+                new_data_dict['did'] = dataset
+                new_data_dict['status'] = 'transferred'
+                new_data_dict['host'] = "rucio-catalogue"
+                new_data_dict['type'] = this_dtype
+                new_data_dict['protocol'] = 'rucio'
+                new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
+                new_data_dict['creation_place'] = "OSG"
+                new_data_dict['meta'] = dict(lineage=plugin.lineage,
+                                             avg_chunk_mb=avg_data_size_mb,
+                                             file_count=len(files),
+                                             size_mb=data_size_mb,
+                                             strax_version=strax.__version__,
+                                             straxen_version=straxen.__version__
+                                             )
 
-            db.update_data(runid, new_data_dict)
-            print(f"Database updated for {this_dtype}")
+                db.update_data(runid, new_data_dict)
+                print(f"Database updated for {this_dtype}")
 
         # cleanup the files we uploaded
         # this is likely only done for records data because we will rechunk the others

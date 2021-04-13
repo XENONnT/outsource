@@ -310,8 +310,11 @@ class Outsource:
                                      dtype,
                                      job_output_tar,
                                      'UC_OSG_USERDISK',
+                                     dbcfg.rucio_arg,
+                                     dbcfg.rundb_arg,
                                      chunk_str,
                                      )
+
                         job.add_inputs(straxify, xenon_config, token)
                         job.add_outputs(job_output_tar, stage_out=True)
                         wf.add_jobs(job)

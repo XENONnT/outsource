@@ -62,11 +62,3 @@ time ./combine.py ${runid} ${dtype} --input data --context ${context} --rse ${rs
 echo "data dir:"
 ls -l data
 
-# upload to rucio and update runDB unless specified otherwise
-#if [ $upload_rucio == 'true' ]; then
-#  time ./upload.py ${runid} ${dtype} ${rse} --context ${context} ${dbflag}
-#else
-#  echo "Skipping rucio upload due to --ignore-rucio flag"
-#fi
-
-

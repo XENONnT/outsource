@@ -199,13 +199,3 @@ class DBConfig(RunConfig):
         rules = [r for r in rules if 'TAPE' not in r and r != 'LNGS_USERDISK']
         return len(rules) > 0
 
-
-
-
-
-
-
-
-
-
-
