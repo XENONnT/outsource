@@ -18,5 +18,8 @@ set -e
 export XENON_CONFIG=$PWD/.xenon_config
 export RUCIO_ACCOUNT=production
 
+# sleep a random amount of time to spread out e.g. API calls
+sleep $[ ( $RANDOM % 100 )  + 1 ]s
+
 ./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE --cmt $CMT
 

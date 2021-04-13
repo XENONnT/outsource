@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
+from argparse import ArgumentParser
 from outsource.Outsource import Outsource
 from outsource.RunConfig import DBConfig
 import numpy as np
 
 if __name__ == '__main__':
-    runs = np.arange(10002, 10005)
+    parser = ArgumentParser("Outsource Testing")
+    parser.add_argument('--context', default='xenonnt_online')
+    parser.add_argument('--cmt', default='ONLINE')
 
-    configs = [DBConfig(r, straxen_version='0.14.0',
-                        strax_context='xenonnt_online') for r in runs]
-    outsource = Outsource(configs)
+    args = parser.parse_args()
+
+    runs = np.arange(8300, 8500)
+
+    configs = [DBConfig(r, context_name=args.context, cmt_version=args.cmt,
+                        ignore_rucio=False, ignore_db=False) for r in runs
+               ]
+    outsource = Outsource(configs, xsede=True)
     outsource.submit_workflow()

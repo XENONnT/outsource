@@ -36,6 +36,9 @@ done
 
 . /opt/XENONnT/setup.sh
 
+# sleep random amount of time to spread out e.g. API calls and downloads
+sleep $[ ( $RANDOM % 30 )  + 1 ]s
+
 
 # set GLIDEIN_Country variable if not already
 if [[ -z "$GLIDEIN_Country" ]]; then

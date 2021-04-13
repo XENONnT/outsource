@@ -14,12 +14,15 @@ def main():
     parser.add_argument('--run', type=int, default=8000)
     parser.add_argument('--context', default='xenonnt_online')
     parser.add_argument('--cmt', default='ONLINE')
+    parser.add_argument('--xsede', action='store_true')
 
     args = parser.parse_args()
 
     configs = [DBConfig(args.run, context_name=args.context, cmt_version=args.cmt,
-                        ignore_rucio=False, ignore_db=False)]
-    outsource = Outsource(configs)
+                        ignore_rucio=False, ignore_db=False
+                        )
+               ]
+    outsource = Outsource(configs, xsede=args.xsede)
     outsource.submit_workflow()
 
 

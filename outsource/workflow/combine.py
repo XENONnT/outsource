@@ -3,6 +3,7 @@
 # logging.basicConfig(level='DEBUG')
 import argparse
 import os
+import shutil
 import numpy as np
 import strax
 import straxen
@@ -13,12 +14,13 @@ from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
 from utilix import db
 from pprint import pprint
+from immutabledict import immutabledict
 
 
 def apply_global_version(context, cmt_version):
     context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))
     context.set_config(dict(s2_xy_correction_map=("CMT_model", ('s2_xy_map', cmt_version), True)))
-    context.set_config(dict(elife_file=("elife_model", cmt_version, True)))
+    context.set_config(dict(elife_conf=("elife", cmt_version, True)))
     context.set_config(dict(mlp_model=("CMT_model", ("mlp_model", cmt_version), True)))
     context.set_config(dict(gcn_model=("CMT_model", ("gcn_model", cmt_version), True)))
     context.set_config(dict(cnn_model=("CMT_model", ("cnn_model", cmt_version), True)))
@@ -51,9 +53,13 @@ def main():
     dtype = args.dtype
     path = args.input
 
+    final_path = 'finished_data'
+
     # get context
     st = getattr(straxen.contexts, args.context)()
-    st.storage = [strax.DataDirectory('./')]
+    st.storage = [strax.DataDirectory('./'),
+                  strax.DataDirectory(final_path) # where we are copying data to
+                  ]
     apply_global_version(st, args.cmt)
 
     # initialize plugin needed for processing
@@ -73,31 +79,73 @@ def main():
         # merge the jsons
         saver.close()
 
+    # change the storage frontend to use the merged data
+    st.storage[0] = strax.DataDirectory(path)
+
+    # rechunk the data if we can
+    for keystring in plugin.provides:
+        rechunk = True
+        if isinstance(plugin.rechunk_on_save, immutabledict):
+            if not plugin.rechunk_on_save[keystring]:
+                rechunk = False
+        else:
+            if not plugin.rechunk_on_save:
+                rechunk = False
+
+        if rechunk:
+            print(f"Rechunking {keystring}")
+            st.copy_to_frontend(runid_str, keystring, 1, rechunk=True)
+        else:
+            print(f"Not rechunking {keystring}. Just copy to the staging directory.")
+            key = st.key_for(runid_str, keystring)
+            src = os.path.join(st.storage[0].path, str(key))
+            dest = os.path.join(st.storage[1].path, str(key))
+            shutil.copytree(src, dest)
+
+    print(f"Current contents of {final_path}:")
+    print(os.listdir(final_path))
+
     # now upload the merged metadata
     # setup the rucio client(s)
     if args.ignore_rucio:
         print("Ignoring rucio upload. Exiting")
         return
 
-    # need to patch the storage again
-    st.storage = [strax.DataDirectory('data')]
+    # need to patch the storage one last time
+    st.storage = [strax.DataDirectory(final_path)]
 
     updonkey = UploadClient()
     donkey = Client()
 
     hash = strax.DataKey(runid_str, dtype, plugin.lineage).lineage_hash
 
-    for this_dir in os.listdir(path):
+    for this_dir in os.listdir(final_path):
         # prepare list of dicts to be uploaded
         keystring = this_dir.split('-')[1]
         dataset_did = make_did(runid, keystring, hash)
         scope, dset_name = dataset_did.split(':')
 
-        files = os.listdir(os.path.join(path, this_dir))
+        files = os.listdir(os.path.join(final_path, this_dir))
         to_upload = []
+        existing_files = [f for f in donkey.list_dids(scope, {'type': 'file'}, type='file')]
+        existing_files = [f for f in existing_files if dset_name in f]
+
+        existing_files_in_dataset = [f['name'] for f in donkey.list_files(scope, dset_name)]
+
+        # for some reason files get uploaded but not attached correctly
+        need_attached = list(set(existing_files) - set(existing_files_in_dataset))
+
+        if len(need_attached) > 0:
+            dids_to_attach = [dict(scope=scope, name=name) for name in need_attached]
+
+            donkey.attach_dids(scope, dset_name, dids_to_attach)
+
         for f in files:
-            this_path = os.path.join(path, this_dir, f)
-            #print(f"Uploading {os.path.basename(path)}")
+            if f in existing_files:
+                print(f"Skipping {f} since it is already uploaded")
+                continue
+
+            this_path = os.path.join(final_path, this_dir, f)
             d = dict(path=this_path,
                      did_scope=scope,
                      did_name=f,
@@ -108,7 +156,11 @@ def main():
                      )
             to_upload.append(d)
 
-        print(to_upload)
+        # now do the upload!
+        if len(to_upload) == 0:
+            print(f"No files to upload for {dirname}")
+            continue
+
         # now do the upload!
         try:
             updonkey.upload(to_upload)
@@ -118,8 +170,6 @@ def main():
         print(f"Upload of {len(files)} files in {this_dir} finished successfully")
         for f in files:
             print(f"{scope}:{f}")
-
-        print()
 
         # now check the rucio data matche what we expect
         rucio_files = [f for f in donkey.list_files(scope, dset_name)]
@@ -131,12 +181,20 @@ def main():
 
         # we should have n+1 files in rucio (counting metadata)
         if len(rucio_files) != expected_chunks + 1:
+            # we're missing some data, uh oh
+            successful_chunks = set([int(f['name'].split('-')[-1]) for f in rucio_files])
+            expected_chunks = set(np.arange(expected_chunks))
+
+            missing_chunks = expected_chunks - successful_chunks
+
+            missing_chunk_str = '/n'.join(missing_chunks)
             raise RuntimeError(f"File mismatch! There are {len(rucio_files)} but the metadata thinks there "
-                               f"should be {expected_chunks} chunks + 1 metadata")
+                               f"should be {expected_chunks} chunks + 1 metadata. "
+                               f"The missing chunks are:\n{missing_chunk_str}")
 
         chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
-        data_size_mb = int(np.sum(chunk_mb))
-        avg_data_size_mb = int(np.average(chunk_mb))
+        data_size_mb = np.sum(chunk_mb)
+        avg_data_size_mb = np.mean(chunk_mb)
 
         # let's do one last check of the rule
         rc = RucioSummoner()
@@ -146,7 +204,7 @@ def main():
         elif rule['state'] == 'REPLICATING':
             status = 'transferring'
         else:
-            status='error'
+            status = 'error'
 
         if not args.ignore_rundb:
             # update runDB

@@ -4,20 +4,25 @@ import time
 from .Config import config, base_dir, work_dir
 from utilix import db
 import straxen
+from rucio.client.client import Client
+from admix.utils.naming import make_did
 
 # HARDCODE alert
 # we could also import strax(en), but this makes outsource submission not dependent on strax
 # maybe we could put this in database?
 DEPENDS_ON = {'records': ['raw_records'],
               'peaklets': ['records'],
-              'event_info_double': ['peaklets']
+              'event_info': ['peaklets']
               }
+
+
+RUCIO_CLIENT = Client()
 
 
 def apply_global_version(context, cmt_version):
     context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))
     context.set_config(dict(s2_xy_correction_map=("CMT_model", ('s2_xy_map', cmt_version), True)))
-    context.set_config(dict(elife_file=("elife_model", cmt_version, True)))
+    context.set_config(dict(elife_conf=("elife", cmt_version, True)))
     context.set_config(dict(mlp_model=("CMT_model", ("mlp_model", cmt_version), True)))
     context.set_config(dict(gcn_model=("CMT_model", ("gcn_model", cmt_version), True)))
     context.set_config(dict(cnn_model=("CMT_model", ("cnn_model", cmt_version), True)))
@@ -40,7 +45,7 @@ class RunConfigBase:
     _executable = os.path.join(base_dir, 'workflow', 'run-pax.sh')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
-    _chunks_per_job = 25
+    _chunks_per_job = 20
 
     @property
     def rundb_arg(self):
@@ -103,7 +108,7 @@ class RunConfig(RunConfigBase):
 
 class DBConfig(RunConfig):
     """Uses runDB to build _dbcfgs info"""
-    needs_processed=None
+    needs_processed = None
 
     def __init__(self, number, context_name, cmt_version, **kwargs):
         self._number = number
@@ -124,6 +129,7 @@ class DBConfig(RunConfig):
         self.needs_processed = self.process_these()
         # determine which rse the input data is on
         self.rses = self.rse_data_find()
+        self.raw_data_exists = self._raw_data_exists()
 
     @property
     def workflow_id(self):
@@ -142,7 +148,6 @@ class DBConfig(RunConfig):
         # do we need to process?
         requested_dtypes = config.get_list('Outsource', 'dtypes')
         # for this context and straxen version, see if we have that data yet
-
 
         ret = []
         for dtype in requested_dtypes:
@@ -177,5 +182,30 @@ class DBConfig(RunConfig):
                     if 'file_count' in d['meta']:
                         # one file is the metadata, so subtract
                         return d['meta']['file_count'] - 1
+
+    def _raw_data_exists(self, raw_type='raw_records'):
+        """Property that returns a boolean for whether or not raw data exists in rucio"""
+        h = self.hashes.get(raw_type)
+        if not h:
+            raise ValueError(f"Dtype {raw_type} does not exist for the context in question")
+        # check rucio
+        did = make_did(self.number, raw_type, h)
+        scope, name = did.split(':')
+
+        # returns a generator
+        rules = RUCIO_CLIENT.list_did_rules(scope, name)
+
+        rules = [r['rse_expression'] for r in rules if r['state'] == 'OK' and r['locks_ok_cnt'] > 0]
+        rules = [r for r in rules if 'TAPE' not in r and r != 'LNGS_USERDISK']
+        return len(rules) > 0
+
+
+
+
+
+
+
+
+
 
 

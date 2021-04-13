@@ -12,16 +12,23 @@ from ast import literal_eval
 from utilix import db
 import admix
 from admix.utils.naming import make_did
+import rucio
 from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
 import datetime
 from pprint import pprint
 
+# these dtypes we need to rechunk, so don't upload to rucio here!
+rechunk_dtypes = ['pulse_counts',
+                  'veto_regions',
+                  'peaklets',
+                  'lone_hits'
+                  ]
 
 def apply_global_version(context, cmt_version):
     context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))
     context.set_config(dict(s2_xy_correction_map=("CMT_model", ('s2_xy_map', cmt_version), True)))
-    context.set_config(dict(elife_file=("elife_model", cmt_version, True)))
+    context.set_config(dict(elife_conf=("elife", cmt_version, True)))
     context.set_config(dict(mlp_model=("CMT_model", ("mlp_model", cmt_version), True)))
     context.set_config(dict(gcn_model=("CMT_model", ("gcn_model", cmt_version), True)))
     context.set_config(dict(cnn_model=("CMT_model", ("cnn_model", cmt_version), True)))
@@ -120,6 +127,7 @@ def main():
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
+    t0 = time.time()
     # download all the required datatypes to produce this output file
     if args.chunks:
         for in_dtype in plugin.depends_on:
@@ -134,6 +142,11 @@ def main():
         for in_dtype, hash in to_download:
             if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
                 admix.download(runid, in_dtype, hash, location=data_dir)
+
+    download_time = time.time() - t0 # seconds
+    print(f"=== Download time (minutes): {download_time/60}")
+
+    t0 = time.time()
 
     # keep track of the data we just downloaded -- will be important for the upload step later
     downloaded_data = os.listdir(data_dir)
@@ -192,10 +205,13 @@ def main():
             # save the output -- you have to loop because there could be > 1 output dtypes
             for keystring, strax_chunk in output_data.items():
                 savers[keystring].save(strax_chunk, chunk_i=int(chunk))
-    print("Done processing. Now we upload to rucio")
+    process_time = time.time() - t0
+    print(f"=== Processing time (minutes): {process_time/60} === ")
+    print("Done processing. Now check if we should upload to rucio")
 
     # initiate the rucio client
     upload_client = UploadClient()
+    rucio_client = Client()
 
     # if we processed the entire run, we upload everything including metadata
     # otherwise, we just upload the chunks
@@ -211,6 +227,9 @@ def main():
     for dirname in processed_data:
         # get rucio dataset
         this_run, this_dtype, this_hash = dirname.split('-')
+        if this_dtype in rechunk_dtypes:
+            print(f"Skipping upload of {this_dtype} since we need to rechunk it")
+            continue
 
         # remove the _temp if we are processing chunks in parallel
         if args.chunks is not None:
@@ -224,23 +243,60 @@ def main():
         if not upload_meta:
             files = [f for f in files if not f.endswith('.json')]
 
+            # check that the output number of files is what we expect
+            if len(files) != len(args.chunks):
+                processed_chunks = set([int(f.split('-')[-1]) for f in files])
+                expected_chunks = set(args.chunks)
+                missing_chunks = expected_chunks - processed_chunks
+                missing_chunks = ' '.join(missing_chunks)
+                raise RuntimeError("File mismatch! We are missing output data for the following chunks: "
+                                   f"{missing_chunks}"
+                                   )
+
+
         # if there are no files, we can't upload them
         if len(files) == 0:
             print(f"No files to upload in {dirname}. Skipping.")
             continue
 
-        # make sure we have the expected number of outputs
-        if args.chunks is not None:
-            if len(files) != len(args.chunks):
-                raise RuntimeError(f"The number of output files ({len(files)}) "
-                                   f"does not match the number of chunks for ({len(args.chunks)})!"
-                                   )
+        # get list of files that have already been uploaded
+        # this is to allow us re-run workflow for some chunks
+        try:
+            existing_files = [f for f in rucio_client.list_dids(scope,
+                                                                       {'type': 'file'},
+                                                                        type='file')
+                              ]
+            existing_files = [f for f in existing_files if dset_name in f]
+
+            existing_files_in_dataset = [f['name'] for f in rucio_client.list_files(scope, dset_name)]
+
+            # for some reason files get uploaded but not attached correctly
+            need_attached = list(set(existing_files) - set(existing_files_in_dataset))
+
+            # only consider the chunks here
+            need_attached = [f for f in need_attached if str(int(f.split('-')[-1])) in args.chunks]
+
+
+            if len(need_attached) > 0:
+                dids_to_attach = [dict(scope=scope, name=name) for name in need_attached]
+
+                rucio_client.attach_dids(scope, dset_name, dids_to_attach)
+
+
+        except rucio.common.exception.DataIdentifierNotFound:
+            existing_files = []
 
         # prepare list of dicts to be uploaded
         to_upload = []
+
+
         for f in files:
             path = os.path.join(data_dir, dirname, f)
-            #print(f"Uploading {os.path.basename(path)}")
+            if f in existing_files:
+                print(f"Skipping {f} since it is already uploaded")
+                continue
+
+            print(f"Uploading {f}")
             d = dict(path=path,
                      did_scope=scope,
                      did_name=f,
@@ -251,14 +307,20 @@ def main():
                      )
             to_upload.append(d)
 
+        # skip upload for now
+
         # now do the upload!
+        if len(to_upload) == 0:
+            print(f"No files to upload for {dirname}")
+            continue
         try:
             upload_client.upload(to_upload)
-            print(f"Upload of {len(files)} files in {dirname} finished successfully")
         except:
             print(f"Upload of {dset_name} failed for some reason")
-        for f in files:
-            print(f"{scope}:{f}")
+            raise
+
+        # TODO check rucio that the files are there?
+        print(f"Upload of {len(files)} files in {dirname} finished successfully")
 
         # if we processed the whole thing, update the runDB here
         if args.chunks is None:
@@ -288,10 +350,12 @@ def main():
             db.update_data(runid, new_data_dict)
             print(f"Database updated for {this_dtype}")
 
-            # cleanup the files we uploaded
-            for f in files:
-                print(f"Removing {f}")
-                os.remove(os.path.join(data_dir, dirname, f))
+        # cleanup the files we uploaded
+        # this is likely only done for records data because we will rechunk the others
+        for f in files:
+            print(f"Removing {f}")
+            os.remove(os.path.join(data_dir, dirname, f))
+
 
     print("ALL DONE!")
 

@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import numpy as np
+from tqdm import tqdm
 
 from pprint import pprint
 
@@ -31,18 +32,29 @@ class Outsource:
     # Data availability to site selection map
     _rse_site_map = {
         'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
-        'UC_DALI_USERDISK':   {},
-        'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
+        'UC_DALI_USERDISK':   {'expr': 'GLIDEIN_Country == "US"'},
+        'CCIN2P3_USERDISK':   {'expr': 'GLIDEIN_Country != "US"'},
         'CNAF_TAPE_USERDISK': {},
-        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
+        'CNAF_USERDISK':      {'expr': 'GLIDEIN_Country != "US"'},
         'LNGS_USERDISK':      {},
-        'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-        'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-        'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
-        'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
+        'NIKHEF2_USERDISK':   { 'expr': 'GLIDEIN_Country != "US"'},
     }
+    # Data availability to site selection map
+    # _rse_site_map = {
+    #     'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
+    #     'UC_DALI_USERDISK':   {},
+    #     'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
+    #     'CNAF_TAPE_USERDISK': {},
+    #     'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
+    #     'LNGS_USERDISK':      {},
+    #     'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+    #     'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+    #     'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
+    #     'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
+    # }
 
-    def __init__(self, dbcfgs, debug=False):
+
+    def __init__(self, dbcfgs, wf_id=None, xsede=False, debug=False):
         '''
         Creates a new Outsource object. Specifying a list of DBConfig objects required.
         '''
@@ -53,6 +65,10 @@ class Outsource:
             raise RuntimeError('Outsource expects a list of DBConfigs to run')
         # TODO there's likely going to be some confusion between the two configs here
         self._dbcfgs = dbcfgs
+
+        self.xsede = xsede
+
+        self._initial_dir = os.getcwd()
 
         # logger
         console = logging.StreamHandler()
@@ -73,12 +89,16 @@ class Outsource:
         # environment for subprocesses
         os.environ['X509_USER_PROXY'] = self._dbcfgs[0].x509_proxy
         
-        # Determine a unique id for the workflow. If only one dbconfig is provided, use
-        # the workflow id of that object. If more than one is provided, make one up.
-        if len(self._dbcfgs) == 1:
-            self._wf_id = self._dbcfgs[0].workflow_id
+        # Determine a unique id for the workflow. If none passed, looks at the dbconfig.
+        # If only one dbconfig is provided, use the workflow id of that object.
+        # If more than one is provided, make one up.
+        if wf_id:
+            self._wf_id = wf_id
         else:
-            self._wf_id = 'multiples-' + self._dbcfgs[0].workflow_id
+            if len(self._dbcfgs) == 1:
+                self._wf_id = self._dbcfgs[0].workflow_id
+            else:
+                self._wf_id = 'multiples-' + self._dbcfgs[0].workflow_id
 
     def submit_workflow(self):
         '''
@@ -106,6 +126,8 @@ class Outsource:
         wf = self._generate_workflow()
 
         self._plan_and_submit(wf)
+
+        os.chdir(self._initial_dir)
     
     def _generate_workflow(self):
         '''
@@ -146,9 +168,6 @@ class Outsource:
         
         combinepy = File('combine.py')
         rc.add_replica('local', 'combine.py', 'file://' + base_dir + '/workflow/combine.py')
-        
-        uploadpy = File('upload.py')
-        rc.add_replica('local', 'upload.py', 'file://' + base_dir + '/workflow/upload.py')
 
         # add common data files to the replica catalog
         xenon_config = File('.xenon_config')
@@ -161,27 +180,35 @@ class Outsource:
         periodic_remove = "((JobStatus == 2) & ((CurrentTime - EnteredCurrentStatus) > (60 * 60 * 3)))"
 
         requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
+        # should we use XSEDE?
+        if self.xsede:
+            requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
         requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
         requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
                                                          '!regexp("campuscluster.illinois.edu", Machine)'
         # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
-        requirements_for_highlevel = requirements_base + ' && HAS_AVX' # && OSG_HOST_KERNEL_VERSION >= 31000'
+        requirements_for_highlevel = requirements_base + ' && HAS_AVX'
 
-        for dbcfg in self._dbcfgs:
+        iterator = self._dbcfgs if len(self._dbcfgs) == 0 else tqdm(self._dbcfgs)
+
+        for dbcfg in iterator:
+            # check if this run can be processed
+            if not dbcfg.raw_data_exists:
+                logger.debug(f"Run {dbcfg.number} cannot be processed. No raw data in rucio.")
+                continue
 
             # check if this run needs to be processed
             if len(dbcfg.needs_processed) > 0:
-                logger.info('Adding run ' + str(dbcfg.number) + ' to the workflow')
+                logger.debug('Adding run ' + str(dbcfg.number) + ' to the workflow')
             else:
-                logger.info(f"Run {dbcfg.number} is already processed with context {dbcfg.context_name} and "
-                             f"straxen version {dbcfg.straxen_version}")
+                logger.debug(f"Run {dbcfg.number} is already processed with context {dbcfg.context_name}")
                 continue
 
             combine_jobs = []
 
             # get dtypes to process
             for dtype_i, dtype in enumerate(dbcfg.needs_processed):
-                logger.info(f"|-----> adding {dtype}")
+                logger.debug(f"|-----> adding {dtype}")
                 rses = dbcfg.rses[dtype]
                 if len(rses) == 0:
                     if dtype == 'raw_records':
@@ -200,7 +227,9 @@ class Outsource:
                     requirements_base = requirements_base + ' && GLIDEIN_ResourceName == "MWT2" && regexp("uct2-c4[1-7]", Machine)'
 
                 # general compute jobs
-                requirements = requirements_base + (' && (' + sites_expression + ')') * (len(sites_expression) > 0)
+                _requirements_base = requirements_base if len(rses) > 0 else requirements_us
+                requirements = _requirements_base + (' && (' + sites_expression + ')') * (len(sites_expression) > 0)
+
                 if self._exclude_sites():
                     requirements = requirements + ' && (' + self._exclude_sites()  + ')'
                     requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
@@ -216,14 +245,15 @@ class Outsource:
                                             'UC_OSG_USERDISK',
                                             dbcfg.cmt_global
                                             )
-                    pre_flight_job.add_inputs(preflightpy, xenon_config)
+                    pre_flight_job.add_inputs(preflightpy, xenon_config, token)
+                    pre_flight_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     wf.add_jobs(pre_flight_job)
 
 
-                    combine_job = self._job('combine-wrapper.sh', disk=5000)
+                    combine_job = self._job('combine-wrapper.sh', disk=30000)
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                    combine_job.add_inputs(combinepy, uploadpy, xenon_config)
+                    combine_job.add_inputs(combinepy, xenon_config)
                     combine_job.add_args(str(dbcfg.number),
                                          dtype,
                                          dbcfg.context_name,
@@ -299,10 +329,9 @@ class Outsource:
                 else:
                     # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='strax-wrapper.sh', disk=50000, memory=5000, cores=8)
+                    job = self._job(name='strax-wrapper.sh', disk=50000, memory=8000, cores=8)
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                    #job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
 
                     # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                     job.add_args(str(dbcfg.number),
@@ -317,7 +346,7 @@ class Outsource:
                     wf.add_jobs(job)
 
                     # all strax jobs depend on the pre-flight one
-                    wf.add_dependency(job, parents=[pre_flight_job])
+                    wf.add_dependency(job)
 
 
                     # if there are multiple levels to the workflow, need to have current strax-wrapper depend on
@@ -340,16 +369,16 @@ class Outsource:
         submit the workflow
         '''
 
+        # starting directory, since we're going to chdir
         os.chdir(self._generated_dir())
         wf.plan(conf=base_dir + '/workflow/pegasus.conf',
                 submit=False,
                 sites=['condorpool'],
                 staging_sites={'condorpool': 'staging'},
-                output_sites=None, #['output'],
+                output_sites=None,
                 dir=runs_dir,
                 relative_dir=self._wf_id
                )
-
 
     def _generated_dir(self):
         return os.path.join(work_dir, 'generated', self._wf_id)
@@ -491,8 +520,11 @@ class Outsource:
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
                                 value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"')
         condorpool.add_profiles(Namespace.CONDOR, key='periodic_remove',
-                                value="(JobStatus == 2) && ((CurrentTime - EnteredCurrentStatus) > 18000)"
+                                value="((JobStatus == 2) && ((CurrentTime - EnteredCurrentStatus) > 18000)) || "
+                                      "((JobStatus == 5) && ((CurrentTime - EnteredCurrentStatus) > 30)) "
                                 )
+        if self.xsede:
+            condorpool.add_profiles(Namespace.CONDOR, key='+WantsXSEDE', value='True')
 
         # ignore the site settings - the container will set all this up inside
         condorpool.add_profiles(Namespace.ENV, OSG_LOCATION='')
