@@ -12,10 +12,11 @@ from admix.utils.naming import make_did
 from admix.interfaces.rucio_summoner import RucioSummoner
 from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
-from utilix import db
+from utilix import DB
 from pprint import pprint
 from immutabledict import immutabledict
 
+db = DB()
 
 def apply_global_version(context, cmt_version):
     context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))

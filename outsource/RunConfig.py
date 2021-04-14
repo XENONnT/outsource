@@ -2,7 +2,7 @@ import os
 import re
 import time
 from .Config import config, base_dir, work_dir
-from utilix import db
+from utilix import DB
 import straxen
 from rucio.client.client import Client
 from admix.utils.naming import make_did
@@ -17,6 +17,7 @@ DEPENDS_ON = {'records': ['raw_records'],
 
 
 RUCIO_CLIENT = Client()
+db = DB()
 
 
 def apply_global_version(context, cmt_version):

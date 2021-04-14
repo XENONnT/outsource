@@ -9,7 +9,7 @@ import time
 from pprint import pprint
 from shutil import rmtree
 from ast import literal_eval
-from utilix import db
+from utilix import DB
 import admix
 from admix.utils.naming import make_did
 import rucio
@@ -17,6 +17,8 @@ from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
 import datetime
 from pprint import pprint
+
+db = DB()
 
 # these dtypes we need to rechunk, so don't upload to rucio here!
 rechunk_dtypes = ['pulse_counts',

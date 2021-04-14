@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from pprint import pprint
 
-from utilix import db
+from utilix import DB
 from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 from outsource.Shell import Shell
 
@@ -26,6 +26,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 rc = RucioSummoner()
+db = DB()
 
 class Outsource:
 
