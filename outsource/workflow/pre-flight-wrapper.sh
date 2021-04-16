@@ -10,6 +10,7 @@ export DTYPE=$2
 export CONTEXT=$3
 export RSE=$4
 export CMT=$5
+export UPDATE_DB=$6
 
 set -e
 
@@ -19,7 +20,9 @@ export XENON_CONFIG=$PWD/.xenon_config
 export RUCIO_ACCOUNT=production
 
 # sleep a random amount of time to spread out e.g. API calls
-sleep $[ ( $RANDOM % 100 )  + 1 ]s
+sleep $[ ( $RANDOM % 20 )  + 1 ]s
 
-./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE --cmt $CMT
+if [ "X$UPDATE_DB" = "Xtrue" ]; then
+    ./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE --cmt $CMT
+fi
 

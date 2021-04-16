@@ -33,4 +33,10 @@ Please use the Python3.6 XENONnT environment. On the OSG submit hosts, this can 
 
     . /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
 
-    
+## Proxy
+
+Please make sure you create a 2048 bit long key. Example:
+
+    voms-proxy-init -voms xenon.biggrid.nl -bits 2048 -hours 168 -out ~/user_cert
+
+

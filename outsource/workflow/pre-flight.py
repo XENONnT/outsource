@@ -3,10 +3,12 @@ from argparse import ArgumentParser
 from rucio.client.client import Client
 import straxen
 import strax
-from utilix import db
+from utilix import DB
 from admix.utils.naming import make_did
 import datetime
 from pprint import pprint
+
+db = DB()
 
 def apply_global_version(context, cmt_version):
     context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))

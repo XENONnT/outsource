@@ -8,30 +8,36 @@ export cmt=$3
 export output_dtype=$4
 export output_tar=$5
 export rse=$6
-export ignore_rucio=$7
-export ignore_db=$8
-export chunks=${args[@]:8}
+export standalone_download=$7
+export upload_to_rucio=$8
+export update_db=$9
+export chunks=${args[@]:9}
 
 echo $@
 
 echo "Chunks: $chunks"
 start_dir=$PWD
 
-rucioflag=
-dbflag=
+extraflags=""
 
-if [[ ${ignore_rucio} ]]; then
-    rucioflag='--ignore-rucio'
+if [ "X${standalone_download}" = "Xdownload-only" ]; then
+    extraflags="$extraflags --download-only"
+elif [ "X${standalone_download}" = "Xno-download" ]; then
+    extraflags="$extraflags --no-download"
 fi
 
-if [[ ${ignore_db} ]]; then
-    dbflag='--ignore-db'
+if [ "X${upload_to_rucio}" = "Xtrue" ]; then
+    extraflags="$extraflags --upload-to-rucio"
+fi
+
+if [ "X${update_db}" = "Xtrue" ]; then
+    extraflags="$extraflags --update-db"
 fi
 
 . /opt/XENONnT/setup.sh
 
 # sleep random amount of time to spread out e.g. API calls and downloads
-sleep $[ ( $RANDOM % 30 )  + 1 ]s
+sleep $[ ( $RANDOM % 20 )  + 1 ]s
 
 
 # set GLIDEIN_Country variable if not already
@@ -65,6 +71,12 @@ rucio whoami
 
 echo
 
+if [ "X${standalone_download}" = "Xno-download" ]; then
+    # we are given a tarball from the previous download job
+    echo 'Untaring input data...'
+    tar xzf *-data-*.tar.gz
+fi
+
 echo 'Processing now...'
 
 chunkarg=""
@@ -73,7 +85,7 @@ then
   chunkarg="--chunks ${chunks}"
 fi
 
-./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --cmt ${cmt} --rse ${rse} ${dbflag} ${rucioflag} ${chunkarg}
+./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --cmt ${cmt} --rse ${rse} ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then 
@@ -92,7 +104,11 @@ then
 fi
 
 
-tar czfv ${output_tar} data/*_temp
+if [ "X${standalone_download}" = "Xdownload-only" ]; then
+    tar czfv ${output_tar} data
+else
+    tar czfv ${output_tar} data/*_temp
+fi
 
 echo
 echo "Job is done. Here is the contents of the directory now:"

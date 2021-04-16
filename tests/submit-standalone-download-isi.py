@@ -19,7 +19,8 @@ def main():
     args = parser.parse_args()
 
     configs = [DBConfig(args.run, context_name=args.context, cmt_version=args.cmt,
-                        force_rerun=True, upload_to_rucio=False, update_db=False
+                        force_rerun=True, upload_to_rucio=False, update_db=False,
+                        standalone_download=True, staging_site='staging-isi'
                         )
                ]
     outsource = Outsource(configs, xsede=args.xsede, debug=True)

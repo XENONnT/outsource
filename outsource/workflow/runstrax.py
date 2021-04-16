@@ -101,8 +101,10 @@ def main():
     parser.add_argument('--chunks', nargs='*', help='chunk ids to download')
     parser.add_argument('--rse', type=str, default="UC_OSG_USERDISK")
     parser.add_argument('--cmt', type=str, default='ONLINE')
-    parser.add_argument('--ignore-rucio', action='store_true', dest='ignore_rucio')
-    parser.add_argument('--ignore-db', action='store_true', dest='ignore_db')
+    parser.add_argument('--upload-to-rucio', action='store_true', dest='upload_to_rucio')
+    parser.add_argument('--update-db', action='store_true', dest='update_db')
+    parser.add_argument('--download-only', action='store_true', dest='download_only')
+    parser.add_argument('--no-download', action='store_true', dest='no_download')
 
     args = parser.parse_args()
 
@@ -131,24 +133,28 @@ def main():
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    t0 = time.time()
-    # download all the required datatypes to produce this output file
-    if args.chunks:
-        for in_dtype in plugin.depends_on:
-            # get hash for this dtype
-            hash = hashes[in_dtype]
-            # download the input data
-            if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
-    else:
-        # download all the data we need
-        to_download = find_data_to_download(runid, out_dtype, st)
-        for in_dtype, hash in to_download:
-            if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                admix.download(runid, in_dtype, hash, location=data_dir)
+    if not args.no_download:
+        t0 = time.time()
+        # download all the required datatypes to produce this output file
+        if args.chunks:
+            for in_dtype in plugin.depends_on:
+                # get hash for this dtype
+                hash = hashes[in_dtype]
+                # download the input data
+                if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
+                    admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
+        else:
+            # download all the data we need
+            to_download = find_data_to_download(runid, out_dtype, st)
+            for in_dtype, hash in to_download:
+                if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
+                    admix.download(runid, in_dtype, hash, location=data_dir)
+    
+        download_time = time.time() - t0 # seconds
+        print(f"=== Download time (minutes): {download_time/60:0.2f}")
 
-    download_time = time.time() - t0 # seconds
-    print(f"=== Download time (minutes): {download_time/60:0.2f}")
+    if args.download_only:
+        sys.exit(0)
 
     t0 = time.time()
 
@@ -228,7 +234,7 @@ def main():
         print(d)
     print("------------------------\n")
 
-    if args.ignore_rucio:
+    if not args.upload_to_rucio:
         print("Ignoring rucio upload. Exiting. ")
         return
 
@@ -332,8 +338,8 @@ def main():
 
         # if we processed the whole thing, update the runDB here
         if args.chunks is None:
-            # skip if ignore_db flag passed
-            if not args.ignore_db:
+            # skip if update_db flag is false
+            if args.update_db:
                 md = st.get_meta(runid_str, this_dtype)
                 chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
                 data_size_mb = np.sum(chunk_mb)

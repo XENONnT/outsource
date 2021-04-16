@@ -34,26 +34,26 @@ class Outsource:
     _rse_site_map = {
         'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
         'UC_DALI_USERDISK':   {'expr': 'GLIDEIN_Country == "US"'},
-        'CCIN2P3_USERDISK':   {'expr': 'GLIDEIN_Country != "US"'},
+        'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
         'CNAF_TAPE_USERDISK': {},
-        'CNAF_USERDISK':      {'expr': 'GLIDEIN_Country != "US"'},
+        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
         'LNGS_USERDISK':      {},
-        'NIKHEF2_USERDISK':   { 'expr': 'GLIDEIN_Country != "US"'},
+        'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
+        'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
     }
-    # Data availability to site selection map
-    # _rse_site_map = {
-    #     'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
-    #     'UC_DALI_USERDISK':   {},
-    #     'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
-    #     'CNAF_TAPE_USERDISK': {},
-    #     'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
-    #     'LNGS_USERDISK':      {},
-    #     'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-    #     'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-    #     'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
-    #     'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
-    # }
 
+    # transformation map (high level name -> script)
+    _transformations_map = {
+            'combine':     'combine-wrapper.sh',
+            'pre_flight':  'pre-flight-wrapper.sh',
+            'download':    'strax-wrapper.sh',
+            'raw_records': 'strax-wrapper.sh',
+            'records':     'strax-wrapper.sh',
+            'peaklets':    'strax-wrapper.sh',
+            'strax':       'strax-wrapper.sh',
+    }
 
     def __init__(self, dbcfgs, wf_id=None, xsede=False, debug=False):
         '''
@@ -149,14 +149,10 @@ class Outsource:
         wf.add_shell_hook(EventType.END, pegasus_path + '/share/pegasus/notification/email -t ' + notification_email)
 
         # add executables to the wf-level transformation catalog
-        for fname in [
-                'combine-wrapper.sh',
-                'pre-flight-wrapper.sh',
-                'strax-wrapper.sh',
-                ]:
-            t = Transformation(fname,
+        for human, script in self._transformations_map.items():
+            t = Transformation(human,
                                site='local',
-                               pfn='file://' + base_dir + '/workflow/' + fname,
+                               pfn='file://' + base_dir + '/workflow/' + script,
                                is_stageable=True)
             tc.add_transformations(t)
 
@@ -217,9 +213,11 @@ class Outsource:
                     else:
                         logger.debug(f'No data found for {dbcfg.number} {dtype}... '
                                      f'hopefully those will be created by the workflow')
-
             
                 # determine the job requirements based on the data locations
+                # for standalone downloads, only target us
+                if dbcfg.standalone_download:
+                    rses = ['UC_OSG_USERDISK']
                 sites_expression, desired_sites = self._determine_target_sites(rses)
 
                 # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
@@ -239,19 +237,20 @@ class Outsource:
                 # only need combine job for low-level stuff
                 if dtype in ['records', 'peaklets']:
                     # job that creates rucio datasets and will update DB
-                    pre_flight_job = self._job('pre-flight-wrapper.sh')
+                    pre_flight_job = self._job('pre_flight')
                     pre_flight_job.add_args(str(dbcfg.number),
                                             dtype,
                                             dbcfg.context_name,
                                             'UC_OSG_USERDISK',
-                                            dbcfg.cmt_global
+                                            dbcfg.cmt_global,
+                                            str(dbcfg.update_db).lower()
                                             )
                     pre_flight_job.add_inputs(preflightpy, xenon_config, token)
                     pre_flight_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                    pre_flight_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                     wf.add_jobs(pre_flight_job)
 
-
-                    combine_job = self._job('combine-wrapper.sh', disk=30000)
+                    combine_job = self._job('combine', disk=30000)
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                     combine_job.add_inputs(combinepy, xenon_config)
@@ -260,8 +259,8 @@ class Outsource:
                                          dbcfg.context_name,
                                          dbcfg.cmt_global,
                                          'UC_OSG_USERDISK',
-                                         dbcfg.rucio_arg,
-                                         dbcfg.rundb_arg
+                                         str(dbcfg.upload_to_rucio).lower(),
+                                         str(dbcfg.update_db).lower()
                                         )
 
                     wf.add_jobs(combine_job)
@@ -287,6 +286,32 @@ class Outsource:
 
                         logger.debug(" ... adding job for chunk files: " + chunk_str)
 
+                        # standalone download is a special case where we download data from rucio first, which
+                        # is useful for testing and when using dedicated clusters with storage such as XSEDE
+                        data_tar = None
+                        download_job = None
+                        if dbcfg.standalone_download:
+                            data_tar = File('%06d-data-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
+                            download_job = self._job(name='download')
+                            download_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                            download_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
+
+                            download_job.add_args(str(dbcfg.number),
+                                         dbcfg.context_name,
+                                         dbcfg.cmt_global,
+                                         dtype,
+                                         data_tar,
+                                         'UC_OSG_USERDISK',
+                                         'download-only',
+                                         str(dbcfg.upload_to_rucio).lower(),
+                                         str(dbcfg.update_db).lower(),
+                                         chunk_str,
+                                        )
+                            download_job.add_inputs(straxify, xenon_config, token)
+                            download_job.add_outputs(data_tar, stage_out=False)
+                            wf.add_jobs(download_job)
+                            wf.add_dependency(download_job, parents=[pre_flight_job])
+
                         # output files
                         job_output_tar = File('%06d-output-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
                         # do we already have a local copy?
@@ -296,7 +321,7 @@ class Outsource:
                             rc.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
 
                         # Add job
-                        job = self._job(name='strax-wrapper.sh')
+                        job = self._job(name=dtype)
                         if desired_sites and len(desired_sites) > 0:
                             # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
                             job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
@@ -304,25 +329,15 @@ class Outsource:
                         job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                         #job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
 
-                        # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
-                        if len(dbcfg.rucio_arg) == 0:
-                            ignore_rucio = 'true'
-                        else:
-                            ignore_rucio = 'false'
-
-                        if len(dbcfg.rundb_arg) == 0:
-                            ignore_db = 'true'
-                        else:
-                            ignore_db = 'false'
-
                         job.add_args(str(dbcfg.number),
                                      dbcfg.context_name,
                                      dbcfg.cmt_global,
                                      dtype,
                                      job_output_tar,
                                      'UC_OSG_USERDISK',
-                                     ignore_rucio,
-                                     ignore_db,
+                                     'false' if not dbcfg.standalone_download else 'no-download',
+                                     str(dbcfg.upload_to_rucio).lower(),
+                                     str(dbcfg.update_db).lower(),
                                      chunk_str,
                                      )
 
@@ -330,8 +345,12 @@ class Outsource:
                         job.add_outputs(job_output_tar, stage_out=True)
                         wf.add_jobs(job)
 
-                        # all strax jobs depend on the pre-flight one
-                        wf.add_dependency(job, parents=[pre_flight_job])
+                        # all strax jobs depend on the pre-flight or a download job
+                        if download_job:
+                            job.add_inputs(data_tar)
+                            wf.add_dependency(job, parents=[download_job])
+                        else:
+                            wf.add_dependency(job, parents=[pre_flight_job])
 
                         # update combine job
                         combine_job.add_inputs(job_output_tar)
@@ -343,7 +362,7 @@ class Outsource:
                 else:
                     # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='strax-wrapper.sh', disk=50000, memory=8000, cores=8)
+                    job = self._job(name='strax', disk=50000, memory=8000, cores=8)
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
@@ -385,10 +404,11 @@ class Outsource:
 
         # starting directory, since we're going to chdir
         os.chdir(self._generated_dir())
+        print(os.getcwd())
         wf.plan(conf=base_dir + '/workflow/pegasus.conf',
                 submit=False,
                 sites=['condorpool'],
-                staging_sites={'condorpool': 'staging'},
+                staging_sites={'condorpool': self._dbcfgs[0].staging_site},
                 output_sites=None,
                 dir=runs_dir,
                 relative_dir=self._wf_id
@@ -526,6 +546,12 @@ class Outsource:
         scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/xenon_dcache/workflow_scratch/{}'.format(getpass.getuser()))
         scratch_dir.add_file_servers(FileServer('gsiftp://xenon-gridftp.grid.uchicago.edu:2811/xenon/workflow_scratch/{}'.format(getpass.getuser()), Operation.ALL))
         staging.add_directories(scratch_dir)
+        
+        # staging ISI
+        staging_isi = Site("staging-isi")
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/lizard/scratch-90-days/XENONnT/{}'.format(getpass.getuser()))
+        scratch_dir.add_file_servers(FileServer('gsiftp://workflow.isi.edu:2811/lizard/scratch-90-days/XENONnT/{}'.format(getpass.getuser()), Operation.ALL))
+        staging_isi.add_directories(scratch_dir)
 
         # condorpool
         condorpool = Site("condorpool")
@@ -553,6 +579,7 @@ class Outsource:
 
         sc.add_sites(local,
                      staging,
+                     staging_isi,
                      #output,
                      condorpool)
 

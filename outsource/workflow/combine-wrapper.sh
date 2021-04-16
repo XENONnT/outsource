@@ -7,29 +7,20 @@ dtype=$2
 context=$3
 cmt=$4
 rse=$5
-dbflag=
-rucioflag=
+update_db=$6
+upload_to_rucio=$7
 
 echo $*
 
-# check if we passed any flags to ignore rundb and/or ignore upload
-options=$(getopt -l "ignore-db,ignore-rucio" -a -o "dr" -- $@)
-eval set -- "$options"
+combine_extra_args=""
 
-update_db=true
-upload_rucio=true
+if [ "X$update_db" = "Xtrue" ]; then
+    combine_extra_args="$combine_extra_args --update-db"
+fi
+if [ "X$upload_to_rucio" = "Xtrue" ]; then
+    combine_extra_args="$combine_extra_args --upload-to-rucio"
+fi
 
-while true; do
-    case $1 in
-        --ignore-db) export update_db=false; export dbflag='--ignore-db' ;;
-        --ignore-rucio) export upload_rucio=false; export rucioflag='--ignore-rucio';;
-        --) break ;;
-    esac
-    shift
-done
-
-
-shift
 # the rest of the arguments are the inputs
 START=$(date +%s)
 for TAR in `ls *.tar.gz`; do
@@ -56,7 +47,7 @@ export RUCIO_ACCOUNT=production
 
 
 # combine the data
-time ./combine.py ${runid} ${dtype} --input data --context ${context} --rse ${rse} --cmt ${cmt} ${dbflag} ${rucioflag}
+time ./combine.py ${runid} ${dtype} --input data --context ${context} --rse ${rse} --cmt ${cmt} ${combine_extra_args}
 
 # check data dir again
 echo "data dir:"

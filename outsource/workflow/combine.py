@@ -42,9 +42,9 @@ def main():
     parser.add_argument('--input', help='path where the temp directory is')
     parser.add_argument('--rse', help='RSE to upload to')
     parser.add_argument('--cmt', help='CMT global version')
-    parser.add_argument('--ignore-db', help='flag to not update runsDB', dest='ignore_rundb',
+    parser.add_argument('--update-db', help='flag to update runsDB', dest='update_db',
                         action='store_true')
-    parser.add_argument('--ignore-rucio', help='flag to not upload to rucio', dest='ignore_rucio',
+    parser.add_argument('--upload-to-rucio', help='flag to upload to rucio', dest='upload_to_rucio',
                         action='store_true')
 
     args = parser.parse_args()
@@ -108,7 +108,7 @@ def main():
 
     # now upload the merged metadata
     # setup the rucio client(s)
-    if args.ignore_rucio:
+    if not args.upload_to_rucio:
         print("Ignoring rucio upload. Exiting")
         return
 
@@ -207,7 +207,7 @@ def main():
         else:
             status = 'error'
 
-        if not args.ignore_rundb:
+        if args.update_db:
             # update runDB
             new_data_dict = dict()
             new_data_dict['location'] = args.rse

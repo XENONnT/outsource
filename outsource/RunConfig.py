@@ -39,22 +39,40 @@ def get_hashes(st):
 class RunConfigBase:
     """Base class that sets the defaults"""
 
-    _ignore_db = False
-    _ignore_rucio = False
+    _update_db = False
+    _upload_to_rucio = False
     _force_rerun = False
+    _standalone_download = False 
     _x509_proxy = os.path.join(os.environ['HOME'], 'user_cert')
     _executable = os.path.join(base_dir, 'workflow', 'run-pax.sh')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
     _chunks_per_job = 20
+    _staging_site = 'staging'
 
-    @property
+    #@property
     def rundb_arg(self):
-        return "--ignore-db" if self._ignore_db else ""
+        return "--update-db" if self._update_db else ""
+
+    #@property
+    def rucio_arg(self):
+        return "--upload-to-rucio" if self._upload_to_rucio else ""
+    
+    @property
+    def update_db(self):
+        return self._update_db
+    
+    @property
+    def upload_to_rucio(self):
+        return self._upload_to_rucio
 
     @property
-    def rucio_arg(self):
-        return "--ignore-rucio" if self._ignore_rucio else ""
+    def force_rerun(self):
+        return self._force_rerun
+    
+    @property
+    def standalone_download(self):
+        return self._standalone_download
 
     @property
     def workflow_id(self):
@@ -67,6 +85,10 @@ class RunConfigBase:
     @property
     def output_location(self):
         return self._output_location
+    
+    @property
+    def staging_site(self):
+        return self._staging_site
 
 
 class RunConfig(RunConfigBase):
@@ -154,8 +176,8 @@ class DBConfig(RunConfig):
         for dtype in requested_dtypes:
             hash = self.hashes[dtype]
             rses = db.get_rses(self._number, dtype, hash)
-            # if this data is not on any rse, reprocess it
-            if len(rses) == 0:
+            # if this data is not on any rse, reprocess it, or we are asking for a rerun
+            if len(rses) == 0 or self._force_rerun:
                 ret.append(dtype)
         return ret
 
