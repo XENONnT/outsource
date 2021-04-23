@@ -10,6 +10,7 @@ import straxen
 import datetime
 from admix.utils.naming import make_did
 from admix.interfaces.rucio_summoner import RucioSummoner
+import rucio
 from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
 from utilix import DB
@@ -34,34 +35,14 @@ def get_hashes(st):
     return {dtype: h for dtype, h in hashes}
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Combine strax output")
-    parser.add_argument('dataset', help='Run number', type=int)
-    parser.add_argument('dtype', help='dtype to combine')
-    parser.add_argument('--context', help='Strax context')
-    parser.add_argument('--input', help='path where the temp directory is')
-    parser.add_argument('--rse', help='RSE to upload to')
-    parser.add_argument('--cmt', help='CMT global version')
-    parser.add_argument('--update-db', help='flag to update runsDB', dest='update_db',
-                        action='store_true')
-    parser.add_argument('--upload-to-rucio', help='flag to upload to rucio', dest='upload_to_rucio',
-                        action='store_true')
+def merge(runid_str, # run number padded with 0s
+          dtype,     # data type 'level' e.g. records, peaklets
+          st,        # strax context
+          path       # path where the data is stored
+          ):
 
-    args = parser.parse_args()
-
-    runid = args.dataset
-    runid_str = "%06d" % runid
-    dtype = args.dtype
-    path = args.input
-
-    final_path = 'finished_data'
-
-    # get context
-    st = getattr(straxen.contexts, args.context)()
-    st.storage = [strax.DataDirectory('./'),
-                  strax.DataDirectory(final_path) # where we are copying data to
-                  ]
-    apply_global_version(st, args.cmt)
+    # get the storage path, since will need to reset later
+    _storage_paths = [storage.path for storage in st.storage]
 
     # initialize plugin needed for processing
     plugin = st._get_plugins((dtype,), runid_str)[dtype]
@@ -103,6 +84,53 @@ def main():
             dest = os.path.join(st.storage[1].path, str(key))
             shutil.copytree(src, dest)
 
+    # reset in case we need to merge more data
+    st.storage = [strax.DataDirectory(path) for path in _storage_paths]
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Combine strax output")
+    parser.add_argument('dataset', help='Run number', type=int)
+    parser.add_argument('dtype', help='dtype to combine')
+    parser.add_argument('--context', help='Strax context')
+    parser.add_argument('--input', help='path where the temp directory is')
+    parser.add_argument('--rse', help='RSE to upload to')
+    parser.add_argument('--cmt', help='CMT global version')
+    parser.add_argument('--update-db', help='flag to update runsDB', dest='update_db',
+                        action='store_true')
+    parser.add_argument('--upload-to-rucio', help='flag to upload to rucio', dest='upload_to_rucio',
+                        action='store_true')
+
+    args = parser.parse_args()
+
+    runid = args.dataset
+    runid_str = "%06d" % runid
+    dtype = args.dtype
+    path = args.input
+
+    final_path = 'finished_data'
+
+    # get context
+    st = getattr(straxen.contexts, args.context)()
+    st.storage = [strax.DataDirectory('./'),
+                  strax.DataDirectory(final_path) # where we are copying data to
+                  ]
+    apply_global_version(st, args.cmt)
+
+    # check what data is in the output folder
+    dtypes = [d.split('-')[1] for d in os.listdir(path)]
+
+    if 'records' in dtypes:
+        plugin_levels = ['records', 'peaklets']
+    else:
+        plugin_levels = ['peaklets']
+
+    # merge
+    for dtype in plugin_levels:
+        print(f"Merging {dtype} level")
+        merge(runid_str, dtype, st, path)
+
+
     print(f"Current contents of {final_path}:")
     print(os.listdir(final_path))
 
@@ -118,12 +146,10 @@ def main():
     updonkey = UploadClient()
     donkey = Client()
 
-    hash = strax.DataKey(runid_str, dtype, plugin.lineage).lineage_hash
-
     for this_dir in os.listdir(final_path):
         # prepare list of dicts to be uploaded
-        keystring = this_dir.split('-')[1]
-        dataset_did = make_did(runid, keystring, hash)
+        _run, keystring, straxhash = this_dir.split('-')
+        dataset_did = make_did(runid, keystring, straxhash)
         scope, dset_name = dataset_did.split(':')
 
         files = os.listdir(os.path.join(final_path, this_dir))
@@ -131,7 +157,11 @@ def main():
         existing_files = [f for f in donkey.list_dids(scope, {'type': 'file'}, type='file')]
         existing_files = [f for f in existing_files if dset_name in f]
 
-        existing_files_in_dataset = [f['name'] for f in donkey.list_files(scope, dset_name)]
+        try:
+            existing_files_in_dataset = [f['name'] for f in donkey.list_files(scope, dset_name)]
+        except rucio.common.exception.DataIdentifierNotFound:
+            existing_files_in_dataset = []
+
 
         # for some reason files get uploaded but not attached correctly
         need_attached = list(set(existing_files) - set(existing_files_in_dataset))
@@ -159,7 +189,7 @@ def main():
 
         # now do the upload!
         if len(to_upload) == 0:
-            print(f"No files to upload for {dirname}")
+            print(f"No files to upload for {this_dir}")
             continue
 
         # now do the upload!
@@ -167,7 +197,7 @@ def main():
             updonkey.upload(to_upload)
         except:
             print(f'Upload of {keystring} failed')
-            #raise
+            raise
         print(f"Upload of {len(files)} files in {this_dir} finished successfully")
         for f in files:
             print(f"{scope}:{f}")
@@ -199,39 +229,48 @@ def main():
 
         # let's do one last check of the rule
         rc = RucioSummoner()
-        rule = rc.GetRule(dataset_did, args.rse)
-        if rule['state'] == 'OK':
-            status = 'transferred'
-        elif rule['state'] == 'REPLICATING':
-            status = 'transferring'
-        else:
-            status = 'error'
 
-        if args.update_db:
-            # update runDB
-            new_data_dict = dict()
-            new_data_dict['location'] = args.rse
-            new_data_dict['did'] = dataset_did
-            new_data_dict['status'] = status
-            new_data_dict['host'] = "rucio-catalogue"
-            new_data_dict['type'] = keystring
-            new_data_dict['protocol'] = 'rucio'
-            new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
-            new_data_dict['creation_place'] = "OSG"
-            #new_data_dict['file_count'] = file_count
-            new_data_dict['meta'] = dict(#lineage=plugin.lineage_hash,
-                                         avg_chunk_mb=avg_data_size_mb,
-                                         file_count=len(rucio_files),
-                                         size_mb=data_size_mb,
-                                         strax_version=strax.__version__,
-                                         straxen_version=straxen.__version__
-                                         )
+        rses = [args.rse]
+        if (keystring not in ['records', 'veto_regions', 'pulse_counts']
+                and "UC_DALI_USERDISK" not in rses):
+            rses.append('UC_DALI_USERDISK')
 
-            pprint(new_data_dict)
-            db.update_data(runid, new_data_dict)
-            print(f"Database updated for {keystring}")
-        else:
-            print("Skipping database update.")
+
+        for rse in rses:
+            rule = rc.GetRule(dataset_did, rse)
+            if rule['state'] == 'OK':
+                status = 'transferred'
+            elif rule['state'] == 'REPLICATING':
+                status = 'transferring'
+            else:
+                status = 'error'
+
+            if args.update_db:
+                # update runDB
+                new_data_dict = dict()
+                new_data_dict['location'] = rse
+                new_data_dict['did'] = dataset_did
+                new_data_dict['status'] = status
+                new_data_dict['host'] = "rucio-catalogue"
+                new_data_dict['type'] = keystring
+                new_data_dict['protocol'] = 'rucio'
+                new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
+                new_data_dict['creation_place'] = "OSG"
+                #new_data_dict['file_count'] = file_count
+                new_data_dict['meta'] = dict(#lineage=plugin.lineage_hash,
+                                             avg_chunk_mb=avg_data_size_mb,
+                                             file_count=len(rucio_files),
+                                             size_mb=data_size_mb,
+                                             strax_version=strax.__version__,
+                                             straxen_version=straxen.__version__
+                                             )
+
+                db.update_data(runid, new_data_dict)
+
+
+                print(f"Database updated for {keystring} at {rse}")
+            else:
+                print("Skipping database update.")
 
 
         # if everything is good, let's close the dataset

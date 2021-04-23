@@ -10,9 +10,20 @@ export DTYPE=$2
 export CONTEXT=$3
 export RSE=$4
 export CMT=$5
-export UPDATE_DB=$6
+export update_db=$6
+export upload_to_rucio=$7
 
 set -e
+
+combine_extra_args=""
+
+if [ "X$update_db" = "Xtrue" ]; then
+    combine_extra_args="$combine_extra_args --update-db"
+fi
+if [ "X$upload_to_rucio" = "Xtrue" ]; then
+    combine_extra_args="$combine_extra_args --upload-to-rucio"
+fi
+
 
 # source the environment
 . /opt/XENONnT/setup.sh
@@ -20,9 +31,7 @@ export XENON_CONFIG=$PWD/.xenon_config
 export RUCIO_ACCOUNT=production
 
 # sleep a random amount of time to spread out e.g. API calls
-sleep $[ ( $RANDOM % 20 )  + 1 ]s
+sleep $[ ( $RANDOM % 100 )  + 1 ]s
 
-if [ "X$UPDATE_DB" = "Xtrue" ]; then
-    ./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE --cmt $CMT
-fi
+./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE --cmt $CMT ${combine_extra_args}
 
