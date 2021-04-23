@@ -12,6 +12,7 @@ setup(name='outsource',
       long_description=readme(),
       url='https://github.com/XENONnT/outsource',
       packages=['outsource'],
+      entry_points={'console_scripts': ['outsource=outsource.main:main']},
       install_requires=['markdown',
                         'utilix'
                         ],
