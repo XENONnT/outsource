@@ -2,16 +2,18 @@
 import argparse
 import os
 import sys
+import tempfile
 import numpy as np
 import strax
 import straxen
 import time
 from pprint import pprint
-from shutil import rmtree
+from shutil import rmtree, copyfile
 from ast import literal_eval
 from utilix import DB
 import admix
 from admix.utils.naming import make_did
+from admix.interfaces.rucio_summoner import RucioSummoner
 import rucio
 from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
@@ -19,6 +21,7 @@ import datetime
 from pprint import pprint
 
 db = DB()
+rc = RucioSummoner()
 
 # these dtypes we need to rechunk, so don't upload to rucio here!
 rechunk_dtypes = ['pulse_counts',
@@ -45,17 +48,15 @@ def get_hashes(st):
     return {dtype: h for dtype, h in hashes}
 
 
-def find_data_to_download(runid, target, st):
+def find_data_to_download(runid, target, st, bottom='peaklets'):
     runid_str = str(runid)
 
     hashes = get_hashes(st)
-    bottom = "peaklets"
 
     if bottom not in hashes:
         raise ValueError(f"The dtype {bottom} is not in this context!")
 
     bottom_hash = hashes[bottom]
-    print(bottom, bottom_hash)
 
     to_download = []
 
@@ -72,9 +73,7 @@ def find_data_to_download(runid, target, st):
         for in_dtype in _plugin.depends_on:
             # get hash for this dtype
             hash = hashes.get(in_dtype)
-            print(_target, in_dtype, hash, bottom, bottom_hash)
             rses = db.get_rses(int(runid_str), in_dtype, hash)
-            print(rses)
             # print(in_dtype, rses)
             if len(rses) == 0:
                 # need to download data to make ths one
@@ -84,7 +83,7 @@ def find_data_to_download(runid, target, st):
                 if info not in to_download:
                     to_download.append(info)
             if in_dtype == bottom and hash == bottom_hash:
-                print(f"Reached {bottom}. Returning.")
+                #print(f"Reached {bottom}. Returning.")
                 return
 
     # fills the to_download list
@@ -92,81 +91,24 @@ def find_data_to_download(runid, target, st):
     return to_download
 
 
-def main():
-
-    parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
-    parser.add_argument('dataset', help='Run number', type=int)
-    parser.add_argument('--output', help='desired strax(en) output')
-    parser.add_argument('--context', help='name of context')
-    parser.add_argument('--chunks', nargs='*', help='chunk ids to download')
-    parser.add_argument('--rse', type=str, default="UC_OSG_USERDISK")
-    parser.add_argument('--cmt', type=str, default='ONLINE')
-    parser.add_argument('--upload-to-rucio', action='store_true', dest='upload_to_rucio')
-    parser.add_argument('--update-db', action='store_true', dest='update_db')
-    parser.add_argument('--download-only', action='store_true', dest='download_only')
-    parser.add_argument('--no-download', action='store_true', dest='no_download')
-
-    args = parser.parse_args()
-
-    # directory where we will be putting everything
-    data_dir = './data'
-
-    # make sure this is empty
-    # if os.path.exists(data_dir):
-    #     rmtree(data_dir)
-
-    # get context
-    st = getattr(straxen.contexts, args.context)()
-    st.storage = [strax.DataDirectory(data_dir)]
-
-    apply_global_version(st, args.cmt)
-
-    hashes = get_hashes(st)
-
-    runid = args.dataset
+def process(runid,
+            out_dtype,
+            st,
+            chunks,
+            close_savers=False,
+            tmp_path='.tmp_for_strax'
+            ):
     runid_str = "%06d" % runid
-    out_dtype = args.output
+    t0 = time.time()
 
     # initialize plugin needed for processing this output type
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
-    
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    if not args.no_download:
-        t0 = time.time()
-        # download all the required datatypes to produce this output file
-        if args.chunks:
-            for in_dtype in plugin.depends_on:
-                # get hash for this dtype
-                hash = hashes[in_dtype]
-                # download the input data
-                if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                    admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
-        else:
-            # download all the data we need
-            to_download = find_data_to_download(runid, out_dtype, st)
-            for in_dtype, hash in to_download:
-                if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                    admix.download(runid, in_dtype, hash, location=data_dir)
-    
-        download_time = time.time() - t0 # seconds
-        print(f"=== Download time (minutes): {download_time/60:0.2f}")
-
-    if args.download_only:
-        sys.exit(0)
-
-    t0 = time.time()
-
-    # keep track of the data we just downloaded -- will be important for the upload step later
-    downloaded_data = os.listdir(data_dir)
-    print("--Downloaded data--")
-    for dd in downloaded_data:
-        print(dd)
-    print("-------------------\n")
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
-    if args.chunks is None:
+    if chunks is None:
         print("Chunks is none -- processing whole thing!")
         # then we just process the whole thing
         for keystring in plugin.provides:
@@ -200,11 +142,17 @@ def main():
                             data_kind=input_metadata['data_kind'],
                             dtype=dtype)
 
-        for chunk in args.chunks:
+        for chunk in chunks:
             # read in the input data for this chunk
+            chunk_info = None
+            for chunk_md in input_metadata['chunks']:
+                if chunk_md['chunk_i'] == int(chunk):
+                    chunk_info = chunk_md
+                    break
+            assert chunk_info is not None, f"Could not find chunk_id: {chunk}"
             in_data = backend._read_and_format_chunk(backend_key=st.storage[0].find(input_key)[1],
                                                      metadata=input_metadata,
-                                                     chunk_info=input_metadata['chunks'][int(chunk)],
+                                                     chunk_info=chunk_info,
                                                      dtype=dtype,
                                                      time_range=None,
                                                      chunk_construction_kwargs=chunk_kwargs
@@ -215,9 +163,127 @@ def main():
             # save the output -- you have to loop because there could be > 1 output dtypes
             for keystring, strax_chunk in output_data.items():
                 savers[keystring].save(strax_chunk, chunk_i=int(chunk))
+
+        if close_savers:
+            for dtype, saver in savers.items():
+                # copy the metadata to a tmp directory
+                tmpdir = os.path.join(tmp_path, os.path.split(saver.tempdirname)[1])
+                os.makedirs(tmpdir, exist_ok=True)
+                for file in os.listdir(saver.tempdirname):
+                    if file.endswith('json'):
+                        src = os.path.join(saver.tempdirname, file)
+                        dest = os.path.join(tmpdir, file)
+                        copyfile(src, dest)
+                saver.close()
     process_time = time.time() - t0
-    print(f"=== Processing time (minutes): {process_time/60:0.2f} === ")
+    print(f"=== Processing time for {out_dtype}: {process_time/60:0.2f} minutes === ")
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
+    parser.add_argument('dataset', help='Run number', type=int)
+    parser.add_argument('--output', help='desired strax(en) output')
+    parser.add_argument('--context', help='name of context')
+    parser.add_argument('--chunks', nargs='*', help='chunk ids to download')
+    parser.add_argument('--rse', type=str, default="UC_OSG_USERDISK")
+    parser.add_argument('--cmt', type=str, default='ONLINE')
+    parser.add_argument('--upload-to-rucio', action='store_true', dest='upload_to_rucio')
+    parser.add_argument('--update-db', action='store_true', dest='update_db')
+    parser.add_argument('--download-only', action='store_true', dest='download_only')
+    parser.add_argument('--no-download', action='store_true', dest='no_download')
+
+    args = parser.parse_args()
+
+    # directory where we will be putting everything
+    data_dir = './data'
+
+    # make sure this is empty
+    # if os.path.exists(data_dir):
+    #     rmtree(data_dir)
+
+    # get context
+    st = getattr(straxen.contexts, args.context)()
+    st.storage = [strax.DataDirectory(data_dir)]
+
+    apply_global_version(st, args.cmt)
+
+    runid = args.dataset
+    runid_str = "%06d" % runid
+    out_dtype = args.output
+
+    # determine which input dtypes we need
+    bottom = 'peaklets' if args.chunks is None else 'raw_records'
+    to_download = find_data_to_download(runid, out_dtype, st, bottom=bottom)
+
+    if not args.no_download:
+        t0 = time.time()
+        # download all the required datatypes to produce this output file
+        if args.chunks:
+            for in_dtype, hash in to_download:
+                # download the input data
+                if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
+                    admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
+        else:
+
+            for in_dtype, hash in to_download:
+                if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
+                    admix.download(runid, in_dtype, hash, location=data_dir)
+    
+        download_time = time.time() - t0 # seconds
+        print(f"=== Download time (minutes): {download_time/60:0.2f}")
+
+    # initialize plugin needed for processing this output type
+    plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
+    st._set_plugin_config(plugin, runid_str, tolerant=False)
+    plugin.setup()
+
+    # figure out what plugins we need to process/initialize
+    to_process = [args.output]
+    downloaded = [dtype for dtype, _ in to_download]
+    missing = set(plugin.depends_on) - set(downloaded)
+    if len(missing) > 0:
+        missing_str = ', '.join(missing)
+        print(f"Need to create intermediate data: {missing_str}")
+        to_process = list(missing) + to_process
+
+    # keep track of the data we just downloaded -- will be important for the upload step later
+    downloaded_data = os.listdir(data_dir)
+    print("--Downloaded data--")
+    for dd in downloaded_data:
+        print(dd)
+    print("-------------------\n")
+
+    if args.download_only:
+        sys.exit(0)
+
+    print(f"To process: {', '.join(to_process)}")
+
+    _tmp_path = tempfile.mkdtemp()
+    for dtype in to_process:
+        close_savers = dtype != args.output
+        process(runid,
+                dtype,
+                st,
+                args.chunks,
+                close_savers=close_savers,
+                tmp_path=_tmp_path
+                )
+
     print("Done processing. Now check if we should upload to rucio")
+
+    # now we move the tmpfiles back to main directory, if needed
+    # this is for cases where we went from raw_records-->records-->peaklets in one go
+    if os.path.exists(_tmp_path):
+        for dtype_path_thing in os.listdir(_tmp_path):
+            tmp_path = os.path.join(_tmp_path, dtype_path_thing)
+            merged_dir = os.path.join(data_dir, dtype_path_thing.split('_temp')[0])
+
+            for file in os.listdir(tmp_path):
+                copyfile(os.path.join(tmp_path, file), os.path.join(merged_dir, file))
+
+            os.rename(merged_dir, os.path.join(data_dir, dtype_path_thing))
+
 
     # initiate the rucio client
     upload_client = UploadClient()
@@ -336,8 +402,11 @@ def main():
         # TODO check rucio that the files are there?
         print(f"Upload of {len(files)} files in {dirname} finished successfully")
 
-        # if we processed the whole thing, update the runDB here
+        # if we processed the whole thing, add a rule at DALI update the runDB here
         if args.chunks is None:
+            rucio_client.add_replication_rule([dict(scope=scope, name=dset_name)], 1, 'UC_DALI_USERDISK',
+                                                source_replica_expression=args.rse,
+                                              priority=5)
             # skip if update_db flag is false
             if args.update_db:
                 md = st.get_meta(runid_str, this_dtype)
@@ -355,7 +424,7 @@ def main():
                 new_data_dict['protocol'] = 'rucio'
                 new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
                 new_data_dict['creation_place'] = "OSG"
-                new_data_dict['meta'] = dict(lineage=plugin.lineage,
+                new_data_dict['meta'] = dict(lineage=md.get('lineage'),
                                              avg_chunk_mb=avg_data_size_mb,
                                              file_count=len(files),
                                              size_mb=data_size_mb,
@@ -364,14 +433,25 @@ def main():
                                              )
 
                 db.update_data(runid, new_data_dict)
-                print(f"Database updated for {this_dtype}")
+                print(f"Database updated for {this_dtype} at {args.rse}")
+
+                # now update dali db entry
+                rule = rc.GetRule(dataset, 'UC_DALI_USERDISK')
+                if rule['state'] == 'OK':
+                    status = 'transferred'
+                elif rule['state'] == 'REPLICATING':
+                    status = 'transferring'
+                elif rule['state'] == 'STUCK':
+                    status = 'stuck'
+                new_data_dict['location'] = 'UC_DALI_USERDISK'
+                new_data_dict['status'] = status
+                db.update_data(runid, new_data_dict)
 
         # cleanup the files we uploaded
         # this is likely only done for records data because we will rechunk the others
         for f in files:
             print(f"Removing {f}")
             os.remove(os.path.join(data_dir, dirname, f))
-
 
     print("ALL DONE!")
 

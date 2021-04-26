@@ -8,6 +8,8 @@ import re
 import sys
 import numpy as np
 from tqdm import tqdm
+import time
+import shutil
 
 from pprint import pprint
 
@@ -52,7 +54,7 @@ class Outsource:
             'raw_records': 'strax-wrapper.sh',
             'records':     'strax-wrapper.sh',
             'peaklets':    'strax-wrapper.sh',
-            'strax':       'strax-wrapper.sh',
+            'events':       'strax-wrapper.sh',
     }
 
     def __init__(self, dbcfgs, wf_id=None, xsede=False, debug=False):
@@ -68,6 +70,8 @@ class Outsource:
         self._dbcfgs = dbcfgs
 
         self.xsede = xsede
+
+        self.debug = debug
 
         self._initial_dir = os.getcwd()
 
@@ -101,15 +105,21 @@ class Outsource:
             else:
                 self._wf_id = 'multiples-' + self._dbcfgs[0].workflow_id
 
-    def submit_workflow(self):
+    def submit_workflow(self, force=False):
         '''
         Main interface to submitting a new workflow
         '''
 
         # does workflow already exist?
-        if os.path.exists(self._workflow_dir()):
-            logger.error("Workflow already exists at {path} . Exiting.".format(path=self._workflow_dir()))
-            return
+        workflow_path = self._workflow_dir()
+        if os.path.exists(workflow_path):
+            if force:
+                logger.warning(f"Overwriting workflow at {workflow_path}. CTRL C now to stop.")
+                time.sleep(10)
+                shutil.rmtree(workflow_path)
+            else:
+                logger.error(f"Workflow already exists at {workflow_path} . Exiting.")
+                return
 
         # work dirs
         try:
@@ -176,15 +186,6 @@ class Outsource:
         # remove compute jobs after 3 hours
         periodic_remove = "((JobStatus == 2) & ((CurrentTime - EnteredCurrentStatus) > (60 * 60 * 3)))"
 
-        requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
-        # should we use XSEDE?
-        if self.xsede:
-            requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
-        requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
-        requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
-                                                         '!regexp("campuscluster.illinois.edu", Machine)'
-        # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
-        requirements_for_highlevel = requirements_base + ' && HAS_AVX'
 
         iterator = self._dbcfgs if len(self._dbcfgs) == 0 else tqdm(self._dbcfgs)
 
@@ -194,12 +195,24 @@ class Outsource:
                 logger.debug(f"Run {dbcfg.number} cannot be processed. No raw data in rucio.")
                 continue
 
+
             # check if this run needs to be processed
             if len(dbcfg.needs_processed) > 0:
                 logger.debug('Adding run ' + str(dbcfg.number) + ' to the workflow')
             else:
                 logger.debug(f"Run {dbcfg.number} is already processed with context {dbcfg.context_name}")
                 continue
+
+            requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
+            # should we use XSEDE?
+            if self.xsede:
+                requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
+            requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
+            requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
+                                                             '!regexp("campuscluster.illinois.edu", Machine)'
+            # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
+            requirements_for_highlevel = requirements_base + ' && HAS_AVX'
+
 
             combine_jobs = []
 
@@ -243,7 +256,8 @@ class Outsource:
                                             dbcfg.context_name,
                                             'UC_OSG_USERDISK',
                                             dbcfg.cmt_global,
-                                            str(dbcfg.update_db).lower()
+                                            str(dbcfg.update_db).lower(),
+                                            str(dbcfg.upload_to_rucio).lower()
                                             )
                     pre_flight_job.add_inputs(preflightpy, xenon_config, token)
                     pre_flight_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
@@ -321,7 +335,7 @@ class Outsource:
                             rc.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
 
                         # Add job
-                        job = self._job(name=dtype)
+                        job = self._job(name=dtype, memory=1900)
                         if desired_sites and len(desired_sites) > 0:
                             # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
                             job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
@@ -362,7 +376,7 @@ class Outsource:
                 else:
                     # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='strax', disk=50000, memory=8000, cores=8)
+                    job = self._job(name='events', disk=50000, memory=16000, cores=8)
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
@@ -371,8 +385,11 @@ class Outsource:
                                  dbcfg.context_name,
                                  dbcfg.cmt_global,
                                  dtype,
-                                 "no_output_here",
+                                 'no_output_here',
                                  'UC_OSG_USERDISK',
+                                 'false' if not dbcfg.standalone_download else 'no-download',
+                                 str(dbcfg.upload_to_rucio).lower(),
+                                 str(dbcfg.update_db).lower()
                                  )
 
                     job.add_inputs(straxify, xenon_config, token)
@@ -404,9 +421,8 @@ class Outsource:
 
         # starting directory, since we're going to chdir
         os.chdir(self._generated_dir())
-        print(os.getcwd())
         wf.plan(conf=base_dir + '/workflow/pegasus.conf',
-                submit=False,
+                submit=not self.debug,
                 sites=['condorpool'],
                 staging_sites={'condorpool': self._dbcfgs[0].staging_site},
                 output_sites=None,
