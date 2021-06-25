@@ -354,14 +354,13 @@ def main():
             need_attached = list(set(existing_files) - set(existing_files_in_dataset))
 
             # only consider the chunks here
-            need_attached = [f for f in need_attached if str(int(f.split('-')[-1])) in args.chunks]
-
+            if args.chunks:
+                need_attached = [f for f in need_attached if str(int(f.split('-')[-1])) in args.chunks]
 
             if len(need_attached) > 0:
                 dids_to_attach = [dict(scope=scope, name=name) for name in need_attached]
 
                 rucio_client.attach_dids(scope, dset_name, dids_to_attach)
-
 
         except rucio.common.exception.DataIdentifierNotFound:
             existing_files = []

@@ -189,6 +189,9 @@ class Outsource:
 
         iterator = self._dbcfgs if len(self._dbcfgs) == 0 else tqdm(self._dbcfgs)
 
+        # keep track of what runs we submit, useful for bookkeeping
+        runlist = []
+
         for dbcfg in iterator:
             # check if this run can be processed
             if not dbcfg.raw_data_exists:
@@ -219,6 +222,7 @@ class Outsource:
             # get dtypes to process
             for dtype_i, dtype in enumerate(dbcfg.needs_processed):
                 logger.debug(f"|-----> adding {dtype}")
+                runlist.append(dbcfg.number)
                 rses = dbcfg.rses[dtype]
                 if len(rses) == 0:
                     if dtype == 'raw_records':
@@ -335,7 +339,7 @@ class Outsource:
                             rc.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
 
                         # Add job
-                        job = self._job(name=dtype, memory=1900)
+                        job = self._job(name=dtype, memory=5000)
                         if desired_sites and len(desired_sites) > 0:
                             # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
                             job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
@@ -411,6 +415,12 @@ class Outsource:
         wf.add_transformation_catalog(tc)
         wf.add_site_catalog(sc)
         wf.write()
+
+        print(os.getcwd())
+
+        # save the runlist
+        # remember we did a chdir above, so can write to current directory
+        np.savetxt('runlist.txt', runlist, fmt='%0d')
 
         return wf
 

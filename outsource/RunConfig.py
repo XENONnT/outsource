@@ -12,7 +12,7 @@ from admix.utils.naming import make_did
 # maybe we could put this in database?
 DEPENDS_ON = {'records': ['raw_records'],
               'peaklets': ['records'],
-              'event_info': ['peaklets']
+              'event_info_double': ['peaklets']
               }
 
 
@@ -203,8 +203,9 @@ class DBConfig(RunConfig):
             if d['type'] == dtype and hash in d.get('did', '_not_a_hash_'):
                 if 'meta' in d:
                     if 'file_count' in d['meta']:
-                        # one file is the metadata, so subtract
-                        return d['meta']['file_count'] - 1
+                        if d['meta']['file_count'] is not None:
+                            # one file is the metadata, so subtract
+                            return d['meta']['file_count'] - 1
 
     def _raw_data_exists(self, raw_type='raw_records'):
         """Property that returns a boolean for whether or not raw data exists in rucio"""
