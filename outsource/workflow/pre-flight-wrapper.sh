@@ -8,10 +8,9 @@
 export RUNID=$1
 export DTYPE=$2
 export CONTEXT=$3
-export RSE=$4
-export CMT=$5
-export update_db=$6
-export upload_to_rucio=$7
+export CMT=$4
+export update_db=$5
+export upload_to_rucio=$6
 
 set -e
 
@@ -33,5 +32,5 @@ export RUCIO_ACCOUNT=production
 # sleep a random amount of time to spread out e.g. API calls
 sleep $[ ( $RANDOM % 100 )  + 1 ]s
 
-./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --rse $RSE --cmt $CMT ${combine_extra_args}
+./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --cmt $CMT ${combine_extra_args}
 

@@ -13,27 +13,13 @@ from admix.interfaces.rucio_summoner import RucioSummoner
 import rucio
 from rucio.client.client import Client
 from rucio.client.uploadclient import UploadClient
-from utilix import DB
-from pprint import pprint
+from utilix import DB, uconfig
 from immutabledict import immutabledict
 
 db = DB()
 
-def apply_global_version(context, cmt_version):
-    context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))
-    context.set_config(dict(s2_xy_correction_map=("CMT_model", ('s2_xy_map', cmt_version), True)))
-    context.set_config(dict(elife_conf=("elife", cmt_version, True)))
-    context.set_config(dict(mlp_model=("CMT_model", ("mlp_model", cmt_version), True)))
-    context.set_config(dict(gcn_model=("CMT_model", ("gcn_model", cmt_version), True)))
-    context.set_config(dict(cnn_model=("CMT_model", ("cnn_model", cmt_version), True)))
-
-
 def get_hashes(st):
-    hashes = set([(d, st.key_for('0', d).lineage_hash)
-                  for p in st._plugin_class_registry.values()
-                  for d in p.provides if p.save_when == strax.SaveWhen.ALWAYS])
-    return {dtype: h for dtype, h in hashes}
-
+    return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
 
 def merge(runid_str, # run number padded with 0s
           dtype,     # data type 'level' e.g. records, peaklets
@@ -48,6 +34,8 @@ def merge(runid_str, # run number padded with 0s
     plugin = st._get_plugins((dtype,), runid_str)[dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
+
+    plugin.chunk_target_size_mb = 1000
 
     for keystring in plugin.provides:
         key = strax.DataKey(runid_str, keystring, plugin.lineage)
@@ -94,7 +82,6 @@ def main():
     parser.add_argument('dtype', help='dtype to combine')
     parser.add_argument('--context', help='Strax context')
     parser.add_argument('--input', help='path where the temp directory is')
-    parser.add_argument('--rse', help='RSE to upload to')
     parser.add_argument('--cmt', help='CMT global version')
     parser.add_argument('--update-db', help='flag to update runsDB', dest='update_db',
                         action='store_true')
@@ -105,17 +92,15 @@ def main():
 
     runid = args.dataset
     runid_str = "%06d" % runid
-    dtype = args.dtype
     path = args.input
 
     final_path = 'finished_data'
 
     # get context
-    st = getattr(straxen.contexts, args.context)()
+    st = getattr(straxen.contexts, args.context)(args.cmt)
     st.storage = [strax.DataDirectory('./'),
                   strax.DataDirectory(final_path) # where we are copying data to
                   ]
-    apply_global_version(st, args.cmt)
 
     # check what data is in the output folder
     dtypes = [d.split('-')[1] for d in os.listdir(path)]
@@ -152,8 +137,17 @@ def main():
         dataset_did = make_did(runid, keystring, straxhash)
         scope, dset_name = dataset_did.split(':')
 
+        # based on the dtype and the utilix config, where should this data go?
+        if keystring in ['records', 'pulse_counts', 'veto_regions']:
+            rse = uconfig.get('Outsource', 'records_rse')
+        elif keystring in ['peaklets', 'lone_hits']:
+            rse = uconfig.get('Outsource', 'peaklets_rse')
+        else:
+            rse = uconfig.get('Outsource', 'events_rse')
+
         files = os.listdir(os.path.join(final_path, this_dir))
         to_upload = []
+
         existing_files = [f for f in donkey.list_dids(scope, {'type': 'file'}, type='file')]
         existing_files = [f for f in existing_files if dset_name in f]
 
@@ -182,8 +176,7 @@ def main():
                      did_name=f,
                      dataset_scope=scope,
                      dataset_name=dset_name,
-                     rse=args.rse,
-                     register_after_upload=True
+                     rse=rse
                      )
             to_upload.append(d)
 
@@ -230,10 +223,10 @@ def main():
         # let's do one last check of the rule
         rc = RucioSummoner()
 
-        rses = [args.rse]
-        if (keystring not in ['records', 'veto_regions', 'pulse_counts']
-                and "UC_DALI_USERDISK" not in rses):
-            rses.append('UC_DALI_USERDISK')
+        rses = [rse]
+        # if (keystring not in ['records', 'veto_regions', 'pulse_counts']
+        #         and "UC_DALI_USERDISK" not in rses):
+        #     rses.append('UC_DALI_USERDISK')
 
 
         for rse in rses:

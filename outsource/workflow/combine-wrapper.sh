@@ -6,9 +6,8 @@ runid=$1
 dtype=$2
 context=$3
 cmt=$4
-rse=$5
-update_db=$6
-upload_to_rucio=$7
+update_db=$5
+upload_to_rucio=$6
 
 echo $*
 
@@ -47,7 +46,7 @@ export RUCIO_ACCOUNT=production
 
 
 # combine the data
-time ./combine.py ${runid} ${dtype} --input data --context ${context} --rse ${rse} --cmt ${cmt} ${combine_extra_args}
+time ./combine.py ${runid} ${dtype} --input data --context ${context} --cmt ${cmt} ${combine_extra_args}
 
 # check data dir again
 echo "data dir:"

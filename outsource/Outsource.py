@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
 os.environ['PATH'] = os.path.join(pegasus_path, 'bin') + ':' + os.environ['PATH']
 from Pegasus.api import *
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=config.logging_level)
 logger = logging.getLogger()
 
 rc = RucioSummoner()
@@ -187,7 +187,7 @@ class Outsource:
         periodic_remove = "((JobStatus == 2) & ((CurrentTime - EnteredCurrentStatus) > (60 * 60 * 3)))"
 
 
-        iterator = self._dbcfgs if len(self._dbcfgs) == 0 else tqdm(self._dbcfgs)
+        iterator = self._dbcfgs if len(self._dbcfgs) == 1 else tqdm(self._dbcfgs)
 
         # keep track of what runs we submit, useful for bookkeeping
         runlist = []
@@ -198,13 +198,13 @@ class Outsource:
                 logger.debug(f"Run {dbcfg.number} cannot be processed. No raw data in rucio.")
                 continue
 
-
             # check if this run needs to be processed
             if len(dbcfg.needs_processed) > 0:
                 logger.debug('Adding run ' + str(dbcfg.number) + ' to the workflow')
             else:
                 logger.debug(f"Run {dbcfg.number} is already processed with context {dbcfg.context_name}")
                 continue
+
 
             requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
             # should we use XSEDE?
@@ -218,7 +218,6 @@ class Outsource:
 
 
             combine_jobs = []
-
             # get dtypes to process
             for dtype_i, dtype in enumerate(dbcfg.needs_processed):
                 logger.debug(f"|-----> adding {dtype}")
@@ -258,7 +257,6 @@ class Outsource:
                     pre_flight_job.add_args(str(dbcfg.number),
                                             dtype,
                                             dbcfg.context_name,
-                                            'UC_OSG_USERDISK',
                                             dbcfg.cmt_global,
                                             str(dbcfg.update_db).lower(),
                                             str(dbcfg.upload_to_rucio).lower()
@@ -276,7 +274,6 @@ class Outsource:
                                          dtype,
                                          dbcfg.context_name,
                                          dbcfg.cmt_global,
-                                         'UC_OSG_USERDISK',
                                          str(dbcfg.upload_to_rucio).lower(),
                                          str(dbcfg.update_db).lower()
                                         )
@@ -319,7 +316,6 @@ class Outsource:
                                          dbcfg.cmt_global,
                                          dtype,
                                          data_tar,
-                                         'UC_OSG_USERDISK',
                                          'download-only',
                                          str(dbcfg.upload_to_rucio).lower(),
                                          str(dbcfg.update_db).lower(),
@@ -352,7 +348,6 @@ class Outsource:
                                      dbcfg.cmt_global,
                                      dtype,
                                      job_output_tar,
-                                     'UC_OSG_USERDISK',
                                      'false' if not dbcfg.standalone_download else 'no-download',
                                      str(dbcfg.upload_to_rucio).lower(),
                                      str(dbcfg.update_db).lower(),
@@ -380,7 +375,7 @@ class Outsource:
                 else:
                     # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='events', disk=50000, memory=16000, cores=8)
+                    job = self._job(name='events', disk=20000, memory=16000, cores=8)
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
@@ -390,7 +385,6 @@ class Outsource:
                                  dbcfg.cmt_global,
                                  dtype,
                                  'no_output_here',
-                                 'UC_OSG_USERDISK',
                                  'false' if not dbcfg.standalone_download else 'no-download',
                                  str(dbcfg.upload_to_rucio).lower(),
                                  str(dbcfg.update_db).lower()
@@ -415,8 +409,6 @@ class Outsource:
         wf.add_transformation_catalog(tc)
         wf.add_site_catalog(sc)
         wf.write()
-
-        print(os.getcwd())
 
         # save the runlist
         # remember we did a chdir above, so can write to current directory
@@ -475,11 +467,16 @@ class Outsource:
             return job
 
         job.add_profiles(Namespace.CONDOR, 'request_cpus', str(cores))
-        job.add_profiles(Namespace.CONDOR, 'request_disk', str(disk))
 
-        # increase memory if the first attempt fails
+
+        # increase memory/disk if the first attempt fails
         memory = 'ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, %d, %d)' \
                  %(memory, memory * 3)
+
+        disk_str = 'ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, %d, %d)' \
+                   %(disk, disk * 3)
+
+        job.add_profiles(Namespace.CONDOR, 'request_disk', disk_str)
         job.add_profiles(Namespace.CONDOR, 'request_memory', memory)
 
         return job

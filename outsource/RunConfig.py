@@ -11,7 +11,7 @@ from admix.utils.naming import make_did
 # we could also import strax(en), but this makes outsource submission not dependent on strax
 # maybe we could put this in database?
 DEPENDS_ON = {'records': ['raw_records'],
-              'peaklets': ['records'],
+              'peaklets': ['raw_records'],
               'event_info_double': ['peaklets']
               }
 
@@ -47,7 +47,7 @@ class RunConfigBase:
     _executable = os.path.join(base_dir, 'workflow', 'run-pax.sh')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
-    _chunks_per_job = 20
+    _chunks_per_job = 25
     _staging_site = 'staging'
 
     #@property
@@ -138,10 +138,9 @@ class DBConfig(RunConfig):
         self._run_doc = db.get_doc(self.number)
         self.cmt_global = cmt_version
         # setup context
-        st = getattr(straxen.contexts, context_name)()
+        st = getattr(straxen.contexts, context_name)(cmt_version)
         st.storage = []
         st.context_config['forbid_creation_of'] = straxen.daqreader.DAQReader.provides
-        apply_global_version(st, cmt_version)
 
         self.context_name = context_name
         self.context = st
