@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import shutil
 import sys
 import tempfile
 import numpy as np
@@ -10,7 +11,7 @@ import time
 from pprint import pprint
 from shutil import rmtree, copyfile
 from ast import literal_eval
-from utilix import DB
+from utilix import DB, uconfig
 import admix
 from admix.utils.naming import make_did
 from admix.interfaces.rucio_summoner import RucioSummoner
@@ -30,27 +31,13 @@ rechunk_dtypes = ['pulse_counts',
                   'lone_hits'
                   ]
 
-def apply_global_version(context, cmt_version):
-    context.set_config(dict(gain_model=('CMT_model', ("to_pe_model", cmt_version))))
-    context.set_config(dict(s2_xy_correction_map=("CMT_model", ('s2_xy_map', cmt_version), True)))
-    context.set_config(dict(elife_conf=("elife", cmt_version, True)))
-    context.set_config(dict(mlp_model=("CMT_model", ("mlp_model", cmt_version), True)))
-    context.set_config(dict(gcn_model=("CMT_model", ("gcn_model", cmt_version), True)))
-    context.set_config(dict(cnn_model=("CMT_model", ("cnn_model", cmt_version), True)))
-
 
 def get_hashes(st):
-    hashes = set([(d, st.key_for('0', d).lineage_hash)
-                  for p in st._plugin_class_registry.values()
-                  for d in p.provides
-                  ]
-                 )
-    return {dtype: h for dtype, h in hashes}
+    return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
 
 
 def find_data_to_download(runid, target, st, bottom='peaklets'):
     runid_str = str(runid)
-
     hashes = get_hashes(st)
 
     if bottom not in hashes:
@@ -74,7 +61,6 @@ def find_data_to_download(runid, target, st, bottom='peaklets'):
             # get hash for this dtype
             hash = hashes.get(in_dtype)
             rses = db.get_rses(int(runid_str), in_dtype, hash)
-            # print(in_dtype, rses)
             if len(rses) == 0:
                 # need to download data to make ths one
                 find_data(in_dtype)
@@ -83,7 +69,6 @@ def find_data_to_download(runid, target, st, bottom='peaklets'):
                 if info not in to_download:
                     to_download.append(info)
             if in_dtype == bottom and hash == bottom_hash:
-                #print(f"Reached {bottom}. Returning.")
                 return
 
     # fills the to_download list
@@ -180,14 +165,12 @@ def process(runid,
 
 
 def main():
-
     parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
     parser.add_argument('dataset', help='Run number', type=int)
     parser.add_argument('--output', help='desired strax(en) output')
     parser.add_argument('--context', help='name of context')
     parser.add_argument('--chunks', nargs='*', help='chunk ids to download')
-    parser.add_argument('--rse', type=str, default="UC_OSG_USERDISK")
-    parser.add_argument('--cmt', type=str, default='ONLINE')
+    parser.add_argument('--cmt', type=str, default='global_ONLINE')
     parser.add_argument('--upload-to-rucio', action='store_true', dest='upload_to_rucio')
     parser.add_argument('--update-db', action='store_true', dest='update_db')
     parser.add_argument('--download-only', action='store_true', dest='download_only')
@@ -203,10 +186,8 @@ def main():
     #     rmtree(data_dir)
 
     # get context
-    st = getattr(straxen.contexts, args.context)()
+    st = getattr(straxen.contexts, args.context)(args.cmt)
     st.storage = [strax.DataDirectory(data_dir)]
-
-    apply_global_version(st, args.cmt)
 
     runid = args.dataset
     runid_str = "%06d" % runid
@@ -307,6 +288,21 @@ def main():
     for dirname in processed_data:
         # get rucio dataset
         this_run, this_dtype, this_hash = dirname.split('-')
+
+        # remove records data
+        if this_dtype in ['records', 'records_nv']:
+            print(f"Removing {this_dtype} instead of uploading")
+            shutil.rmtree(os.path.join(data_dir, dirname))
+            continue
+
+        # based on the dtype and the utilix config, where should this data go?
+        if this_dtype in ['records', 'pulse_counts', 'veto_regions']:
+            rse = uconfig.get('Outsource', 'records_rse')
+        elif this_dtype in ['peaklets', 'lone_hits']:
+            rse = uconfig.get('Outsource', 'peaklets_rse')
+        else:
+            rse = uconfig.get('Outsource', 'events_rse')
+
         if this_dtype in rechunk_dtypes:
             print(f"Skipping upload of {this_dtype} since we need to rechunk it")
             continue
@@ -368,7 +364,6 @@ def main():
         # prepare list of dicts to be uploaded
         to_upload = []
 
-
         for f in files:
             path = os.path.join(data_dir, dirname, f)
             if f in existing_files:
@@ -381,8 +376,7 @@ def main():
                      did_name=f,
                      dataset_scope=scope,
                      dataset_name=dset_name,
-                     rse=args.rse,
-                     register_after_upload=True
+                     rse=rse
                      )
             to_upload.append(d)
 
@@ -393,6 +387,7 @@ def main():
             print(f"No files to upload for {dirname}")
             continue
         try:
+            # print("Doing upload")
             upload_client.upload(to_upload)
         except:
             print(f"Upload of {dset_name} failed for some reason")
@@ -403,9 +398,6 @@ def main():
 
         # if we processed the whole thing, add a rule at DALI update the runDB here
         if args.chunks is None:
-            rucio_client.add_replication_rule([dict(scope=scope, name=dset_name)], 1, 'UC_DALI_USERDISK',
-                                                source_replica_expression=args.rse,
-                                              priority=5)
             # skip if update_db flag is false
             if args.update_db:
                 md = st.get_meta(runid_str, this_dtype)
@@ -415,7 +407,7 @@ def main():
 
                 # update runDB
                 new_data_dict = dict()
-                new_data_dict['location'] = args.rse
+                new_data_dict['location'] = rse
                 new_data_dict['did'] = dataset
                 new_data_dict['status'] = 'transferred'
                 new_data_dict['host'] = "rucio-catalogue"
@@ -432,23 +424,11 @@ def main():
                                              )
 
                 db.update_data(runid, new_data_dict)
-                print(f"Database updated for {this_dtype} at {args.rse}")
-
-                # now update dali db entry
-                rule = rc.GetRule(dataset, 'UC_DALI_USERDISK')
-                if rule['state'] == 'OK':
-                    status = 'transferred'
-                elif rule['state'] == 'REPLICATING':
-                    status = 'transferring'
-                elif rule['state'] == 'STUCK':
-                    status = 'stuck'
-                new_data_dict['location'] = 'UC_DALI_USERDISK'
-                new_data_dict['status'] = status
-                db.update_data(runid, new_data_dict)
+                print(f"Database updated for {this_dtype} at {rse}")
 
         # cleanup the files we uploaded
         # this is likely only done for records data because we will rechunk the others
-        for f in files:
+        for f in  files:
             print(f"Removing {f}")
             os.remove(os.path.join(data_dir, dirname, f))
 

@@ -7,11 +7,10 @@ export context=$2
 export cmt=$3
 export output_dtype=$4
 export output_tar=$5
-export rse=$6
-export standalone_download=$7
-export upload_to_rucio=$8
-export update_db=$9
-export chunks=${args[@]:9}
+export standalone_download=$6
+export upload_to_rucio=$7
+export update_db=$8
+export chunks=${args[@]:8}
 
 echo $@
 
@@ -85,7 +84,7 @@ then
   chunkarg="--chunks ${chunks}"
 fi
 
-./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --cmt ${cmt} --rse ${rse} ${extraflags} ${chunkarg}
+./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --cmt ${cmt} ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then 
