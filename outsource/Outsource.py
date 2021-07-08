@@ -515,6 +515,10 @@ class Outsource:
         #if len(sites) == 0 and len(exprs) == 0:
         #    raise RuntimeError(f'no valid sites in {my_rses}')
 
+        # make sure we do not request XENON1T sites we do not need
+        if len(sites) == 0:
+            sites.append('NONE')
+
         final_expr = ' || '.join(exprs)
         desired_sites = ','.join(sites)
         logger.debug('Site expression from RSEs list: ' + final_expr)
