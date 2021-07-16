@@ -186,7 +186,6 @@ class Outsource:
         # remove compute jobs after 3 hours
         periodic_remove = "((JobStatus == 2) & ((CurrentTime - EnteredCurrentStatus) > (60 * 60 * 3)))"
 
-
         iterator = self._dbcfgs if len(self._dbcfgs) == 1 else tqdm(self._dbcfgs)
 
         # keep track of what runs we submit, useful for bookkeeping
@@ -211,11 +210,8 @@ class Outsource:
             if self.xsede:
                 requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
             requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
-            requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
-                                                             '!regexp("campuscluster.illinois.edu", Machine)'
-            # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
-            requirements_for_highlevel = requirements_base + ' && HAS_AVX'
-
+            # requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
+            #                                                  '!regexp("campuscluster.illinois.edu", Machine)'
 
             combine_jobs = []
             # get dtypes to process
@@ -375,7 +371,9 @@ class Outsource:
                 else:
                     # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='events', disk=20000, memory=16000, cores=8)
+                    job = self._job(name='events', disk=20000, memory=14000, cores=8)
+                    # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
+                    requirements_for_highlevel = requirements + ' && HAS_AVX'
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
@@ -471,10 +469,10 @@ class Outsource:
 
         # increase memory/disk if the first attempt fails
         memory = 'ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, %d, %d)' \
-                 %(memory, memory * 3)
+                 %(memory, memory * 2)
 
         disk_str = 'ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, %d, %d)' \
-                   %(disk, disk * 3)
+                   %(disk, disk * 2)
 
         job.add_profiles(Namespace.CONDOR, 'request_disk', disk_str)
         job.add_profiles(Namespace.CONDOR, 'request_memory', memory)
