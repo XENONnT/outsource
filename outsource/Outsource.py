@@ -27,6 +27,8 @@ from Pegasus.api import *
 logging.basicConfig(level=config.logging_level)
 logger = logging.getLogger()
 
+DEFAULT_IMAGE = '/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment\:latest/'
+
 rc = RucioSummoner()
 db = DB()
 
@@ -44,6 +46,7 @@ class Outsource:
         'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
         'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
         'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
+        'SDSC_USERDISK': {'expr': 'GLIDEIN_ResourceName == "SDSC-Expanse"'}
     }
 
     # transformation map (high level name -> script)
@@ -57,7 +60,7 @@ class Outsource:
             'events':       'strax-wrapper.sh',
     }
 
-    def __init__(self, dbcfgs, wf_id=None, xsede=False, debug=False):
+    def __init__(self, dbcfgs, wf_id=None, debug=False, image=DEFAULT_IMAGE):
         '''
         Creates a new Outsource object. Specifying a list of DBConfig objects required.
         '''
@@ -69,9 +72,11 @@ class Outsource:
         # TODO there's likely going to be some confusion between the two configs here
         self._dbcfgs = dbcfgs
 
-        self.xsede = xsede
+        self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
 
         self.debug = debug
+
+        self.singularity_image = image
 
         self._initial_dir = os.getcwd()
 
@@ -207,8 +212,8 @@ class Outsource:
 
             requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
             # should we use XSEDE?
-            if self.xsede:
-                requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
+            # if self.xsede:
+            #     requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
             requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
             # requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
             #                                                  '!regexp("campuscluster.illinois.edu", Machine)'
@@ -371,9 +376,9 @@ class Outsource:
                 else:
                     # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='events', disk=20000, memory=14000, cores=8)
+                    job = self._job(name='events', disk=20000, memory=14000, cores=4)
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
-                    requirements_for_highlevel = requirements + ' && HAS_AVX'
+                    requirements_for_highlevel = requirements + ' && (HAS_AVX2 || HAS_AVX)'
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
@@ -583,13 +588,13 @@ class Outsource:
         condorpool.add_profiles(Namespace.PEGASUS, style='condor')
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
-                                value='"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"')
+                                value=f'"{self.singularity_image}"')
         condorpool.add_profiles(Namespace.CONDOR, key='periodic_remove',
                                 value="((JobStatus == 2) && ((CurrentTime - EnteredCurrentStatus) > 18000)) || "
                                       "((JobStatus == 5) && ((CurrentTime - EnteredCurrentStatus) > 30)) "
                                 )
         if self.xsede:
-            condorpool.add_profiles(Namespace.CONDOR, key='+WantsXSEDE', value='True')
+            condorpool.add_profiles(Namespace.CONDOR, key='+Desired_Allocations', value='"Expanse"')
 
         # ignore the site settings - the container will set all this up inside
         condorpool.add_profiles(Namespace.ENV, OSG_LOCATION='')

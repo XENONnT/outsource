@@ -415,12 +415,9 @@ def main():
                 new_data_dict['protocol'] = 'rucio'
                 new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
                 new_data_dict['creation_place'] = "OSG"
-                new_data_dict['meta'] = dict(lineage=md.get('lineage'),
-                                             avg_chunk_mb=avg_data_size_mb,
+                new_data_dict['meta'] = dict(lineage_hash=md.get('lineage_hash'),
                                              file_count=len(files),
                                              size_mb=data_size_mb,
-                                             strax_version=strax.__version__,
-                                             straxen_version=straxen.__version__
                                              )
 
                 db.update_data(runid, new_data_dict)
@@ -428,7 +425,7 @@ def main():
 
         # cleanup the files we uploaded
         # this is likely only done for records data because we will rechunk the others
-        for f in  files:
+        for f in files:
             print(f"Removing {f}")
             os.remove(os.path.join(data_dir, dirname, f))
 

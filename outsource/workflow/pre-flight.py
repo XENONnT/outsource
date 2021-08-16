@@ -95,16 +95,6 @@ def main():
                 if args.update_db:
                     db.update_data(runid, new_data_dict)
 
-                # # send peaklets data to dali
-                # if dtype == 'peaklets' and args.rse != 'UC_DALI_USERDISK':
-                #     if args.upload_to_rucio:
-                #         C.add_replication_rule([dict(scope=scope, name=name)], 1, 'UC_DALI_USERDISK',
-                #                                source_replica_expression=args.rse,
-                #                                priority=5)
-                    # if args.update_db:
-                    #     new_data_dict['location'] = 'UC_DALI_USERDISK'
-                    #     db.update_data(runid, new_data_dict)
-
 
 if __name__ == "__main__":
     main()

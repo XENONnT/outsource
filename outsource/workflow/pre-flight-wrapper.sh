@@ -32,5 +32,5 @@ export RUCIO_ACCOUNT=production
 # sleep a random amount of time to spread out e.g. API calls
 sleep $[ ( $RANDOM % 100 )  + 1 ]s
 
-./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --cmt $CMT ${combine_extra_args}
+# ./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --cmt $CMT ${combine_extra_args}
 
