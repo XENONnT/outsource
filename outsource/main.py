@@ -41,7 +41,7 @@ def main():
                         force_rerun=args.force, upload_to_rucio=upload_to_rucio, update_db=update_db
                         )
                        )
-    outsource = Outsource(configs, debug=args.debug, image=args.image)
+    outsource = Outsource(configs, debug=args.debug, image=args.image, wf_id=args.name)
     outsource.submit_workflow(force=args.force)
 
 if __name__ == '__main__':

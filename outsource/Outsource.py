@@ -16,21 +16,25 @@ from pprint import pprint
 from utilix import DB
 from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 from outsource.Shell import Shell
+from outsource.RunConfig import DEPENDS_ON
 
 from admix.interfaces.rucio_summoner import RucioSummoner
 
 # Pegasus environment
 sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
-os.environ['PATH'] = os.path.join(pegasus_path, 'bin') + ':' + os.environ['PATH']
+os.environ['PATH'] = os.path.join(pegasus_path, '../bin') + ':' + os.environ['PATH']
 from Pegasus.api import *
 
 logging.basicConfig(level=config.logging_level)
 logger = logging.getLogger()
 
-DEFAULT_IMAGE = '/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment\:latest/'
+DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"
 
 rc = RucioSummoner()
 db = DB()
+
+PER_CHUNK_DTYPES = ['records', 'peaklets', 'hitlets_nv']
+
 
 class Outsource:
 
@@ -50,15 +54,26 @@ class Outsource:
     }
 
     # transformation map (high level name -> script)
-    _transformations_map = {
-            'combine':     'combine-wrapper.sh',
-            'pre_flight':  'pre-flight-wrapper.sh',
-            'download':    'strax-wrapper.sh',
-            'raw_records': 'strax-wrapper.sh',
-            'records':     'strax-wrapper.sh',
-            'peaklets':    'strax-wrapper.sh',
-            'events':       'strax-wrapper.sh',
-    }
+    _transformations_map = {'combine': 'combine-wrapper.sh',
+                            'download': 'strax-wrapper.sh',
+                            'records': 'strax-wrapper.sh',
+                            'peaklets': 'strax-wrapper.sh',
+                            'events': 'strax-wrapper.sh',
+                            'peaksHE': 'strax-wrapper.sh',
+                            'nv_hitlets': 'strax-wrapper.sh',
+                            'nv_events':  'strax-wrapper.sh',
+                            'mv': 'strax-wrapper.sh'
+                           }
+
+    # jobs details for a given datatype
+    job_kwargs = {'records': dict(name='records', memory=3000),
+                  'peaklets': dict(name='peaklets', memory=5000),
+                  'event_info_double': dict(name='events', memory=12000, disk=20000, cores=4),
+                  'peak_basics_he': dict(name='peaksHE', memory=12000, cores=4),
+                  'hitlets_nv': dict(name='nv_hitlets', memory=12000),
+                  'event_positions_nv': dict(name='nv_events', memory=5000, disk=20000),
+                  'veto_regions_mv': dict(name='mv', memory=1700)
+                  }
 
     def __init__(self, dbcfgs, wf_id=None, debug=False, image=DEFAULT_IMAGE):
         '''
@@ -172,8 +187,8 @@ class Outsource:
             tc.add_transformations(t)
 
         # scripts some exectuables might need
-        preflightpy = File('pre-flight.py')
-        rc.add_replica('local', 'pre-flight.py', 'file://' + base_dir + '/workflow/pre-flight.py')
+        #preflightpy = File('pre-flight.py')
+        #rc.add_replica('local', 'pre-flight.py', 'file://' + base_dir + '/workflow/pre-flight.py')
 
         straxify = File('runstrax.py')
         rc.add_replica('local', 'runstrax.py', 'file://' + base_dir + '/workflow/runstrax.py')
@@ -187,9 +202,6 @@ class Outsource:
 
         token = File('.dbtoken')
         rc.add_replica('local', '.dbtoken', 'file://' + os.path.join(os.environ['HOME'], '.dbtoken'))
-
-        # remove compute jobs after 3 hours
-        periodic_remove = "((JobStatus == 2) & ((CurrentTime - EnteredCurrentStatus) > (60 * 60 * 3)))"
 
         iterator = self._dbcfgs if len(self._dbcfgs) == 1 else tqdm(self._dbcfgs)
 
@@ -218,9 +230,16 @@ class Outsource:
             # requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
             #                                                  '!regexp("campuscluster.illinois.edu", Machine)'
 
-            combine_jobs = []
+            # will have combine jobs for all the PER_CHUNK_DTYPES we passed
+            combine_jobs = {}
+
             # get dtypes to process
             for dtype_i, dtype in enumerate(dbcfg.needs_processed):
+                if dtype == 'peak_basics_he':
+                    # check that raw_records exists
+                    if not dbcfg._raw_data_exists(raw_type='raw_records_he'):
+                        continue
+
                 logger.debug(f"|-----> adding {dtype}")
                 runlist.append(dbcfg.number)
                 rses = dbcfg.rses[dtype]
@@ -250,23 +269,9 @@ class Outsource:
                     requirements = requirements + ' && (' + self._exclude_sites()  + ')'
                     requirements_us = requirements_us + ' && (' + self._exclude_sites()  + ')'
 
-                # Set up the combine job first - we can then add to that job inside the chunk file loop
-                # only need combine job for low-level stuff
-                if dtype in ['records', 'peaklets']:
-                    # job that creates rucio datasets and will update DB
-                    pre_flight_job = self._job('pre_flight')
-                    pre_flight_job.add_args(str(dbcfg.number),
-                                            dtype,
-                                            dbcfg.context_name,
-                                            dbcfg.cmt_global,
-                                            str(dbcfg.update_db).lower(),
-                                            str(dbcfg.upload_to_rucio).lower()
-                                            )
-                    pre_flight_job.add_inputs(preflightpy, xenon_config, token)
-                    pre_flight_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
-                    pre_flight_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                    wf.add_jobs(pre_flight_job)
-
+                if dtype in PER_CHUNK_DTYPES:
+                    # Set up the combine job first - we can then add to that job inside the chunk file loop
+                    # only need combine job for low-level stuff
                     combine_job = self._job('combine', disk=30000)
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
@@ -280,15 +285,16 @@ class Outsource:
                                         )
 
                     wf.add_jobs(combine_job)
-                    combine_jobs.append(combine_job)
+                    combine_jobs[dtype] = combine_job
 
                     # add jobs, one for each input file
+
                     n_chunks = dbcfg.nchunks(dtype)
                     # hopefully temporary
                     if n_chunks is None:
                         scope = 'xnt_%06d' % dbcfg.number
                         dataset = "raw_records-%s" % dbcfg.hashes['raw_records']
-                        did =  "%s:%s" % (scope, dataset)
+                        did = "%s:%s" % (scope, dataset)
                         chunk_list = self._data_find_chunks(did)
                         n_chunks = len(chunk_list)
 
@@ -325,7 +331,7 @@ class Outsource:
                             download_job.add_inputs(straxify, xenon_config, token)
                             download_job.add_outputs(data_tar, stage_out=False)
                             wf.add_jobs(download_job)
-                            wf.add_dependency(download_job, parents=[pre_flight_job])
+                            #wf.add_dependency(download_job, parents=[pre_flight_job])
 
                         # output files
                         job_output_tar = File('%06d-output-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
@@ -336,7 +342,8 @@ class Outsource:
                             rc.add_replica('local', job_output_tar, 'file://' + job_output_tar_local_path)
 
                         # Add job
-                        job = self._job(name=dtype, memory=5000)
+
+                        job = self._job(**self.job_kwargs[dtype])
                         if desired_sites and len(desired_sites) > 0:
                             # give a hint to glideinWMS for the sites we want (mostly useful for XENONVO in Europe)
                             job.add_profiles(Namespace.CONDOR, '+XENON_DESIRED_Sites', '"' + desired_sites + '"')
@@ -364,19 +371,25 @@ class Outsource:
                             job.add_inputs(data_tar)
                             wf.add_dependency(job, parents=[download_job])
                         else:
-                            wf.add_dependency(job, parents=[pre_flight_job])
+                            pass
+                            # wf.add_dependency(job, parents=[pre_flight_job])
 
                         # update combine job
                         combine_job.add_inputs(job_output_tar)
                         wf.add_dependency(job, children=[combine_job])
 
-                        if dtype_i > 0:
-                            wf.add_dependency(job, parents=[combine_jobs[dtype_i - 1]])
+                        parent_combines = []
+                        for d in DEPENDS_ON[dtype]:
+                            if combine_jobs.get(d):
+                                parent_combines.append(combine_jobs.get(d))
+
+                        if len(parent_combines):
+                            wf.add_dependency(job, parents=parent_combines)
 
                 else:
                     # high level data.. we do it all on one job
                     # Add job
-                    job = self._job(name='events', disk=20000, memory=14000, cores=4)
+                    job = self._job(**self.job_kwargs[dtype])
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
                     requirements_for_highlevel = requirements + ' && (HAS_AVX2 || HAS_AVX)'
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
@@ -399,11 +412,15 @@ class Outsource:
                     # all strax jobs depend on the pre-flight one
                     wf.add_dependency(job)
 
-
                     # if there are multiple levels to the workflow, need to have current strax-wrapper depend on
                     # previous combine
-                    if dtype_i > 0:
-                        wf.add_dependency(job, parents=[combine_jobs[dtype_i - 1]])
+                    parent_combines = []
+                    for d in DEPENDS_ON[dtype]:
+                        if combine_jobs.get(d):
+                            parent_combines.append(combine_jobs.get(d))
+
+                    if len(parent_combines):
+                        wf.add_dependency(job, parents=parent_combines)
 
 
         # Write the wf to stdout
@@ -414,7 +431,6 @@ class Outsource:
         wf.write()
 
         # save the runlist
-        # remember we did a chdir above, so can write to current directory
         np.savetxt('runlist.txt', runlist, fmt='%0d')
 
         return wf
@@ -424,7 +440,6 @@ class Outsource:
         submit the workflow
         '''
 
-        # starting directory, since we're going to chdir
         os.chdir(self._generated_dir())
         wf.plan(conf=base_dir + '/workflow/pegasus.conf',
                 submit=not self.debug,

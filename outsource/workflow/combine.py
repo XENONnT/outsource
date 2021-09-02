@@ -107,6 +107,8 @@ def main():
 
     if 'records' in dtypes:
         plugin_levels = ['records', 'peaklets']
+    elif 'hitlets_nv' in dtypes:
+        plugin_levels = ['hitlets_nv']
     else:
         plugin_levels = ['peaklets']
 

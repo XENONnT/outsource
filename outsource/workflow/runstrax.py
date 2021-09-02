@@ -28,39 +28,74 @@ rc = RucioSummoner()
 rechunk_dtypes = ['pulse_counts',
                   'veto_regions',
                   'peaklets',
-                  'lone_hits'
+                  'lone_hits',
+                  'hitlets_nv'
                   ]
 
+# these dtypes will not be uploaded to rucio
+ignore_dtypes = ['records',
+                 'records_nv',
+                 'lone_raw_records_nv',
+                 'raw_records_coin_nv',
+                 'lone_raw_record_statistics_nv',
+                 'records_he'
+                 'records_mv'
+                 ]
+
+# these dtypes should always be made at the same time:
+buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
+                ('event_info_double', 'event_pattern_fit')
+                ]
+
+
+def get_bottom_dtypes(dtype):
+    if dtype in ['hitlets_nv', 'event_positions_nv', 'veto_regions_nv']:
+        return ('raw_records_nv',)
+    elif dtype in ['peak_basics_he']:
+        return ('raw_records_he',)
+    elif dtype in ['records', 'peaklets']:
+        return ('raw_records',)
+    elif dtype == 'veto_regions_mv':
+        return ('raw_records_mv', )
+    else:
+        return ('peaklets', 'lone_hits')
 
 def get_hashes(st):
     return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
 
 
-def find_data_to_download(runid, target, st, bottom='peaklets'):
+def find_data_to_download(runid, target, st):
     runid_str = str(runid)
     hashes = get_hashes(st)
+    bottoms = get_bottom_dtypes(target)
 
-    if bottom not in hashes:
-        raise ValueError(f"The dtype {bottom} is not in this context!")
+    for bottom in bottoms:
+        if bottom not in hashes:
+            raise ValueError(f"The dtype {bottom} is not in this context!")
 
-    bottom_hash = hashes[bottom]
+    bottom_hashes = tuple([hashes[b] for b in bottoms])
 
     to_download = []
 
+    data = db.get_data(runid, host='rucio-catalogue')
+
     def find_data(_target):
-        if any([d[0] == bottom and d[1] == bottom_hash for d in to_download]):
+        if all([(d, h) in to_download for d, h in zip(bottoms, bottom_hashes)]):
             return
 
         # initialize plugin needed for processing
         _plugin = st._get_plugins((_target,), runid_str)[_target]
         st._set_plugin_config(_plugin, runid_str, tolerant=False)
-        _plugin.setup()
 
         # download all the required datatypes to produce this output file
         for in_dtype in _plugin.depends_on:
+            #print(f'\t{in_dtype}')
             # get hash for this dtype
             hash = hashes.get(in_dtype)
-            rses = db.get_rses(int(runid_str), in_dtype, hash)
+            rses = [d['location'] for d in data if (d['type'] == in_dtype and
+                                               hash in d['did']
+                                               )
+                    ]
             if len(rses) == 0:
                 # need to download data to make ths one
                 find_data(in_dtype)
@@ -68,8 +103,6 @@ def find_data_to_download(runid, target, st, bottom='peaklets'):
                 info = (in_dtype, hash)
                 if info not in to_download:
                     to_download.append(info)
-            if in_dtype == bottom and hash == bottom_hash:
-                return
 
     # fills the to_download list
     find_data(target)
@@ -99,7 +132,7 @@ def process(runid,
         for keystring in plugin.provides:
             print(f"Making {keystring}")
             st.make(runid_str, keystring,
-                    max_workers=8,
+                    max_workers=4,
                     allow_multiple=True,
                     )
             print(f"DONE processing {keystring}")
@@ -145,9 +178,13 @@ def process(runid,
             # process this chunk
             output_data = plugin.do_compute(chunk_i=chunk, **{in_dtype: in_data})
 
-            # save the output -- you have to loop because there could be > 1 output dtypes
-            for keystring, strax_chunk in output_data.items():
-                savers[keystring].save(strax_chunk, chunk_i=int(chunk))
+            if isinstance(output_data, dict):
+                # save the output -- you have to loop because there could be > 1 output dtypes
+                for keystring, strax_chunk in output_data.items():
+                    savers[keystring].save(strax_chunk, chunk_i=int(chunk))
+            elif isinstance(output_data, strax.Chunk):
+                # save the output -- you have to loop because there could be > 1 output dtypes
+                savers[keystring].save(output_data, chunk_i=int(chunk))
 
         if close_savers:
             for dtype, saver in savers.items():
@@ -193,9 +230,15 @@ def main():
     runid_str = "%06d" % runid
     out_dtype = args.output
 
-    # determine which input dtypes we need
-    bottom = 'peaklets' if args.chunks is None else 'raw_records'
-    to_download = find_data_to_download(runid, out_dtype, st, bottom=bottom)
+    to_download = find_data_to_download(runid, out_dtype, st)
+    for buddies in buddy_dtypes:
+        if out_dtype in buddies:
+            for other_dtype in buddies:
+                if other_dtype == out_dtype:
+                    continue
+                to_download.extend(find_data_to_download(runid, other_dtype, st))
+
+    to_download = list(set(to_download))
 
     if not args.no_download:
         t0 = time.time()
@@ -221,15 +264,33 @@ def main():
 
     # figure out what plugins we need to process/initialize
     to_process = [args.output]
-    downloaded = [dtype for dtype, _ in to_download]
-    missing = set(plugin.depends_on) - set(downloaded)
-    if len(missing) > 0:
-        missing_str = ', '.join(missing)
-        print(f"Need to create intermediate data: {missing_str}")
-        to_process = list(missing) + to_process
+    for buddies in buddy_dtypes:
+        if args.output in buddies:
+            to_process = list(buddies)
 
     # keep track of the data we just downloaded -- will be important for the upload step later
     downloaded_data = os.listdir(data_dir)
+    downloaded = [d.split('-')[1] for d in downloaded_data]
+
+    missing = set(plugin.depends_on) - set(downloaded)
+    intermediates = missing.copy()
+    to_process = list(intermediates) + to_process
+
+    while len(intermediates) > 0:
+        new_intermediates = []
+        for _dtype in intermediates:
+            _plugin = st._get_plugins((_dtype,), runid_str)[_dtype]
+            for dependency in _plugin.depends_on:
+                if dependency not in downloaded:
+                    if dependency not in to_process:
+                        to_process = [dependency] + to_process
+                    new_intermediates.append(dependency)
+        intermediates = new_intermediates
+
+    missing = [d for d in to_process if d != args.output]
+    missing_str = ', '.join(missing)
+    print(f"Need to create intermediate data: {missing_str}")
+
     print("--Downloaded data--")
     for dd in downloaded_data:
         print(dd)
@@ -239,7 +300,6 @@ def main():
         sys.exit(0)
 
     print(f"To process: {', '.join(to_process)}")
-
     _tmp_path = tempfile.mkdtemp()
     for dtype in to_process:
         close_savers = dtype != args.output
@@ -289,8 +349,8 @@ def main():
         # get rucio dataset
         this_run, this_dtype, this_hash = dirname.split('-')
 
-        # remove records data
-        if this_dtype in ['records', 'records_nv']:
+        # remove data we do not want to upload
+        if this_dtype in ignore_dtypes:
             print(f"Removing {this_dtype} instead of uploading")
             shutil.rmtree(os.path.join(data_dir, dirname))
             continue
