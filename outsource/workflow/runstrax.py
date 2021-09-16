@@ -240,6 +240,12 @@ def main():
 
     to_download = list(set(to_download))
 
+    rse = None
+    # temporary hack to include SDSC
+    if os.environ.get("GLIDEIN_ResourceName", "not_expanse") == "SDSC-Expanse":
+        print("On Expanse! Will attempt to download from SDSC")
+        rse = 'SDSC_USERDISK'
+
     if not args.no_download:
         t0 = time.time()
         # download all the required datatypes to produce this output file
@@ -247,7 +253,8 @@ def main():
             for in_dtype, hash in to_download:
                 # download the input data
                 if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                    admix.download(runid, in_dtype, hash, chunks=args.chunks, location=data_dir)
+                    admix.download(runid, in_dtype, hash,
+                                   chunks=args.chunks, location=data_dir, rse=rse)
         else:
 
             for in_dtype, hash in to_download:
