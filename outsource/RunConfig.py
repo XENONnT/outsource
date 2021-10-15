@@ -4,8 +4,8 @@ import time
 from .Config import config, base_dir, work_dir
 from utilix import DB, xent_collection
 import straxen
-from rucio.client.client import Client
-from admix.utils.naming import make_did
+import cutax
+import admix
 
 # HARDCODE alert
 # we could also import strax(en), but this makes outsource submission not dependent on strax
@@ -34,7 +34,6 @@ ACTUALLY_STORED = {'event_info_double': ['event_info', 'distinct_channels', 'eve
                    }
 
 
-RUCIO_CLIENT = Client()
 db = DB()
 coll = xent_collection()
 
@@ -135,12 +134,11 @@ class DBConfig(RunConfig):
     """Uses runDB to build _dbcfgs info"""
     needs_processed = None
 
-    def __init__(self, number, context_name, cmt_version, **kwargs):
+    def __init__(self, number, context_name, **kwargs):
         self._number = number
-        self.cmt_global = cmt_version
         self.run_data = db.get_data(number)
         # setup context
-        st = getattr(straxen.contexts, context_name)(cmt_version)
+        st = getattr(cutax.contexts, context_name)()
         st.storage = []
         st.context_config['forbid_creation_of'] = straxen.daqreader.DAQReader.provides
 
@@ -162,7 +160,7 @@ class DBConfig(RunConfig):
 
     @property
     def workflow_id(self):
-        return f"xent_{self.number:06d}_{self.cmt_global}"
+        return f"xent_{self.number:06d}"
 
     @property
     def number(self):
@@ -216,8 +214,7 @@ class DBConfig(RunConfig):
         dtype = self.depends_on(dtype)[0]
         hash = self.hashes[dtype]
         did = f"xnt_{self._number:06d}:{dtype}-{hash}"
-        scope, name = did.split(':')
-        files = RUCIO_CLIENT.list_files(scope, name)
+        files = admix.rucio.list_files(did)
         files = [f for f in files if 'metadata' not in f['name']]
         return len(files)
 
@@ -235,17 +232,3 @@ class DBConfig(RunConfig):
                 return True
         return False
 
-        # h = self.hashes.get(raw_type)
-        # if not h:
-        #     raise ValueError(f"Dtype {raw_type} does not exist for the context in question")
-        # # check rucio
-        # did = make_did(self.number, raw_type, h)
-        # scope, name = did.split(':')
-        #
-        # # returns a generator
-        # rules = RUCIO_CLIENT.list_did_rules(scope, name)
-        #
-        # rules = [r['rse_expression'] for r in rules if r['state'] == 'OK' and r['locks_ok_cnt'] > 0]
-        # rules = [r for r in rules if 'TAPE' not in r and r != 'LNGS_USERDISK']
-        # return len(rules) > 0
-        #

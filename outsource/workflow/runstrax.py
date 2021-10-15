@@ -13,16 +13,11 @@ from shutil import rmtree, copyfile
 from ast import literal_eval
 from utilix import DB, uconfig
 import admix
-from admix.utils.naming import make_did
-from admix.interfaces.rucio_summoner import RucioSummoner
 import rucio
-from rucio.client.client import Client
-from rucio.client.uploadclient import UploadClient
 import datetime
-from pprint import pprint
+import cutax
 
 db = DB()
-rc = RucioSummoner()
 
 # these dtypes we need to rechunk, so don't upload to rucio here!
 rechunk_dtypes = ['pulse_counts',
@@ -206,8 +201,7 @@ def main():
     parser.add_argument('dataset', help='Run number', type=int)
     parser.add_argument('--output', help='desired strax(en) output')
     parser.add_argument('--context', help='name of context')
-    parser.add_argument('--chunks', nargs='*', help='chunk ids to download')
-    parser.add_argument('--cmt', type=str, default='global_ONLINE')
+    parser.add_argument('--chunks', nargs='*', help='chunk ids to download', type=int)
     parser.add_argument('--upload-to-rucio', action='store_true', dest='upload_to_rucio')
     parser.add_argument('--update-db', action='store_true', dest='update_db')
     parser.add_argument('--download-only', action='store_true', dest='download_only')
@@ -223,8 +217,10 @@ def main():
     #     rmtree(data_dir)
 
     # get context
-    st = getattr(straxen.contexts, args.context)(args.cmt)
-    st.storage = [strax.DataDirectory(data_dir)]
+    st = getattr(cutax.contexts, args.context)()
+    st.storage = [strax.DataDirectory(data_dir),
+                  straxen.rucio.RucioFrontend(include_remote=True, download_heavy=False, staging_dir=data_dir)
+                 ]
 
     runid = args.dataset
     runid_str = "%06d" % runid
@@ -238,14 +234,6 @@ def main():
                     continue
                 to_download.extend(find_data_to_download(runid, other_dtype, st))
 
-    to_download = list(set(to_download))
-
-    # rse = None
-    # # temporary hack to include SDSC
-    # if os.environ.get("GLIDEIN_ResourceName", "not_expanse") == "SDSC-Expanse":
-    #     print("On Expanse! Will attempt to download from SDSC")
-    #     rse = 'SDSC_USERDISK'
-
     if not args.no_download:
         t0 = time.time()
         # download all the required datatypes to produce this output file
@@ -253,13 +241,14 @@ def main():
             for in_dtype, hash in to_download:
                 # download the input data
                 if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                    admix.download(runid, in_dtype, hash,
-                                   chunks=args.chunks, location=data_dir)
+                    did = admix.utils.make_did(runid, in_dtype, hash)
+                    admix.download(did, chunks=args.chunks, location=data_dir)
         else:
             for in_dtype, hash in to_download:
                 if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                    admix.download(runid, in_dtype, hash, location=data_dir)
-    
+                    did = admix.utils.make_did(runid, in_dtype, hash)
+                    admix.download(did, location=data_dir)
+
         download_time = time.time() - t0 # seconds
         print(f"=== Download time (minutes): {download_time/60:0.2f}")
 
@@ -332,10 +321,6 @@ def main():
             os.rename(merged_dir, os.path.join(data_dir, dtype_path_thing))
 
 
-    # initiate the rucio client
-    upload_client = UploadClient()
-    rucio_client = Client()
-
     # if we processed the entire run, we upload everything including metadata
     # otherwise, we just upload the chunks
     upload_meta = args.chunks is None
@@ -377,9 +362,9 @@ def main():
         # remove the _temp if we are processing chunks in parallel
         if args.chunks is not None:
             this_hash = this_hash.replace('_temp', '')
-        dataset = make_did(int(this_run), this_dtype, this_hash)
+        dataset_did = admix.utils.make_did(int(this_run), this_dtype, this_hash)
 
-        scope, dset_name = dataset.split(':')
+        scope, dset_name = dataset_did.split(':')
 
         files = [f for f in os.listdir(os.path.join(data_dir, dirname))]
 
@@ -405,13 +390,13 @@ def main():
         # get list of files that have already been uploaded
         # this is to allow us re-run workflow for some chunks
         try:
-            existing_files = [f for f in rucio_client.list_dids(scope,
+            existing_files = [f for f in admix.rucio.rucio_client.list_dids(scope,
                                                                        {'type': 'file'},
                                                                         type='file')
                               ]
             existing_files = [f for f in existing_files if dset_name in f]
 
-            existing_files_in_dataset = [f['name'] for f in rucio_client.list_files(scope, dset_name)]
+            existing_files_in_dataset = admix.rucio.list_files(dataset_did)
 
             # for some reason files get uploaded but not attached correctly
             need_attached = list(set(existing_files) - set(existing_files_in_dataset))
@@ -423,40 +408,16 @@ def main():
             if len(need_attached) > 0:
                 dids_to_attach = [dict(scope=scope, name=name) for name in need_attached]
 
-                rucio_client.attach_dids(scope, dset_name, dids_to_attach)
+                admix.rucio.attach(dataset_did, dids_to_attach)
 
         except rucio.common.exception.DataIdentifierNotFound:
             existing_files = []
 
-        # prepare list of dicts to be uploaded
-        to_upload = []
+        path = os.path.join(data_dir, dirname)
 
-        for f in files:
-            path = os.path.join(data_dir, dirname, f)
-            if f in existing_files:
-                print(f"Skipping {f} since it is already uploaded")
-                continue
-
-            print(f"Uploading {f}")
-            d = dict(path=path,
-                     did_scope=scope,
-                     did_name=f,
-                     dataset_scope=scope,
-                     dataset_name=dset_name,
-                     rse=rse,
-                     register_after_upload=True
-                     )
-            to_upload.append(d)
-
-        # skip upload for now
-
-        # now do the upload!
-        if len(to_upload) == 0:
-            print(f"No files to upload for {dirname}")
-            continue
         try:
             # print("Doing upload")
-            upload_client.upload(to_upload)
+            admix.upload(path, rse=rse, did=dataset_did)
         except:
             print(f"Upload of {dset_name} failed for some reason")
             raise
@@ -471,12 +432,11 @@ def main():
                 md = st.get_meta(runid_str, this_dtype)
                 chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
                 data_size_mb = np.sum(chunk_mb)
-                avg_data_size_mb = np.mean(chunk_mb)
 
                 # update runDB
                 new_data_dict = dict()
                 new_data_dict['location'] = rse
-                new_data_dict['did'] = dataset
+                new_data_dict['did'] = dataset_did
                 new_data_dict['status'] = 'transferred'
                 new_data_dict['host'] = "rucio-catalogue"
                 new_data_dict['type'] = this_dtype

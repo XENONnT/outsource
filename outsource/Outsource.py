@@ -10,6 +10,7 @@ import numpy as np
 from tqdm import tqdm
 import time
 import shutil
+import cutax
 
 from pprint import pprint
 
@@ -18,7 +19,6 @@ from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 from outsource.Shell import Shell
 from outsource.RunConfig import DEPENDS_ON
 
-from admix.interfaces.rucio_summoner import RucioSummoner
 
 # Pegasus environment
 sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
@@ -30,7 +30,6 @@ logger = logging.getLogger()
 
 DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"
 
-rc = RucioSummoner()
 db = DB()
 
 PER_CHUNK_DTYPES = ['records', 'peaklets', 'hitlets_nv']
@@ -187,8 +186,6 @@ class Outsource:
             tc.add_transformations(t)
 
         # scripts some exectuables might need
-        #preflightpy = File('pre-flight.py')
-        #rc.add_replica('local', 'pre-flight.py', 'file://' + base_dir + '/workflow/pre-flight.py')
 
         straxify = File('runstrax.py')
         rc.add_replica('local', 'runstrax.py', 'file://' + base_dir + '/workflow/runstrax.py')
@@ -202,6 +199,17 @@ class Outsource:
 
         token = File('.dbtoken')
         rc.add_replica('local', '.dbtoken', 'file://' + os.path.join(os.environ['HOME'], '.dbtoken'))
+
+        # cutax tarball
+        cutax_tarball = File('cutax.tar.gz')
+        if 'CUTAX_LOCATION' not in os.environ:
+            logger.warning("No CUTAX_LOCATION env variable found. Using the latest by default!")
+            tarball_path = '/xenon/xenonnt/software/cutax/latest.tar.gz'
+        else:
+            tarball_path = os.environ['CUTAX_LOCATION'].replace('.', '-') + '.tar.gz'
+            logger.warning(f"Using cutax: {tarball_path}")
+
+        rc.add_replica('local', 'cutax.tar.gz', tarball_path)
 
         iterator = self._dbcfgs if len(self._dbcfgs) == 1 else tqdm(self._dbcfgs)
 
@@ -275,22 +283,22 @@ class Outsource:
                     combine_job = self._job('combine', disk=30000)
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
-                    combine_job.add_inputs(combinepy, xenon_config)
+                    combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
+                    combine_output_tar = File(f'{dbcfg.number:06d}-{dtype}-combined.tar.gz')
+                    combine_job.add_outputs(combine_output_tar, stage_out=True)
                     combine_job.add_args(str(dbcfg.number),
                                          dtype,
                                          dbcfg.context_name,
-                                         dbcfg.cmt_global,
                                          str(dbcfg.upload_to_rucio).lower(),
                                          str(dbcfg.update_db).lower()
                                         )
 
                     wf.add_jobs(combine_job)
-                    combine_jobs[dtype] = combine_job
+                    combine_jobs[dtype] = (combine_job, combine_output_tar)
 
                     # add jobs, one for each input file
 
                     n_chunks = dbcfg.nchunks(dtype)
-                    print(n_chunks)
 
                     # hopefully temporary
                     if n_chunks is None:
@@ -322,7 +330,6 @@ class Outsource:
 
                             download_job.add_args(str(dbcfg.number),
                                          dbcfg.context_name,
-                                         dbcfg.cmt_global,
                                          dtype,
                                          data_tar,
                                          'download-only',
@@ -330,7 +337,7 @@ class Outsource:
                                          str(dbcfg.update_db).lower(),
                                          chunk_str,
                                         )
-                            download_job.add_inputs(straxify, xenon_config, token)
+                            download_job.add_inputs(straxify, xenon_config, token, cutax_tarball)
                             download_job.add_outputs(data_tar, stage_out=False)
                             wf.add_jobs(download_job)
                             #wf.add_dependency(download_job, parents=[pre_flight_job])
@@ -355,7 +362,6 @@ class Outsource:
 
                         job.add_args(str(dbcfg.number),
                                      dbcfg.context_name,
-                                     dbcfg.cmt_global,
                                      dtype,
                                      job_output_tar,
                                      'false' if not dbcfg.standalone_download else 'no-download',
@@ -364,7 +370,7 @@ class Outsource:
                                      chunk_str,
                                      )
 
-                        job.add_inputs(straxify, xenon_config, token)
+                        job.add_inputs(straxify, xenon_config, token, cutax_tarball)
                         job.add_outputs(job_output_tar, stage_out=True)
                         wf.add_jobs(job)
 
@@ -400,7 +406,6 @@ class Outsource:
                     # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                     job.add_args(str(dbcfg.number),
                                  dbcfg.context_name,
-                                 dbcfg.cmt_global,
                                  dtype,
                                  'no_output_here',
                                  'false' if not dbcfg.standalone_download else 'no-download',
@@ -408,22 +413,16 @@ class Outsource:
                                  str(dbcfg.update_db).lower()
                                  )
 
-                    job.add_inputs(straxify, xenon_config, token)
+                    job.add_inputs(straxify, xenon_config, token, cutax_tarball)
                     wf.add_jobs(job)
-
-                    # all strax jobs depend on the pre-flight one
-                    wf.add_dependency(job)
 
                     # if there are multiple levels to the workflow, need to have current strax-wrapper depend on
                     # previous combine
-                    parent_combines = []
                     for d in DEPENDS_ON[dtype]:
-                        if combine_jobs.get(d):
-                            parent_combines.append(combine_jobs.get(d))
-
-                    if len(parent_combines):
-                        wf.add_dependency(job, parents=parent_combines)
-
+                        if d in combine_jobs:
+                            cj, cj_output = combine_jobs[d]
+                            wf.add_dependency(job, parents=[cj])
+                            job.add_inputs(cj_output)
 
         # Write the wf to stdout
         os.chdir(self._generated_dir())
@@ -580,14 +579,6 @@ class Outsource:
         local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
         local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT='production')
 
-        # output site
-        # output = Site("output")
-        # _outputdir = f'/xenon/xenonnt/processing-scratch/outputs/{getpass.getuser()}'
-        # output_dir = Directory(Directory.LOCAL_STORAGE, path=_outputdir)
-        # output_dir.add_file_servers(FileServer('gsiftp://ceph-gridftp2.grid.uchicago.edu:2811/cephfs/srm' + _outputdir,
-        #                                        Operation.ALL))
-        # output.add_directories(output_dir)
-
         # staging site
         staging = Site("staging")
         scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/xenon_dcache/workflow_scratch/{}'.format(getpass.getuser()))
@@ -631,4 +622,3 @@ class Outsource:
                      condorpool)
 
         return sc
-
