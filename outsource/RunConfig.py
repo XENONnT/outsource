@@ -24,6 +24,15 @@ DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'event_info_double', 'peak_bas
                    'muon_veto': ['events_mv']
                    }
 
+# these are datetypes to look for in runDB
+ACTUALLY_STORED = {'event_info_double': ['event_info', 'distinct_channels', 'event_pattern_fit'],
+                   'peak_basics_he': ['peak_basics_he'],
+                   'event_positions_nv': ['event_positions_nv'],
+                   'peaklets': ['peaklets', 'lone_hits'],
+                   'hitlets_nv': ['hitlets_nv'],
+                   'events_mv': ['events_mv']
+                   }
+
 
 RUCIO_CLIENT = Client()
 db = DB()
@@ -174,12 +183,16 @@ class DBConfig(RunConfig):
         requested_dtypes = [dtype for dtype in requested_dtypes if dtype in possible_dtypes]
 
         ret = []
-        for dtype in requested_dtypes:
-            hash = self.hashes[dtype]
-            rses = db.get_rses(self._number, dtype, hash)
-            # if this data is not on any rse, reprocess it, or we are asking for a rerun
-            if len(rses) == 0 or self._force_rerun:
-                ret.append(dtype)
+        for category in requested_dtypes:
+            dtypes_already_processed = []
+            for dtype in ACTUALLY_STORED[category]:
+                hash = self.hashes[dtype]
+                rses = db.get_rses(self._number, dtype, hash)
+                # if this data is not on any rse, reprocess it, or we are asking for a rerun
+                dtypes_already_processed.append(len(rses) > 0)
+            if not all(dtypes_already_processed) or self._force_rerun:
+                ret.append(category)
+
         return ret
 
     def rse_data_find(self):
@@ -202,13 +215,12 @@ class DBConfig(RunConfig):
         # get the dtype this one depends on
         dtype = self.depends_on(dtype)[0]
         hash = self.hashes[dtype]
-        for d in self.run_data:
-            if d['type'] == dtype and hash in d.get('did', '_not_a_hash_'):
-                if 'meta' in d:
-                    if 'file_count' in d['meta']:
-                        if d['meta']['file_count'] is not None:
-                            # one file is the metadata, so subtract
-                            return d['meta']['file_count'] - 1
+        did = f"xnt_{self._number:06d}:{dtype}-{hash}"
+        scope, name = did.split(':')
+        files = RUCIO_CLIENT.list_files(scope, name)
+        files = [f for f in files if 'metadata' not in f['name']]
+        return len(files)
+
 
     def _raw_data_exists(self, raw_type='raw_records'):
         """Returns a boolean for whether or not raw data exists in rucio and is accessible"""

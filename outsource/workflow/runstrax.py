@@ -38,8 +38,8 @@ ignore_dtypes = ['records',
                  'lone_raw_records_nv',
                  'raw_records_coin_nv',
                  'lone_raw_record_statistics_nv',
-                 'records_he'
-                 'records_mv'
+                 'records_he',
+                 'records_mv',
                  ]
 
 # these dtypes should always be made at the same time:
@@ -89,7 +89,6 @@ def find_data_to_download(runid, target, st):
 
         # download all the required datatypes to produce this output file
         for in_dtype in _plugin.depends_on:
-            #print(f'\t{in_dtype}')
             # get hash for this dtype
             hash = hashes.get(in_dtype)
             rses = [d['location'] for d in data if (d['type'] == in_dtype and
@@ -123,6 +122,7 @@ def process(runid,
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
+    plugin.chunk_target_size_mb = 1000
 
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
@@ -240,11 +240,11 @@ def main():
 
     to_download = list(set(to_download))
 
-    rse = None
-    # temporary hack to include SDSC
-    if os.environ.get("GLIDEIN_ResourceName", "not_expanse") == "SDSC-Expanse":
-        print("On Expanse! Will attempt to download from SDSC")
-        rse = 'SDSC_USERDISK'
+    # rse = None
+    # # temporary hack to include SDSC
+    # if os.environ.get("GLIDEIN_ResourceName", "not_expanse") == "SDSC-Expanse":
+    #     print("On Expanse! Will attempt to download from SDSC")
+    #     rse = 'SDSC_USERDISK'
 
     if not args.no_download:
         t0 = time.time()
@@ -254,9 +254,8 @@ def main():
                 # download the input data
                 if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
                     admix.download(runid, in_dtype, hash,
-                                   chunks=args.chunks, location=data_dir, rse=rse)
+                                   chunks=args.chunks, location=data_dir)
         else:
-
             for in_dtype, hash in to_download:
                 if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
                     admix.download(runid, in_dtype, hash, location=data_dir)
@@ -363,7 +362,8 @@ def main():
             continue
 
         # based on the dtype and the utilix config, where should this data go?
-        if this_dtype in ['records', 'pulse_counts', 'veto_regions']:
+        if this_dtype in ['records', 'pulse_counts', 'veto_regions', 'records_nv',
+                          'records_he']:
             rse = uconfig.get('Outsource', 'records_rse')
         elif this_dtype in ['peaklets', 'lone_hits']:
             rse = uconfig.get('Outsource', 'peaklets_rse')
@@ -443,7 +443,8 @@ def main():
                      did_name=f,
                      dataset_scope=scope,
                      dataset_name=dset_name,
-                     rse=rse
+                     rse=rse,
+                     register_after_upload=True
                      )
             to_upload.append(d)
 

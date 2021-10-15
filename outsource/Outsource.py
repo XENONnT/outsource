@@ -68,7 +68,7 @@ class Outsource:
     # jobs details for a given datatype
     job_kwargs = {'records': dict(name='records', memory=3000),
                   'peaklets': dict(name='peaklets', memory=3000),
-                  'event_info_double': dict(name='events', memory=12000, disk=20000, cores=4),
+                  'event_info_double': dict(name='events', memory=14000, disk=20000, cores=2),
                   'peak_basics_he': dict(name='peaksHE', memory=5000, cores=4),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
                   'event_positions_nv': dict(name='nv_events', memory=5000, disk=20000),
@@ -290,6 +290,8 @@ class Outsource:
                     # add jobs, one for each input file
 
                     n_chunks = dbcfg.nchunks(dtype)
+                    print(n_chunks)
+
                     # hopefully temporary
                     if n_chunks is None:
                         scope = 'xnt_%06d' % dbcfg.number
