@@ -32,10 +32,10 @@ if [ "X${update_db}" = "Xtrue" ]; then
     extraflags="$extraflags --update-db"
 fi
 
-#. /opt/XENONnT/setup.sh
+# . /opt/XENONnT/setup.sh
 
 # sleep random amount of time to spread out e.g. API calls and downloads
-sleep $[ ( $RANDOM % 20 )  + 1 ]s
+# sleep $[ ( $RANDOM % 20 )  + 1 ]s
 
 
 # set GLIDEIN_Country variable if not already
@@ -82,6 +82,21 @@ tar -xzf cutax.tar.gz -C cutax --strip-components=1
 pip install ./cutax --user --no-deps -qq
 python -c "import cutax; print(cutax.__file__)"
 
+
+# see if we have any input tarballs
+echo "--- Checking if we have any input tarballs ---"
+runid_pad=`printf %06d $run_id`
+if [ -f ./$runid_pad*.tar.gz ]; then
+  mkdir data
+  for tarball in $(ls $runid_pad*.tar.gz)
+  do
+    echo "Untarring input: $tarball"
+    tar xzf $tarball -C data --strip-components=1
+  done
+fi
+echo
+
+exit
 echo 'Processing now...'
 
 chunkarg=""

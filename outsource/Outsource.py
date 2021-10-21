@@ -284,11 +284,13 @@ class Outsource:
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
-                    combine_output_tar = File(f'{dbcfg.number:06d}-{dtype}-combined.tar.gz')
+                    combine_output_tar_name = f'{dbcfg.number:06d}-{dtype}-combined.tar.gz'
+                    combine_output_tar = File(combine_output_tar_name)
                     combine_job.add_outputs(combine_output_tar, stage_out=True)
                     combine_job.add_args(str(dbcfg.number),
                                          dtype,
                                          dbcfg.context_name,
+                                         combine_output_tar_name,
                                          str(dbcfg.upload_to_rucio).lower(),
                                          str(dbcfg.update_db).lower()
                                         )

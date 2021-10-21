@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-# import logging
-# logging.basicConfig(level='DEBUG')
 import argparse
 import os
 import shutil
@@ -8,13 +6,11 @@ import numpy as np
 import strax
 import straxen
 import datetime
-from admix.utils.naming import make_did
-from admix.interfaces.rucio_summoner import RucioSummoner
+import admix
 import rucio
-from rucio.client.client import Client
-from rucio.client.uploadclient import UploadClient
 from utilix import DB, uconfig
 from immutabledict import immutabledict
+import cutax
 
 db = DB()
 
@@ -35,7 +31,7 @@ def merge(runid_str, # run number padded with 0s
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    plugin.chunk_target_size_mb = 1000
+    # plugin.chunk_target_size_mb = 1000
 
     for keystring in plugin.provides:
         key = strax.DataKey(runid_str, keystring, plugin.lineage)
@@ -82,7 +78,6 @@ def main():
     parser.add_argument('dtype', help='dtype to combine')
     parser.add_argument('--context', help='Strax context')
     parser.add_argument('--input', help='path where the temp directory is')
-    parser.add_argument('--cmt', help='CMT global version')
     parser.add_argument('--update-db', help='flag to update runsDB', dest='update_db',
                         action='store_true')
     parser.add_argument('--upload-to-rucio', help='flag to upload to rucio', dest='upload_to_rucio',
@@ -97,7 +92,7 @@ def main():
     final_path = 'finished_data'
 
     # get context
-    st = getattr(straxen.contexts, args.context)(args.cmt)
+    st = getattr(cutax.contexts, args.context)()
     st.storage = [strax.DataDirectory('./'),
                   strax.DataDirectory(final_path) # where we are copying data to
                   ]
@@ -130,13 +125,10 @@ def main():
     # need to patch the storage one last time
     st.storage = [strax.DataDirectory(final_path)]
 
-    updonkey = UploadClient()
-    donkey = Client()
-
     for this_dir in os.listdir(final_path):
         # prepare list of dicts to be uploaded
         _run, keystring, straxhash = this_dir.split('-')
-        dataset_did = make_did(runid, keystring, straxhash)
+        dataset_did = admix.utils.make_did(runid, keystring, straxhash)
         scope, dset_name = dataset_did.split(':')
 
         # based on the dtype and the utilix config, where should this data go?
@@ -150,55 +142,30 @@ def main():
         files = os.listdir(os.path.join(final_path, this_dir))
         to_upload = []
 
-        existing_files = [f for f in donkey.list_dids(scope, {'type': 'file'}, type='file')]
+        existing_files = [f for f in admix.rucio.rucio_client.list_dids(scope, {'type': 'file'}, type='file')]
         existing_files = [f for f in existing_files if dset_name in f]
 
         try:
-            existing_files_in_dataset = [f['name'] for f in donkey.list_files(scope, dset_name)]
+            existing_files_in_dataset = admix.rucio.list_files(dataset_did)
         except rucio.common.exception.DataIdentifierNotFound:
             existing_files_in_dataset = []
-
 
         # for some reason files get uploaded but not attached correctly
         need_attached = list(set(existing_files) - set(existing_files_in_dataset))
 
         if len(need_attached) > 0:
-            dids_to_attach = [dict(scope=scope, name=name) for name in need_attached]
+            dids_to_attach = [f"{scope}:{name}" for name in need_attached]
+            admix.rucio.attach(dataset_did, dids_to_attach)
 
-            donkey.attach_dids(scope, dset_name, dids_to_attach)
-
-        for f in files:
-            if f in existing_files:
-                print(f"Skipping {f} since it is already uploaded")
-                continue
-
-            this_path = os.path.join(final_path, this_dir, f)
-            d = dict(path=this_path,
-                     did_scope=scope,
-                     did_name=f,
-                     dataset_scope=scope,
-                     dataset_name=dset_name,
-                     rse=rse
-                     )
-            to_upload.append(d)
-
-        # now do the upload!
-        if len(to_upload) == 0:
-            print(f"No files to upload for {this_dir}")
-            continue
-
-        # now do the upload!
-        try:
-            updonkey.upload(to_upload)
-        except:
-            print(f'Upload of {keystring} failed')
-            raise
-        print(f"Upload of {len(files)} files in {this_dir} finished successfully")
-        for f in files:
-            print(f"{scope}:{f}")
+        this_path = os.path.join(final_path, this_dir)
+        admix.upload(this_path, rse=rse, did=dataset_did)
 
         # now check the rucio data matche what we expect
-        rucio_files = [f for f in donkey.list_files(scope, dset_name)]
+        rucio_files = admix.rucio.list_files(dataset_did)
+
+        # make sure the rule status is okay
+        rules = admix.rucio.list_rules(dataset_did, state='OK', rse=rse)
+        assert len(rules) > 0, f"Error uploading {dataset_did}"
 
         # how many chunks?
         md = st.get_meta(runid_str, keystring)
@@ -222,59 +189,38 @@ def main():
         data_size_mb = np.sum(chunk_mb)
         avg_data_size_mb = np.mean(chunk_mb)
 
-        # let's do one last check of the rule
-        rc = RucioSummoner()
+        if args.update_db:
+            # update runDB
+            new_data_dict = dict()
+            new_data_dict['location'] = rse
+            new_data_dict['did'] = dataset_did
+            new_data_dict['status'] = 'transferred'
+            new_data_dict['host'] = "rucio-catalogue"
+            new_data_dict['type'] = keystring
+            new_data_dict['protocol'] = 'rucio'
+            new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
+            new_data_dict['creation_place'] = "OSG"
+            new_data_dict['meta'] = dict(#lineage=plugin.lineage_hash,
+                                         avg_chunk_mb=avg_data_size_mb,
+                                         file_count=len(rucio_files),
+                                         size_mb=data_size_mb,
+                                         strax_version=strax.__version__,
+                                         straxen_version=straxen.__version__
+                                         )
 
-        rses = [rse]
-        # if (keystring not in ['records', 'veto_regions', 'pulse_counts']
-        #         and "UC_DALI_USERDISK" not in rses):
-        #     rses.append('UC_DALI_USERDISK')
+            db.update_data(runid, new_data_dict)
 
-
-        for rse in rses:
-            rule = rc.GetRule(dataset_did, rse)
-            if rule['state'] == 'OK':
-                status = 'transferred'
-            elif rule['state'] == 'REPLICATING':
-                status = 'transferring'
-            else:
-                status = 'error'
-
-            if args.update_db:
-                # update runDB
-                new_data_dict = dict()
-                new_data_dict['location'] = rse
-                new_data_dict['did'] = dataset_did
-                new_data_dict['status'] = status
-                new_data_dict['host'] = "rucio-catalogue"
-                new_data_dict['type'] = keystring
-                new_data_dict['protocol'] = 'rucio'
-                new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
-                new_data_dict['creation_place'] = "OSG"
-                #new_data_dict['file_count'] = file_count
-                new_data_dict['meta'] = dict(#lineage=plugin.lineage_hash,
-                                             avg_chunk_mb=avg_data_size_mb,
-                                             file_count=len(rucio_files),
-                                             size_mb=data_size_mb,
-                                             strax_version=strax.__version__,
-                                             straxen_version=straxen.__version__
-                                             )
-
-                db.update_data(runid, new_data_dict)
-
-
-                print(f"Database updated for {keystring} at {rse}")
-            else:
-                print("Skipping database update.")
+            print(f"Database updated for {keystring} at {rse}")
+        else:
+            print("Skipping database update.")
 
 
         # if everything is good, let's close the dataset
         # this will make it so no more data can be added to this dataset
-        if status == 'transferred':
-            try:
-                donkey.close(scope, dset_name)
-            except:
-                print(f"Closing {scope}:{dset_name} failed")
+        try:
+            admix.rucio.rucio_client.close(scope, dset_name)
+        except:
+            print(f"Closing {scope}:{dset_name} failed")
 
 
 if __name__ == "__main__":

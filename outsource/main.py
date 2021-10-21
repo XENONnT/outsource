@@ -13,7 +13,6 @@ def main():
     parser.add_argument('--run', type=int)
     parser.add_argument('--runlist', type=str, help='path to runlist')
     parser.add_argument('--context', default='xenonnt')
-    parser.add_argument('--cmt', default='global_ONLINE')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--force', action='store_true')
     parser.add_argument('--name', help='Custom name of workflow directory. If not passed, inferred from run/runlist')
@@ -37,7 +36,7 @@ def main():
 
     configs = []
     for run in tqdm(runlist, desc="Building configs for the passed run(s)"):
-        configs.append(DBConfig(run, context_name=args.context, cmt_version=args.cmt,
+        configs.append(DBConfig(run, context_name=args.context,
                         force_rerun=args.force, upload_to_rucio=upload_to_rucio, update_db=update_db
                         )
                        )

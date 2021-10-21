@@ -5,7 +5,7 @@ set -e
 runid=$1
 dtype=$2
 context=$3
-cmt=$4
+output=$4
 update_db=$5
 upload_to_rucio=$6
 
@@ -44,11 +44,20 @@ echo
 export XENON_CONFIG=$PWD/.xenon_config
 export RUCIO_ACCOUNT=production
 
+echo "--- Installing cutax ---"
+mkdir cutax
+tar -xzf cutax.tar.gz -C cutax --strip-components=1
+pip install ./cutax --user --no-deps -qq
+python -c "import cutax; print(cutax.__file__)"
+
 
 # combine the data
-time ./combine.py ${runid} ${dtype} --input data --context ${context} --cmt ${cmt} ${combine_extra_args}
+time ./combine.py ${runid} ${dtype} --input data --context ${context} ${combine_extra_args}
 
 # check data dir again
 echo "data dir:"
 ls -l data
+
+# tar up the output
+tar czfv ${output} finished_data
 

@@ -215,8 +215,8 @@ class DBConfig(RunConfig):
         hash = self.hashes[dtype]
         did = f"xnt_{self._number:06d}:{dtype}-{hash}"
         files = admix.rucio.list_files(did)
-        files = [f for f in files if 'metadata' not in f['name']]
-        return len(files)
+        # subtract 1 for metadata
+        return len(files) - 1
 
 
     def _raw_data_exists(self, raw_type='raw_records'):

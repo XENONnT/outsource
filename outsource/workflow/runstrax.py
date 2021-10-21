@@ -117,7 +117,7 @@ def process(runid,
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
-    plugin.chunk_target_size_mb = 1000
+    #plugin.chunk_target_size_mb = 1000
 
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
@@ -332,10 +332,6 @@ def main():
         print(d)
     print("------------------------\n")
 
-    if not args.upload_to_rucio:
-        print("Ignoring rucio upload. Exiting. ")
-        return
-
     for dirname in processed_data:
         # get rucio dataset
         this_run, this_dtype, this_hash = dirname.split('-')
@@ -344,6 +340,10 @@ def main():
         if this_dtype in ignore_dtypes:
             print(f"Removing {this_dtype} instead of uploading")
             shutil.rmtree(os.path.join(data_dir, dirname))
+            continue
+
+        if not args.upload_to_rucio:
+            print("Ignoring rucio upload")
             continue
 
         # based on the dtype and the utilix config, where should this data go?
