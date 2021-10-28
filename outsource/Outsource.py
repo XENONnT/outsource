@@ -610,6 +610,8 @@ class Outsource:
                                 value="((JobStatus == 2) && ((CurrentTime - EnteredCurrentStatus) > 18000)) || "
                                       "((JobStatus == 5) && ((CurrentTime - EnteredCurrentStatus) > 30)) "
                                 )
+        condorpool.add_profiles(Namespace.CONDOR, key='+ProjectName', value='"xenon1t"')
+        
         if self.xsede:
             condorpool.add_profiles(Namespace.CONDOR, key='+Desired_Allocations', value='"Expanse"')
 
