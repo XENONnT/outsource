@@ -4,13 +4,12 @@
 args=( "$@" )
 export run_id=$1
 export context=$2
-export cmt=$3
-export output_dtype=$4
-export output_tar=$5
-export standalone_download=$6
-export upload_to_rucio=$7
-export update_db=$8
-export chunks=${args[@]:8}
+export output_dtype=$3
+export output_tar=$4
+export standalone_download=$5
+export upload_to_rucio=$6
+export update_db=$7
+export chunks=${args[@]:7}
 
 echo $@
 
@@ -76,6 +75,27 @@ if [ "X${standalone_download}" = "Xno-download" ]; then
     tar xzf *-data-*.tar.gz
 fi
 
+
+echo "--- Installing cutax ---"
+mkdir cutax
+tar -xzf cutax.tar.gz -C cutax --strip-components=1
+pip install ./cutax --user --no-deps -qq
+python -c "import cutax; print(cutax.__file__)"
+
+
+# see if we have any input tarballs
+echo "--- Checking if we have any input tarballs ---"
+runid_pad=`printf %06d $run_id`
+if [ -f ./$runid_pad*.tar.gz ]; then
+  mkdir data
+  for tarball in $(ls $runid_pad*.tar.gz)
+  do
+    echo "Untarring input: $tarball"
+    tar xzf $tarball -C data --strip-components=1
+  done
+fi
+echo
+
 echo 'Processing now...'
 
 chunkarg=""
@@ -84,7 +104,7 @@ then
   chunkarg="--chunks ${chunks}"
 fi
 
-./runstrax.py ${run_id} --output ${output_dtype} --context ${context} --cmt ${cmt} ${extraflags} ${chunkarg}
+./runstrax.py ${run_id} --output ${output_dtype} --context ${context} ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then 
