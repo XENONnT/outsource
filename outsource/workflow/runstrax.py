@@ -55,12 +55,13 @@ def get_bottom_dtypes(dtype):
     else:
         return ('peaklets', 'lone_hits')
 
+
 def get_hashes(st):
     return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
 
 
 def find_data_to_download(runid, target, st):
-    runid_str = str(runid)
+    runid_str = str(runid).zfill(6)
     hashes = get_hashes(st)
     bottoms = get_bottom_dtypes(target)
 
@@ -90,7 +91,10 @@ def find_data_to_download(runid, target, st):
                                                hash in d['did']
                                                )
                     ]
-            if len(rses) == 0:
+            # for checking if local path exists
+            local_path = os.path.join(st.storage[0].path, f'{runid:06d}-{in_dtype}-{hash}')
+
+            if len(rses) == 0 and not os.path.exists(local_path):
                 # need to download data to make ths one
                 find_data(in_dtype)
             else:
@@ -117,7 +121,7 @@ def process(runid,
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
-    #plugin.chunk_target_size_mb = 1000
+    plugin.chunk_target_size_mb = 500
 
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
@@ -144,12 +148,22 @@ def process(runid,
             savers[keystring] = saver
 
         # setup a few more variables
-        # TODO not sure exactly how this works when an output plugin depends on >1 plugin
-        # maybe that doesn't matter?
         in_dtype = plugin.depends_on[0]
         input_metadata = st.get_metadata(runid_str, in_dtype)
         input_key = strax.DataKey(runid_str, in_dtype, input_metadata['lineage'])
-        backend = st.storage[0].backends[0]
+        backend = None
+        backend_key = None
+
+        for sf in st.storage:
+            try:
+                backend_name, backend_key = sf.find(input_key)
+                backend = sf._get_backend(backend_name)
+            except strax.DataNotAvailable:
+                pass
+
+        if backend is None:
+            raise strax.DataNotAvailable("We could not find data for ", input_key)
+
         dtype = literal_eval(input_metadata['dtype'])
         chunk_kwargs = dict(data_type=input_metadata['data_type'],
                             data_kind=input_metadata['data_kind'],
@@ -163,7 +177,7 @@ def process(runid,
                     chunk_info = chunk_md
                     break
             assert chunk_info is not None, f"Could not find chunk_id: {chunk}"
-            in_data = backend._read_and_format_chunk(backend_key=st.storage[0].find(input_key)[1],
+            in_data = backend._read_and_format_chunk(backend_key=backend_key,
                                                      metadata=input_metadata,
                                                      chunk_info=chunk_info,
                                                      dtype=dtype,
@@ -219,7 +233,7 @@ def main():
     # get context
     st = getattr(cutax.contexts, args.context)()
     st.storage = [strax.DataDirectory(data_dir),
-                  straxen.rucio.RucioFrontend(include_remote=True, download_heavy=False, staging_dir=data_dir)
+                  straxen.rucio.RucioFrontend(include_remote=True, download_heavy=True, staging_dir=data_dir)
                  ]
 
     runid = args.dataset
@@ -227,6 +241,7 @@ def main():
     out_dtype = args.output
 
     to_download = find_data_to_download(runid, out_dtype, st)
+
     for buddies in buddy_dtypes:
         if out_dtype in buddies:
             for other_dtype in buddies:
@@ -242,12 +257,24 @@ def main():
                 # download the input data
                 if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
                     did = admix.utils.make_did(runid, in_dtype, hash)
-                    admix.download(did, chunks=args.chunks, location=data_dir)
+                    try:
+                        print(f"Downloading {did}")
+                        admix.download(did, chunks=args.chunks, location=data_dir)
+                    except admix.downloader.RucioDownloadError:
+                        print("First download attempt failed. Sleeping 30s and trying again")
+                        time.sleep(30)
+                        admix.download(did, chunks=args.chunks, location=data_dir)
         else:
             for in_dtype, hash in to_download:
                 if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
                     did = admix.utils.make_did(runid, in_dtype, hash)
-                    admix.download(did, location=data_dir)
+                    try:
+                        print(f"Downloading {did}")
+                        admix.download(did, location=data_dir)
+                    except admix.downloader.RucioDownloadError:
+                        print("First download attempt failed. Sleeping 30s and trying again")
+                        time.sleep(30)
+                        admix.download(did, location=data_dir)
 
         download_time = time.time() - t0 # seconds
         print(f"=== Download time (minutes): {download_time/60:0.2f}")
@@ -281,6 +308,9 @@ def main():
                         to_process = [dependency] + to_process
                     new_intermediates.append(dependency)
         intermediates = new_intermediates
+
+    # remove any raw data
+    to_process = [dtype for dtype in to_process if dtype not in admix.utils.RAW_DTYPES]
 
     missing = [d for d in to_process if d != args.output]
     missing_str = ', '.join(missing)
@@ -411,7 +441,7 @@ def main():
                 admix.rucio.attach(dataset_did, dids_to_attach)
 
         except rucio.common.exception.DataIdentifierNotFound:
-            existing_files = []
+            pass
 
         path = os.path.join(data_dir, dirname)
 

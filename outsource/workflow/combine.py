@@ -31,7 +31,7 @@ def merge(runid_str, # run number padded with 0s
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    # plugin.chunk_target_size_mb = 1000
+    plugin.chunk_target_size_mb = 500
 
     for keystring in plugin.provides:
         key = strax.DataKey(runid_str, keystring, plugin.lineage)
@@ -139,8 +139,6 @@ def main():
         else:
             rse = uconfig.get('Outsource', 'events_rse')
 
-        files = os.listdir(os.path.join(final_path, this_dir))
-        to_upload = []
 
         existing_files = [f for f in admix.rucio.rucio_client.list_dids(scope, {'type': 'file'}, type='file')]
         existing_files = [f for f in existing_files if dset_name in f]
@@ -164,7 +162,7 @@ def main():
         rucio_files = admix.rucio.list_files(dataset_did)
 
         # make sure the rule status is okay
-        rules = admix.rucio.list_rules(dataset_did, state='OK', rse=rse)
+        rules = admix.rucio.list_rules(dataset_did, state='OK', rse_expression=rse)
         assert len(rules) > 0, f"Error uploading {dataset_did}"
 
         # how many chunks?
@@ -175,13 +173,14 @@ def main():
         # we should have n+1 files in rucio (counting metadata)
         if len(rucio_files) != expected_chunks + 1:
             # we're missing some data, uh oh
-            successful_chunks = set([int(f['name'].split('-')[-1]) for f in rucio_files])
+            successful_chunks = set([int(f.split('-')[-1]) for f in rucio_files])
             expected_chunks = set(np.arange(expected_chunks))
 
             missing_chunks = expected_chunks - successful_chunks
 
             missing_chunk_str = '/n'.join(missing_chunks)
-            raise RuntimeError(f"File mismatch! There are {len(rucio_files)} but the metadata thinks there "
+            raise RuntimeError(f"File mismatch in {this_dir}! "
+                               f"There are {len(rucio_files)} but the metadata thinks there "
                                f"should be {expected_chunks} chunks + 1 metadata. "
                                f"The missing chunks are:\n{missing_chunk_str}")
 

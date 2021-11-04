@@ -32,10 +32,10 @@ if [ "X${update_db}" = "Xtrue" ]; then
     extraflags="$extraflags --update-db"
 fi
 
-# . /opt/XENONnT/setup.sh
+. /opt/XENONnT/setup.sh
 
 # sleep random amount of time to spread out e.g. API calls and downloads
-# sleep $[ ( $RANDOM % 20 )  + 1 ]s
+sleep $[ ( $RANDOM % 20 )  + 1 ]s
 
 
 # set GLIDEIN_Country variable if not already
@@ -96,7 +96,6 @@ if [ -f ./$runid_pad*.tar.gz ]; then
 fi
 echo
 
-exit
 echo 'Processing now...'
 
 chunkarg=""
