@@ -231,9 +231,10 @@ def main():
     #     rmtree(data_dir)
 
     # get context
-    st = getattr(cutax.contexts, args.context)()
+    st = getattr(cutax.contexts, args.context)(_include_rucio_remote=True)
     st.storage = [strax.DataDirectory(data_dir),
-                  straxen.rucio.RucioFrontend(include_remote=True, download_heavy=True, staging_dir=data_dir)
+                  straxen.rucio.RucioFrontend(include_remote=True, download_heavy=True,
+                                              staging_dir=os.path.join(data_dir, 'rucio'))
                  ]
 
     runid = args.dataset
@@ -242,6 +243,10 @@ def main():
 
     to_download = find_data_to_download(runid, out_dtype, st)
 
+    # see if we have rucio local frontend
+    # if we do, it's probably more efficient to download data through the rucio frontend
+
+
     for buddies in buddy_dtypes:
         if out_dtype in buddies:
             for other_dtype in buddies:
@@ -249,35 +254,35 @@ def main():
                     continue
                 to_download.extend(find_data_to_download(runid, other_dtype, st))
 
-    if not args.no_download:
-        t0 = time.time()
-        # download all the required datatypes to produce this output file
-        if args.chunks:
-            for in_dtype, hash in to_download:
-                # download the input data
-                if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                    did = admix.utils.make_did(runid, in_dtype, hash)
-                    try:
-                        print(f"Downloading {did}")
-                        admix.download(did, chunks=args.chunks, location=data_dir)
-                    except admix.downloader.RucioDownloadError:
-                        print("First download attempt failed. Sleeping 30s and trying again")
-                        time.sleep(30)
-                        admix.download(did, chunks=args.chunks, location=data_dir)
-        else:
-            for in_dtype, hash in to_download:
-                if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-                    did = admix.utils.make_did(runid, in_dtype, hash)
-                    try:
-                        print(f"Downloading {did}")
-                        admix.download(did, location=data_dir)
-                    except admix.downloader.RucioDownloadError:
-                        print("First download attempt failed. Sleeping 30s and trying again")
-                        time.sleep(30)
-                        admix.download(did, location=data_dir)
+    # if not args.no_download:
+    #     t0 = time.time()
+    #     # download all the required datatypes to produce this output file
+    #     if args.chunks:
+    #         for in_dtype, hash in to_download:
+    #             # download the input data
+    #             if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
+    #                 did = admix.utils.make_did(runid, in_dtype, hash)
+    #                 try:
+    #                     print(f"Downloading {did}")
+    #                     admix.download(did, chunks=args.chunks, location=data_dir)
+    #                 except admix.downloader.RucioDownloadError:
+    #                     print("First download attempt failed. Sleeping 30s and trying again")
+    #                     time.sleep(30)
+    #                     admix.download(did, chunks=args.chunks, location=data_dir)
+    #     else:
+    #         for in_dtype, hash in to_download:
+    #             if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
+    #                 did = admix.utils.make_did(runid, in_dtype, hash)
+    #                 try:
+    #                     print(f"Downloading {did}")
+    #                     admix.download(did, location=data_dir)
+    #                 except admix.downloader.RucioDownloadError:
+    #                     print("First download attempt failed. Sleeping 30s and trying again")
+    #                     time.sleep(30)
+    #                     admix.download(did, location=data_dir)
 
-        download_time = time.time() - t0 # seconds
-        print(f"=== Download time (minutes): {download_time/60:0.2f}")
+    #    download_time = time.time() - t0 # seconds
+    #    print(f"=== Download time (minutes): {download_time/60:0.2f}")
 
     # initialize plugin needed for processing this output type
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
@@ -290,11 +295,11 @@ def main():
         if args.output in buddies:
             to_process = list(buddies)
 
-    # keep track of the data we just downloaded -- will be important for the upload step later
-    downloaded_data = os.listdir(data_dir)
-    downloaded = [d.split('-')[1] for d in downloaded_data]
+    # keep track of the data we can download now -- will be important for the upload step later
+    available_dtypes = st.available_for_run(runid_str)
+    available_dtypes = available_dtypes[available_dtypes.is_stored].target.values.tolist()
 
-    missing = set(plugin.depends_on) - set(downloaded)
+    missing = set(plugin.depends_on) - set(available_dtypes)
     intermediates = missing.copy()
     to_process = list(intermediates) + to_process
 
@@ -303,7 +308,7 @@ def main():
         for _dtype in intermediates:
             _plugin = st._get_plugins((_dtype,), runid_str)[_dtype]
             for dependency in _plugin.depends_on:
-                if dependency not in downloaded:
+                if dependency not in available_dtypes:
                     if dependency not in to_process:
                         to_process = [dependency] + to_process
                     new_intermediates.append(dependency)
@@ -316,8 +321,8 @@ def main():
     missing_str = ', '.join(missing)
     print(f"Need to create intermediate data: {missing_str}")
 
-    print("--Downloaded data--")
-    for dd in downloaded_data:
+    print("--Available data--")
+    for dd in available_dtypes:
         print(dd)
     print("-------------------\n")
 
@@ -355,8 +360,11 @@ def main():
     # otherwise, we just upload the chunks
     upload_meta = args.chunks is None
 
+    # remove rucio directory
+    rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
+
     # now loop over datatypes we just made and upload the data
-    processed_data = [d for d in os.listdir(data_dir) if d not in downloaded_data]
+    processed_data = [d for d in os.listdir(data_dir)]
     print("---- Processed data ----")
     for d in processed_data:
         print(d)
