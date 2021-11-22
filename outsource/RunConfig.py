@@ -44,32 +44,12 @@ def get_hashes(st):
 
 class RunConfigBase:
     """Base class that sets the defaults"""
-
-    _update_db = False
-    _upload_to_rucio = False
     _force_rerun = False
     _standalone_download = False 
     _x509_proxy = os.path.join(os.environ['HOME'], 'user_cert')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
     _chunks_per_job = 25
-    _staging_site = 'staging'
-
-    #@property
-    def rundb_arg(self):
-        return "--update-db" if self._update_db else ""
-
-    #@property
-    def rucio_arg(self):
-        return "--upload-to-rucio" if self._upload_to_rucio else ""
-    
-    @property
-    def update_db(self):
-        return self._update_db
-    
-    @property
-    def upload_to_rucio(self):
-        return self._upload_to_rucio
 
     @property
     def force_rerun(self):
@@ -90,10 +70,6 @@ class RunConfigBase:
     @property
     def output_location(self):
         return self._output_location
-    
-    @property
-    def staging_site(self):
-        return self._staging_site
 
 
 class RunConfig(RunConfigBase):
@@ -134,20 +110,17 @@ class DBConfig(RunConfig):
     """Uses runDB to build _dbcfgs info"""
     needs_processed = None
 
-    def __init__(self, number, context_name, **kwargs):
+    def __init__(self, number, st, **kwargs):
         self._number = number
         self.run_data = db.get_data(number)
-        # setup context
-        st = getattr(cutax.contexts, context_name)()
-        st.storage = []
-        st.context_config['forbid_creation_of'] = straxen.daqreader.DAQReader.provides
 
-        self.context_name = context_name
         self.context = st
         self.hashes = get_hashes(st)
 
-        # get the detectors that were on during this run
-        self.detectors = coll.find_one({'number': number}, {'detectors': 1, '_id': 0})['detectors']
+        # get the detectors and start time of this run
+        cursor = coll.find_one({'number': number}, {'detectors': 1, 'start': 1, '_id': 0})
+        self.detectors = cursor['detectors']
+        self.start = cursor['start']
         assert isinstance(self.detectors, list), \
             f"Detectors needs to be a list, not a {type(self.detectors)}"
 
@@ -217,7 +190,6 @@ class DBConfig(RunConfig):
         files = admix.rucio.list_files(did)
         # subtract 1 for metadata
         return len(files) - 1
-
 
     def _raw_data_exists(self, raw_type='raw_records'):
         """Returns a boolean for whether or not raw data exists in rucio and is accessible"""

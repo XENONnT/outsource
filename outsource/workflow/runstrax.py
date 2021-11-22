@@ -254,35 +254,6 @@ def main():
                     continue
                 to_download.extend(find_data_to_download(runid, other_dtype, st))
 
-    # if not args.no_download:
-    #     t0 = time.time()
-    #     # download all the required datatypes to produce this output file
-    #     if args.chunks:
-    #         for in_dtype, hash in to_download:
-    #             # download the input data
-    #             if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-    #                 did = admix.utils.make_did(runid, in_dtype, hash)
-    #                 try:
-    #                     print(f"Downloading {did}")
-    #                     admix.download(did, chunks=args.chunks, location=data_dir)
-    #                 except admix.downloader.RucioDownloadError:
-    #                     print("First download attempt failed. Sleeping 30s and trying again")
-    #                     time.sleep(30)
-    #                     admix.download(did, chunks=args.chunks, location=data_dir)
-    #     else:
-    #         for in_dtype, hash in to_download:
-    #             if not os.path.exists(os.path.join(data_dir, f"{runid:06d}-{in_dtype}-{hash}")):
-    #                 did = admix.utils.make_did(runid, in_dtype, hash)
-    #                 try:
-    #                     print(f"Downloading {did}")
-    #                     admix.download(did, location=data_dir)
-    #                 except admix.downloader.RucioDownloadError:
-    #                     print("First download attempt failed. Sleeping 30s and trying again")
-    #                     time.sleep(30)
-    #                     admix.download(did, location=data_dir)
-
-    #    download_time = time.time() - t0 # seconds
-    #    print(f"=== Download time (minutes): {download_time/60:0.2f}")
 
     # initialize plugin needed for processing this output type
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]

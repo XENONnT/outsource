@@ -34,14 +34,12 @@ def main():
     else:
         runlist = [args.run]
 
-    configs = []
-    for run in tqdm(runlist, desc="Building configs for the passed run(s)"):
-        configs.append(DBConfig(run, context_name=args.context,
-                        force_rerun=args.force, upload_to_rucio=upload_to_rucio, update_db=update_db
-                        )
-                       )
-    outsource = Outsource(configs, debug=args.debug, image=args.image, wf_id=args.name)
-    outsource.submit_workflow(force=args.force)
+    outsource = Outsource(runlist, args.context,
+                          force_rerun=args.force, upload_to_rucio=upload_to_rucio,
+                          update_db=update_db, debug=args.debug,
+                          image=args.image, wf_id=args.name)
+
+    outsource.submit_workflow()
 
 if __name__ == '__main__':
     main()

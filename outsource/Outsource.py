@@ -11,13 +11,17 @@ from tqdm import tqdm
 import time
 import shutil
 import cutax
+from datetime import datetime
+from straxen import __version__ as straxen_version
+import straxen
+from admix.utils import RAW_DTYPES
 
 from pprint import pprint
 
-from utilix import DB
+from utilix.rundb import DB, xent_collection, cmt_global_valid_range, cmt_local_valid_range
 from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 from outsource.Shell import Shell
-from outsource.RunConfig import DEPENDS_ON
+from outsource.RunConfig import DEPENDS_ON, DBConfig
 
 
 # Pegasus environment
@@ -25,7 +29,7 @@ sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
 os.environ['PATH'] = os.path.join(pegasus_path, '../bin') + ':' + os.environ['PATH']
 from Pegasus.api import *
 
-logging.basicConfig(level=config.logging_level)
+#logging.basicConfig(level=config.logging_level)
 logger = logging.getLogger()
 
 DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"
@@ -67,51 +71,55 @@ class Outsource:
     # jobs details for a given datatype
     job_kwargs = {'records': dict(name='records', memory=3000),
                   'peaklets': dict(name='peaklets', memory=3000),
-                  'event_info_double': dict(name='events', memory=14000, disk=30000, cores=2),
-                  'peak_basics_he': dict(name='peaksHE', memory=5000, cores=4),
+                  'event_info_double': dict(name='events', memory=8000, disk=15000, cores=1),
+                  'peak_basics_he': dict(name='peaksHE', memory=5000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
                   'event_positions_nv': dict(name='nv_events', memory=5000, disk=20000),
-                  'veto_regions_mv': dict(name='mv', memory=1700)
+                  'events_mv': dict(name='mv', memory=1700)
                   }
 
-    def __init__(self, dbcfgs, wf_id=None, debug=False, image=DEFAULT_IMAGE):
+    def __init__(self, runlist, context_name,
+                 #cmt_version='global_v5',
+                 wf_id=None, force_rerun=False,
+                 upload_to_rucio=True, update_db=True,
+                 debug=False, image=DEFAULT_IMAGE):
         '''
         Creates a new Outsource object. Specifying a list of DBConfig objects required.
         '''
-       
-        if not dbcfgs:
-            raise RuntimeError('At least one DBConfig is required')
-        if not isinstance(dbcfgs, list):
+
+        if not isinstance(runlist, list):
             raise RuntimeError('Outsource expects a list of DBConfigs to run')
-        # TODO there's likely going to be some confusion between the two configs here
-        self._dbcfgs = dbcfgs
+
+        self._runlist = runlist
+
+        # setup context
+        self.context_name = context_name
+        self.context = getattr(cutax.contexts, context_name)(cut_list=None,
+                                                             _include_rucio_remote=True)
 
         self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
-
         self.debug = debug
-
         self.singularity_image = image
-
         self._initial_dir = os.getcwd()
+        self.force_rerun = force_rerun
+        self.upload_to_rucio = upload_to_rucio
+        self.update_db = update_db
 
         # logger
         console = logging.StreamHandler()
         # default log level - make logger/console match
-        logger.setLevel(logging.INFO)
-        console.setLevel(logging.INFO)
+        logger.setLevel(logging.WARNING)
+        console.setLevel(logging.WARNING)
         # debug - where to get this from?
-        if debug:
-            logger.setLevel(logging.DEBUG)
-            console.setLevel(logging.DEBUG)
+        # if debug:
+        #     logger.setLevel(logging.DEBUG)
+        #     console.setLevel(logging.DEBUG)
         # formatter
         formatter = logging.Formatter("%(asctime)s %(levelname)7s:  %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
         console.setFormatter(formatter)
         if (logger.hasHandlers()):
             logger.handlers.clear()
         logger.addHandler(console)
-
-        # environment for subprocesses
-        os.environ['X509_USER_PROXY'] = self._dbcfgs[0].x509_proxy
         
         # Determine a unique id for the workflow. If none passed, looks at the dbconfig.
         # If only one dbconfig is provided, use the workflow id of that object.
@@ -119,10 +127,17 @@ class Outsource:
         if wf_id:
             self._wf_id = wf_id
         else:
-            if len(self._dbcfgs) == 1:
-                self._wf_id = self._dbcfgs[0].workflow_id
+            if len(self._runlist) == 1:
+                self._wf_id = f'{self._runlist[0]:06d}'
             else:
-                self._wf_id = 'multiples-' + self._dbcfgs[0].workflow_id
+                self._wf_id = datetime.now().strftime("%Y-%m-%d")
+
+        self.wf_dir = os.path.join(runs_dir,
+                                   f'straxen_v{straxen_version}',
+                                   context_name,
+                                   self._wf_id)
+
+        self.dtype_valid_cache = {}
 
     def submit_workflow(self, force=False):
         '''
@@ -130,7 +145,7 @@ class Outsource:
         '''
 
         # does workflow already exist?
-        workflow_path = self._workflow_dir()
+        workflow_path = self.wf_dir
         if os.path.exists(workflow_path):
             if force:
                 logger.warning(f"Overwriting workflow at {workflow_path}. CTRL C now to stop.")
@@ -152,11 +167,8 @@ class Outsource:
         
         # ensure we have a proxy with enough time left
         self._validate_x509_proxy()
-
         wf = self._generate_workflow()
-
         self._plan_and_submit(wf)
-
         os.chdir(self._initial_dir)
     
     def _generate_workflow(self):
@@ -211,24 +223,21 @@ class Outsource:
 
         rc.add_replica('local', 'cutax.tar.gz', tarball_path)
 
-        iterator = self._dbcfgs if len(self._dbcfgs) == 1 else tqdm(self._dbcfgs)
+        iterator = self._runlist if len(self._runlist) == 1 else tqdm(self._runlist)
 
         # keep track of what runs we submit, useful for bookkeeping
         runlist = []
 
-        for dbcfg in iterator:
-            # check if this run can be processed
-            if not dbcfg.raw_data_exists:
-                logger.debug(f"Run {dbcfg.number} cannot be processed. No raw data in rucio.")
-                continue
+        for run in iterator:
+
+            dbcfg = DBConfig(run, self.context, force_rerun=self.force_rerun)
 
             # check if this run needs to be processed
             if len(dbcfg.needs_processed) > 0:
                 logger.debug('Adding run ' + str(dbcfg.number) + ' to the workflow')
             else:
-                logger.debug(f"Run {dbcfg.number} is already processed with context {dbcfg.context_name}")
+                logger.debug(f"Run {dbcfg.number} is already processed with context {self.context_name}")
                 continue
-
 
             requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
             # should we use XSEDE?
@@ -243,10 +252,22 @@ class Outsource:
 
             # get dtypes to process
             for dtype_i, dtype in enumerate(dbcfg.needs_processed):
-                if dtype == 'peak_basics_he':
-                    # check that raw_records exists
-                    if not dbcfg._raw_data_exists(raw_type='raw_records_he'):
+                # these dtypes need raw data
+                if dtype in ['peaklets', 'peak_basics_he', 'hitlets_nv', 'events_mv']:
+                    # check that raw data exist for this run
+                    if not all([dbcfg._raw_data_exists(raw_type=d) for d in DEPENDS_ON[dtype]]):
                         continue
+
+                # can we process this dtype of this run?
+                if dtype in self.dtype_valid_cache:
+                    start_valid, end_valid = self.dtype_valid_cache[dtype]
+                else:
+                    start_valid, end_valid = self.dtype_validity(dtype)
+                    self.dtype_valid_cache[dtype] = (start_valid, end_valid)
+
+                if not start_valid < dbcfg.start < end_valid:
+                    print(f"Can't process {dtype} for Run {dbcfg.number}.")
+                    continue
 
                 logger.debug(f"|-----> adding {dtype}")
                 runlist.append(dbcfg.number)
@@ -289,17 +310,16 @@ class Outsource:
                     combine_job.add_outputs(combine_output_tar, stage_out=True)
                     combine_job.add_args(str(dbcfg.number),
                                          dtype,
-                                         dbcfg.context_name,
+                                         self.context_name,
                                          combine_output_tar_name,
-                                         str(dbcfg.upload_to_rucio).lower(),
-                                         str(dbcfg.update_db).lower()
+                                         str(self.upload_to_rucio).lower(),
+                                         str(self.update_db).lower()
                                         )
 
                     wf.add_jobs(combine_job)
                     combine_jobs[dtype] = (combine_job, combine_output_tar)
 
                     # add jobs, one for each input file
-
                     n_chunks = dbcfg.nchunks(dtype)
 
                     # hopefully temporary
@@ -331,12 +351,12 @@ class Outsource:
                             download_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
                             download_job.add_args(str(dbcfg.number),
-                                         dbcfg.context_name,
+                                         self.context_name,
                                          dtype,
                                          data_tar,
                                          'download-only',
-                                         str(dbcfg.upload_to_rucio).lower(),
-                                         str(dbcfg.update_db).lower(),
+                                         str(self.upload_to_rucio).lower(),
+                                         str(self.update_db).lower(),
                                          chunk_str,
                                         )
                             download_job.add_inputs(straxify, xenon_config, token, cutax_tarball)
@@ -363,12 +383,12 @@ class Outsource:
                         #job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
 
                         job.add_args(str(dbcfg.number),
-                                     dbcfg.context_name,
+                                     self.context_name,
                                      dtype,
                                      job_output_tar,
-                                     'false' if not dbcfg.standalone_download else 'no-download',
-                                     str(dbcfg.upload_to_rucio).lower(),
-                                     str(dbcfg.update_db).lower(),
+                                     'false', # if not dbcfg.standalone_download else 'no-download',
+                                     str(self.upload_to_rucio).lower(),
+                                     str(self.update_db).lower(),
                                      chunk_str,
                                      )
 
@@ -407,12 +427,12 @@ class Outsource:
 
                     # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
                     job.add_args(str(dbcfg.number),
-                                 dbcfg.context_name,
+                                 self.context_name,
                                  dtype,
                                  'no_output_here',
-                                 'false' if not dbcfg.standalone_download else 'no-download',
-                                 str(dbcfg.upload_to_rucio).lower(),
-                                 str(dbcfg.update_db).lower()
+                                 'false', #if not dbcfg.standalone_download else 'no-download',
+                                 str(self.upload_to_rucio).lower(),
+                                 str(self.update_db).lower()
                                  )
 
                     job.add_inputs(straxify, xenon_config, token, cutax_tarball)
@@ -447,18 +467,19 @@ class Outsource:
         wf.plan(conf=base_dir + '/workflow/pegasus.conf',
                 submit=not self.debug,
                 sites=['condorpool'],
-                staging_sites={'condorpool': self._dbcfgs[0].staging_site},
+                staging_sites={'condorpool': 'staging'},
                 output_sites=None,
-                dir=runs_dir,
+                dir=os.path.dirname(self.wf_dir),
                 relative_dir=self._wf_id
                )
+        print(f"Worfklow submitted at \n\n\t{self.wf_dir}\n\n")
 
     def _generated_dir(self):
         return os.path.join(work_dir, 'generated', self._wf_id)
 
 
     def _workflow_dir(self):
-        return os.path.join(runs_dir, self._wf_id)
+        return os.path.join(self.wf_dir, self._wf_id)
       
     
     def _validate_x509_proxy(self):
@@ -491,11 +512,9 @@ class Outsource:
 
 
         # increase memory/disk if the first attempt fails
-        memory = 'ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, %d, %d)' \
-                 %(memory, memory * 2)
+        memory = f"ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, {memory}, (DAGNodeRetry + 1)*{memory})"
 
-        disk_str = 'ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, %d, %d)' \
-                   %(disk, disk * 2)
+        disk_str = f"ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, {disk}, {2*disk})"
 
         job.add_profiles(Namespace.CONDOR, 'request_disk', disk_str)
         job.add_profiles(Namespace.CONDOR, 'request_memory', memory)
@@ -603,8 +622,6 @@ class Outsource:
                                 value="((JobStatus == 2) && ((CurrentTime - EnteredCurrentStatus) > 18000)) || "
                                       "((JobStatus == 5) && ((CurrentTime - EnteredCurrentStatus) > 30)) "
                                 )
-        condorpool.add_profiles(Namespace.CONDOR, key='+ProjectName', value='"xenon1t"')
-        
         if self.xsede:
             condorpool.add_profiles(Namespace.CONDOR, key='+Desired_Allocations', value='"Expanse"')
 
@@ -626,3 +643,62 @@ class Outsource:
                      condorpool)
 
         return sc
+
+    def dtype_validity(self, dtype):
+        st = self.context
+        cmt_used = {d: [] for d in st.provided_dtypes()}
+        cmt_options = straxen.get_corrections.get_cmt_options(st)
+        gain_converter = {'to_pe_model': 'pmt_000_gain_xenonnt',
+                          'to_pe_model_nv': 'n_veto_000_gain_xenonnt',
+                          'to_pe_model_mv': 'mu_veto_000_gain_xenonnt'
+                          }
+
+        for opt, cmt_info in cmt_options.items():
+            for d, plugin in st._plugin_class_registry.items():
+                if opt in plugin.takes_config:
+                    collname, version, _ = cmt_info
+                    collname = gain_converter.get(collname, collname)
+                    cmt_used[d].append((collname, version))
+
+        dependencies = self.get_dependencies(dtype)
+        dependencies.append(dtype)
+        start = datetime(1970, 1, 1)
+        end = datetime(2070, 1, 1)
+        posrec_corrs = ['fdc_map', 's1_xyz_map']
+        for d in dependencies:
+            for corr, local_version in cmt_used[d]:
+                if corr in posrec_corrs:
+                    for algo in ['mlp', 'gcn', 'cnn']:
+                        corr_start, corr_end = cmt_local_valid_range(f"{corr}_{algo}", local_version)
+                        if corr_start > start:
+                            start = corr_start
+                        if corr_end < end:
+                            end = corr_end
+                else:
+                    corr_start, corr_end = cmt_local_valid_range(corr, local_version)
+                    if corr_start > start:
+                        start = corr_start
+                    if corr_end < end:
+                        end = corr_end
+        return start, end
+
+    def get_dependencies(self, dtype):
+        dependencies = []
+
+        def _get_dependencies(_dtype):
+            plugin = self.context._plugin_class_registry[_dtype]
+            depends_on = plugin.depends_on
+            if type(depends_on) == type('string'):
+                depends_on = [depends_on]
+            else:
+                depends_on = [x for x in depends_on]
+
+            dependencies.extend(depends_on)
+            if dtype in RAW_DTYPES:
+                return
+            for dep in depends_on:
+                _get_dependencies(dep)
+
+        _get_dependencies(dtype)
+        dependencies = list(set(dependencies))
+        return dependencies

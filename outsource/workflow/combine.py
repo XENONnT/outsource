@@ -92,7 +92,7 @@ def main():
     final_path = 'finished_data'
 
     # get context
-    st = getattr(cutax.contexts, args.context)()
+    st = getattr(cutax.contexts, args.context)(_include_rucio_remote=True)
     st.storage = [strax.DataDirectory('./'),
                   strax.DataDirectory(final_path) # where we are copying data to
                   ]
