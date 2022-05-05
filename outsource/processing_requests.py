@@ -7,10 +7,10 @@ import datetime
 IMAGE_FORMAT = "/cvmfs/singularity.opensciencegrid.org/xenonnt/{tag}"
 
 
-def unsubmitted_jobs(token=None):
+def unsubmitted_jobs(token=None, **query):
     jobs = []
     #FIXME: filter requests by request time?
-    requests = utilix.ProcessingRequest.find(token=token)
+    requests = utilix.ProcessingRequest.find(token=token, **query)
     for r in requests:
         # check if job already created for this request
         j = utilix.ProcessingJob.find_one(**r.index_labels, token=token)
@@ -18,6 +18,7 @@ def unsubmitted_jobs(token=None):
             # Job not yet created, create it and save to DB
             j = r.create_job()
             j.save(token=token)
+
         if j.submission_time is None:
             # Job for this request not 
             # yet submitted, add to list
@@ -52,3 +53,26 @@ def submit_workflows(jobs, wf_id=None, upload_to_rucio=True,
         for j in grp:
             j.submission_time = dt
             j.save(token=token)
+
+
+def update_rules(jobs):
+
+    from admix.interfaces.rucio_summoner import RucioSummoner
+    from utilix import utils
+
+    rc = RucioSummoner()
+    added = []
+
+    for job in jobs:
+
+        did = utils.make_did(int(job.run_id), job.data_type, job.lineage_hash)
+
+        rucio_rule = rc.GetRule(upload_structure=did, rse=job.destination)
+
+        if not rucio_rule['exists']:
+            result = rc.AddRule(did,
+                               job.destination,
+                               lifetime=None)
+            added.append(result)
+    return added
+
