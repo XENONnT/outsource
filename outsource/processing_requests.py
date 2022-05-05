@@ -37,14 +37,16 @@ def submit_workflows(jobs, wf_id=None, upload_to_rucio=True,
     for (env, context), grp in groupby(lambda x: (x.env, x.context), jobs):
         image = IMAGE_FORMAT.format(tag=env)
         
-        wf_id = f"{env}_{context}_{sum(hash(j.job_id) for j in grp)}"
-
         runlist = [int(j.run_id) for j in grp]
+        wf_id = f"{env}_{context}_{min(runlist)}_{max(runlist)}"
         
         workflow = Outsource(runlist, context,
-                          force_rerun=force, upload_to_rucio=upload_to_rucio,
-                          update_db=update_db, debug=debug,
-                          image=image, wf_id=wf_id)
+                          force_rerun=force,
+                          upload_to_rucio=upload_to_rucio,
+                          update_db=update_db, 
+                          debug=debug,
+                          image=image, 
+                          wf_id=wf_id)
 
         workflow.submit_workflow()
         
