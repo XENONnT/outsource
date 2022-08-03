@@ -17,6 +17,10 @@ import rucio
 import datetime
 import cutax
 
+from admix.clients import rucio_client
+
+admix.clients._init_clients()
+
 db = DB()
 
 # these dtypes we need to rechunk, so don't upload to rucio here!
@@ -24,7 +28,9 @@ rechunk_dtypes = ['pulse_counts',
                   'veto_regions',
                   'peaklets',
                   'lone_hits',
-                  'hitlets_nv'
+                  'hitlets_nv',
+                  'afterpulses',
+                  'led_calibration'
                   ]
 
 # these dtypes will not be uploaded to rucio
@@ -44,7 +50,7 @@ buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
 
 
 def get_bottom_dtypes(dtype):
-    if dtype in ['hitlets_nv', 'event_positions_nv', 'veto_regions_nv']:
+    if dtype in ['hitlets_nv', 'events_nv', 'veto_regions_nv']:
         return ('raw_records_nv',)
     elif dtype in ['peak_basics_he']:
         return ('raw_records_he',)
@@ -231,11 +237,21 @@ def main():
     #     rmtree(data_dir)
 
     # get context
-    st = getattr(cutax.contexts, args.context)(_include_rucio_remote=True)
+    st = getattr(cutax.contexts, args.context)(cut_list=None)
+    # st.storage = [strax.DataDirectory(data_dir),
+    #               straxen.rucio.RucioFrontend(include_remote=True, download_heavy=True,
+    #                                           staging_dir=os.path.join(data_dir, 'rucio'))
+    #              ]
     st.storage = [strax.DataDirectory(data_dir),
-                  straxen.rucio.RucioFrontend(include_remote=True, download_heavy=True,
-                                              staging_dir=os.path.join(data_dir, 'rucio'))
-                 ]
+                  straxen.storage.RucioRemoteFrontend(download_heavy=True)
+                  ]
+
+    # add local frontend if we can
+    # this is a temporary hack
+    try:
+        st.storage.append(straxen.storage.RucioLocalFrontend())
+    except KeyError:
+        print("No local RSE found")
 
     runid = args.dataset
     runid_str = "%06d" % runid
@@ -399,10 +415,7 @@ def main():
         # get list of files that have already been uploaded
         # this is to allow us re-run workflow for some chunks
         try:
-            existing_files = [f for f in admix.rucio.rucio_client.list_dids(scope,
-                                                                       {'type': 'file'},
-                                                                        type='file')
-                              ]
+            existing_files = [f for f in admix.clients.rucio_client.list_dids(scope, {'type': 'file'}, type='file')]
             existing_files = [f for f in existing_files if dset_name in f]
 
             existing_files_in_dataset = admix.rucio.list_files(dataset_did)

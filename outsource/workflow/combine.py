@@ -12,7 +12,12 @@ from utilix import DB, uconfig
 from immutabledict import immutabledict
 import cutax
 
+from admix.clients import rucio_client
+
+admix.clients._init_clients()
+
 db = DB()
+
 
 def get_hashes(st):
     return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
@@ -31,9 +36,13 @@ def merge(runid_str, # run number padded with 0s
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    plugin.chunk_target_size_mb = 500
+    plugin.default_chunk_size_mb = 500
+
+    to_merge = [d.split('-')[1] for d in os.listdir(path)]
 
     for keystring in plugin.provides:
+        if keystring not in to_merge:
+            continue
         key = strax.DataKey(runid_str, keystring, plugin.lineage)
         saver = st.storage[0].saver(key, plugin.metadata(runid_str, keystring))
         # monkey patch the saver
@@ -50,6 +59,8 @@ def merge(runid_str, # run number padded with 0s
 
     # rechunk the data if we can
     for keystring in plugin.provides:
+        if keystring not in to_merge:
+            continue
         rechunk = True
         if isinstance(plugin.rechunk_on_save, immutabledict):
             if not plugin.rechunk_on_save[keystring]:
@@ -92,7 +103,7 @@ def main():
     final_path = 'finished_data'
 
     # get context
-    st = getattr(cutax.contexts, args.context)(_include_rucio_remote=True)
+    st = getattr(cutax.contexts, args.context)()
     st.storage = [strax.DataDirectory('./'),
                   strax.DataDirectory(final_path) # where we are copying data to
                   ]
@@ -100,10 +111,14 @@ def main():
     # check what data is in the output folder
     dtypes = [d.split('-')[1] for d in os.listdir(path)]
 
-    if 'records' in dtypes:
+    if any([d in dtypes for d in ['lone_hits', 'pulse_counts', 'veto_regions']]):
         plugin_levels = ['records', 'peaklets']
     elif 'hitlets_nv' in dtypes:
         plugin_levels = ['hitlets_nv']
+    elif 'afterpulses' in dtypes:
+        plugin_levels = ['afterpulses']
+    elif 'led_calibration' in dtypes:
+        plugin_levels = ['led_calibration']
     else:
         plugin_levels = ['peaklets']
 
@@ -111,7 +126,6 @@ def main():
     for dtype in plugin_levels:
         print(f"Merging {dtype} level")
         merge(runid_str, dtype, st, path)
-
 
     print(f"Current contents of {final_path}:")
     print(os.listdir(final_path))
@@ -139,87 +153,8 @@ def main():
         else:
             rse = uconfig.get('Outsource', 'events_rse')
 
-
-        existing_files = [f for f in admix.rucio.rucio_client.list_dids(scope, {'type': 'file'}, type='file')]
-        existing_files = [f for f in existing_files if dset_name in f]
-
-        try:
-            existing_files_in_dataset = admix.rucio.list_files(dataset_did)
-        except rucio.common.exception.DataIdentifierNotFound:
-            existing_files_in_dataset = []
-
-        # for some reason files get uploaded but not attached correctly
-        need_attached = list(set(existing_files) - set(existing_files_in_dataset))
-
-        if len(need_attached) > 0:
-            dids_to_attach = [f"{scope}:{name}" for name in need_attached]
-            admix.rucio.attach(dataset_did, dids_to_attach)
-
         this_path = os.path.join(final_path, this_dir)
-        admix.upload(this_path, rse=rse, did=dataset_did)
-
-        # now check the rucio data matche what we expect
-        rucio_files = admix.rucio.list_files(dataset_did)
-
-        # make sure the rule status is okay
-        rules = admix.rucio.list_rules(dataset_did, state='OK', rse_expression=rse)
-        assert len(rules) > 0, f"Error uploading {dataset_did}"
-
-        # how many chunks?
-        md = st.get_meta(runid_str, keystring)
-
-        expected_chunks = len([c for c in md['chunks'] if c['n']>0])
-
-        # we should have n+1 files in rucio (counting metadata)
-        if len(rucio_files) != expected_chunks + 1:
-            # we're missing some data, uh oh
-            successful_chunks = set([int(f.split('-')[-1]) for f in rucio_files])
-            expected_chunks = set(np.arange(expected_chunks))
-
-            missing_chunks = expected_chunks - successful_chunks
-
-            missing_chunk_str = '/n'.join(missing_chunks)
-            raise RuntimeError(f"File mismatch in {this_dir}! "
-                               f"There are {len(rucio_files)} but the metadata thinks there "
-                               f"should be {expected_chunks} chunks + 1 metadata. "
-                               f"The missing chunks are:\n{missing_chunk_str}")
-
-        chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
-        data_size_mb = np.sum(chunk_mb)
-        avg_data_size_mb = np.mean(chunk_mb)
-
-        if args.update_db:
-            # update runDB
-            new_data_dict = dict()
-            new_data_dict['location'] = rse
-            new_data_dict['did'] = dataset_did
-            new_data_dict['status'] = 'transferred'
-            new_data_dict['host'] = "rucio-catalogue"
-            new_data_dict['type'] = keystring
-            new_data_dict['protocol'] = 'rucio'
-            new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
-            new_data_dict['creation_place'] = "OSG"
-            new_data_dict['meta'] = dict(#lineage=plugin.lineage_hash,
-                                         avg_chunk_mb=avg_data_size_mb,
-                                         file_count=len(rucio_files),
-                                         size_mb=data_size_mb,
-                                         strax_version=strax.__version__,
-                                         straxen_version=straxen.__version__
-                                         )
-
-            db.update_data(runid, new_data_dict)
-
-            print(f"Database updated for {keystring} at {rse}")
-        else:
-            print("Skipping database update.")
-
-
-        # if everything is good, let's close the dataset
-        # this will make it so no more data can be added to this dataset
-        try:
-            admix.rucio.rucio_client.close(scope, dset_name)
-        except:
-            print(f"Closing {scope}:{dset_name} failed")
+        admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
 
 
 if __name__ == "__main__":

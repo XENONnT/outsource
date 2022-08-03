@@ -18,6 +18,7 @@ from admix.utils import RAW_DTYPES
 
 from pprint import pprint
 
+
 from utilix.rundb import DB, xent_collection, cmt_global_valid_range, cmt_local_valid_range
 from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
 from outsource.Shell import Shell
@@ -25,8 +26,8 @@ from outsource.RunConfig import DEPENDS_ON, DBConfig
 
 
 # Pegasus environment
-sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
-os.environ['PATH'] = os.path.join(pegasus_path, '../bin') + ':' + os.environ['PATH']
+# sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
+# os.environ['PATH'] = os.path.join(pegasus_path, '../bin') + ':' + os.environ['PATH']
 from Pegasus.api import *
 
 #logging.basicConfig(level=config.logging_level)
@@ -36,7 +37,7 @@ DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment
 
 db = DB()
 
-PER_CHUNK_DTYPES = ['records', 'peaklets', 'hitlets_nv']
+PER_CHUNK_DTYPES = ['records', 'peaklets', 'hitlets_nv', 'afterpulses', 'led_calibration']
 
 
 class Outsource:
@@ -65,17 +66,21 @@ class Outsource:
                             'peaksHE': 'strax-wrapper.sh',
                             'nv_hitlets': 'strax-wrapper.sh',
                             'nv_events':  'strax-wrapper.sh',
-                            'mv': 'strax-wrapper.sh'
+                            'mv': 'strax-wrapper.sh',
+                            'ap': 'strax-wrapper.sh',
+                            'led': 'strax-wrapper.sh'
                            }
 
     # jobs details for a given datatype
     job_kwargs = {'records': dict(name='records', memory=3000),
-                  'peaklets': dict(name='peaklets', memory=3000),
-                  'event_info_double': dict(name='events', memory=8000, disk=15000, cores=1),
+                  'peaklets': dict(name='peaklets', memory=4000),
+                  'event_info_double': dict(name='events', memory=12000, disk=15000, cores=1),
                   'peak_basics_he': dict(name='peaksHE', memory=5000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
-                  'event_positions_nv': dict(name='nv_events', memory=5000, disk=20000),
-                  'events_mv': dict(name='mv', memory=1700)
+                  'events_nv': dict(name='nv_events', memory=8000, disk=20000),
+                  'events_mv': dict(name='mv', memory=1700),
+                  'afterpulses': dict(name='ap', memory=3000),
+                  'led_calibration': dict(name='led', memory=4000)
                   }
 
     def __init__(self, runlist, context_name,
@@ -94,8 +99,7 @@ class Outsource:
 
         # setup context
         self.context_name = context_name
-        self.context = getattr(cutax.contexts, context_name)(cut_list=None,
-                                                             _include_rucio_remote=True)
+        self.context = getattr(cutax.contexts, context_name)(cut_list=None)
 
         self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
         self.debug = debug
@@ -253,7 +257,9 @@ class Outsource:
             # get dtypes to process
             for dtype_i, dtype in enumerate(dbcfg.needs_processed):
                 # these dtypes need raw data
-                if dtype in ['peaklets', 'peak_basics_he', 'hitlets_nv', 'events_mv']:
+                if dtype in ['peaklets', 'peak_basics_he', 'hitlets_nv', 'events_mv',
+                             'afterpulses', 'led_calibration'
+                             ]:
                     # check that raw data exist for this run
                     if not all([dbcfg._raw_data_exists(raw_type=d) for d in DEPENDS_ON[dtype]]):
                         continue
@@ -266,11 +272,12 @@ class Outsource:
                     self.dtype_valid_cache[dtype] = (start_valid, end_valid)
 
                 if not start_valid < dbcfg.start < end_valid:
-                    print(f"Can't process {dtype} for Run {dbcfg.number}.")
+                    #print(f"Can't process {dtype} for Run {dbcfg.number}.")
                     continue
 
                 logger.debug(f"|-----> adding {dtype}")
-                runlist.append(dbcfg.number)
+                if dbcfg.number not in runlist:
+                    runlist.append(dbcfg.number)
                 rses = dbcfg.rses[dtype]
                 if len(rses) == 0:
                     if dtype == 'raw_records':
@@ -440,6 +447,7 @@ class Outsource:
 
                     # if there are multiple levels to the workflow, need to have current strax-wrapper depend on
                     # previous combine
+
                     for d in DEPENDS_ON[dtype]:
                         if d in combine_jobs:
                             cj, cj_output = combine_jobs[d]
@@ -472,7 +480,10 @@ class Outsource:
                 dir=os.path.dirname(self.wf_dir),
                 relative_dir=self._wf_id
                )
-        print(f"Worfklow submitted at \n\n\t{self.wf_dir}\n\n")
+        # copy the runlist file
+        shutil.copy('runlist.txt', self.wf_dir)
+
+        print(f"Worfklow written to \n\n\t{self.wf_dir}\n\n")
 
     def _generated_dir(self):
         return os.path.join(work_dir, 'generated', self._wf_id)
@@ -656,7 +667,19 @@ class Outsource:
         for opt, cmt_info in cmt_options.items():
             for d, plugin in st._plugin_class_registry.items():
                 if opt in plugin.takes_config:
-                    collname, version, _ = cmt_info
+                    #
+                    if isinstance(cmt_info, dict):
+                        collname = cmt_info['correction']
+                        strax_opt = cmt_info['strax_option']
+                    else:
+                        collname = cmt_info[0]
+                        strax_opt = cmt_info
+                    if isinstance(strax_opt, str) and 'cmt://' in strax_opt:
+                        path, kwargs = straxen.URLConfig.split_url_kwargs(strax_opt)
+                        version = kwargs['version']
+                    else:
+                        version = strax_opt[1]
+
                     collname = gain_converter.get(collname, collname)
                     cmt_used[d].append((collname, version))
 

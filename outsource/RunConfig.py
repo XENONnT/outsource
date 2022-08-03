@@ -5,7 +5,9 @@ from .Config import config, base_dir, work_dir
 from utilix import DB, xent_collection
 import straxen
 import cutax
+import strax
 import admix
+import numpy as np
 
 # HARDCODE alert
 # we could also import strax(en), but this makes outsource submission not dependent on strax
@@ -15,23 +17,40 @@ DEPENDS_ON = {'records': ['raw_records'],
               'peak_basics_he': ['raw_records_he'],
               'event_info_double': ['peaklets'],
               'hitlets_nv': ['raw_records_nv'],
-              'event_positions_nv': ['hitlets_nv'],
-              'events_mv': ['raw_records_mv']
+              'events_nv': ['hitlets_nv'],
+              'events_mv': ['raw_records_mv'],
+              'afterpulses': ['raw_records'],
+              'led_calibration': ['raw_records']
               }
 
-DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'event_info_double', 'peak_basics_he'],
-                   'neutron_veto': ['hitlets_nv', 'event_positions_nv'],
+DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'event_info_double', 'peak_basics_he',
+                           'afterpulses', 'led_calibration'],
+                   'neutron_veto': ['hitlets_nv', 'events_nv'],
                    'muon_veto': ['events_mv']
                    }
 
 # these are datetypes to look for in runDB
 ACTUALLY_STORED = {'event_info_double': ['event_info', 'distinct_channels', 'event_pattern_fit'],
                    'peak_basics_he': ['peak_basics_he'],
-                   'event_positions_nv': ['event_positions_nv'],
+                   'events_nv': ['events_nv'],
                    'peaklets': ['peaklets', 'lone_hits'],
                    'hitlets_nv': ['hitlets_nv'],
-                   'events_mv': ['events_mv']
+                   'events_mv': ['events_mv'],
+                   'afterpulses': ['afterpulses'],
+                   'led_calibration': ['led_calibration']
                    }
+
+# these modes have particular datatypes we care about
+LED_MODES = {'tpc_pmtap': ['afterpulses'],
+             'tpc_commissioning_pmtap': ['afterpulses'],
+             'tpc_pmtgain': ['led_calibration']
+             }
+
+LED_DTYPES = []
+for mode, dtypes in LED_MODES.items():
+    for d in dtypes:
+        if d not in LED_DTYPES:
+            LED_DTYPES.append(d)
 
 
 db = DB()
@@ -118,15 +137,20 @@ class DBConfig(RunConfig):
         self.hashes = get_hashes(st)
 
         # get the detectors and start time of this run
-        cursor = coll.find_one({'number': number}, {'detectors': 1, 'start': 1, '_id': 0})
+        cursor = coll.find_one({'number': number}, {'detectors': 1, 'start': 1, '_id': 0,
+                                                    'mode': 1})
         self.detectors = cursor['detectors']
         self.start = cursor['start']
+        self.mode = cursor['mode']
         assert isinstance(self.detectors, list), \
             f"Detectors needs to be a list, not a {type(self.detectors)}"
 
         super().__init__(**kwargs)
         # get the datatypes that need to be processed
         self.needs_processed = self.process_these()
+
+        # make sure the
+
         # determine which rse the input data is on
         self.rses = self.rse_data_find()
         self.raw_data_exists = self._raw_data_exists()
@@ -143,7 +167,14 @@ class DBConfig(RunConfig):
         """Returns the list of datatypes we need to process"""
         # do we need to process?
         requested_dtypes = config.get_list('Outsource', 'dtypes')
+
+        # if we are using LED data, only process those dtyopes
         # for this context and straxen version, see if we have that data yet
+        if self.mode in LED_MODES:
+            requested_dtypes = [dtype for dtype in requested_dtypes if dtype in LED_MODES[self.mode]]
+        # if we are not, don't process those dtypes
+        else:
+            requested_dtypes = list(set(requested_dtypes) - set(LED_DTYPES))
 
         # get all possible dtypes we can process for this run
         possible_dtypes = []
@@ -163,6 +194,8 @@ class DBConfig(RunConfig):
                 dtypes_already_processed.append(len(rses) > 0)
             if not all(dtypes_already_processed) or self._force_rerun:
                 ret.append(category)
+
+        ret.sort(key=lambda x: len(get_dependencies(self.context, x)))
 
         return ret
 
@@ -203,4 +236,19 @@ class DBConfig(RunConfig):
                 'TAPE' not in data['location']):
                 return True
         return False
+
+
+def get_dependencies(st, target):
+    ret = []
+    def _get_dependencies(target):
+        plugin = st._plugin_class_registry[target]()
+        dependencies = list(strax.to_str_tuple(plugin.depends_on))
+        ret.extend(dependencies)
+        if len(dependencies):
+            for dep in dependencies:
+                _get_dependencies(dep)
+
+    _get_dependencies(target)
+    ret = np.unique(ret).tolist()
+    return ret
 
