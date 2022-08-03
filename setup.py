@@ -7,12 +7,12 @@ def readme():
 
 
 setup(name='outsource',
-      version='0.1',
+      version='0.1.0',
       description='XENONnT Outsource module',
       long_description=readme(),
       url='https://github.com/XENONnT/outsource',
       packages=['outsource'],
-      entry_points={'console_scripts': ['outsource=outsource.main:main']},
+      scripts=['bin/outsource'],
       install_requires=['markdown',
                         'utilix'
                         ],
