@@ -1,0 +1,220 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+from utilix.io import load_runlist
+from utilix import xent_collection
+from utilix.rundb import cmt_local_valid_range
+import cutax
+
+from outsource.Outsource import Outsource, DEFAULT_IMAGE
+from outsource.Config import config
+
+
+# do a query to see if these data types are present
+DETECTOR_DTYPES = {'tpc': {'raw': 'raw_records',
+                           'processed': ['peaklets', 'event_info', 'peak_basics_he', 'event_pattern_fit']
+                          },
+                   'neutron_veto': {'raw': 'raw_records_nv',
+                                    'processed': ['hitlets_nv', 'events_nv']
+                                    },
+                   'muon_veto': {'raw': 'raw_records_mv',
+                                 'processed': ['events_mv']
+                                 }
+                   }
+
+coll = xent_collection()
+
+
+def data_find(st, detector, number_from=None, number_to=None,
+              specify_modes=None, specify_sources=None,
+              runlist=None
+              ):
+    exclude_tags = ['messy', 'bad', 'abandon']
+    exclude_modes = config.get_list('Outsource', 'exclude_modes')
+    min_run_number = config.getint('Outsource', 'min_run_number')
+    max_run_number = 999999
+    if number_from is not None:
+        min_run_number = max(number_from, min_run_number)
+    if number_to is not None:
+        max_run_number = min(number_to, max_run_number)
+
+    hashes = {key: val['hash'] for key, val in st.provided_dtypes().items()}
+
+    # setup queries for different detectors
+    queries = []
+
+    for det, det_info in DETECTOR_DTYPES.items():
+        if detector != 'all' and detector != det:
+            print(f"Skipping {det} data")
+            continue
+
+        # check if gain model is valid
+        if det == 'tpc':
+            gain_model = 'pmt_000_gain_xenonnt'
+            straxen_opt = 'gain_model'
+        elif det == 'neutron_veto':
+            gain_model = 'n_veto_000_gain_xenonnt'
+            straxen_opt = 'gain_model_nv'
+        elif det == 'muon_veto':
+            gain_model = 'mu_veto_000_gain_xenonnt'
+            straxen_opt = 'gain_model_mv'
+        else:
+            raise NotImplementedError
+
+        local_gain_version = st.config.get(straxen_opt)[1]
+
+        gain_range = cmt_local_valid_range(gain_model, local_gain_version)
+
+        dtype_list = det_info['processed']
+
+        outsource_dtypes = config.get('Outsource', 'dtypes')
+        dtype_list = [d for d in dtype_list if d in outsource_dtypes]
+
+        if not len(dtype_list):
+            continue
+
+        raw_dtype = det_info['raw']
+
+        data_query = [{'data': {'$not': {'$elemMatch': {'host': 'rucio-catalogue',
+                                                        'type': dtype,
+                                                        'did': {'$regex': hashes[dtype]},
+                                                       }
+                                        }
+                                }
+                        }
+                        for dtype in dtype_list
+                      ]
+
+        if specify_modes:
+            mode_query = {'$in': specify_modes}
+        else:
+            mode_query = {'$not': {'$in': exclude_modes}}
+
+        number_query = {'$gte': min_run_number, '$lte': max_run_number}
+
+        if runlist:
+            number_query['$in'] = runlist
+
+        query = {'number': number_query,
+                 'tags.name': {'$not': {'$in': exclude_tags}},
+                 'start': {'$gt': gain_range[0],
+                           '$lt': gain_range[1]},
+                 'mode': mode_query.copy(),
+                 '$or': data_query.copy(),
+                 'data': {'$elemMatch': {'type': raw_dtype,
+                                         'host': 'rucio-catalogue',
+                                         'status': 'transferred',
+                                         'location': {'$in': ['UC_OSG_USERDISK',
+                                                              'SDSC_USERDISK',
+                                                              'NIKHEF2_USERDISK',
+                                                              'SURFSARA_USERDISK'
+                                                              ]
+                                                      }
+                                         }
+                          },
+                 'detectors': det
+                }
+        if specify_sources:
+            query['source'] = {'$in': specify_sources}
+
+        queries.append(query)
+
+    full_query = {'$or': queries}
+
+    cursor = coll.find(full_query, {'number': 1, '_id': 0, 'mode': 1},
+                       limit=config.getint('Outsource', 'max_daily', fallback=None),
+                       sort=[('number', -1)]
+                       )
+
+    modes = []
+    runlist = []
+    for r in cursor:
+        if r['mode'] not in modes:
+            modes.append(r['mode'])
+        runlist.append(r['number'])
+    print(f"Run modes: {', '.join(modes)}")
+    return runlist
+
+
+def main():
+    parser = argparse.ArgumentParser("Outsource")
+    parser.add_argument('--context', required=True, help="[REQUIRED] Name of context, imported from cutax.")
+    parser.add_argument('--debug', action='store_true',
+                        help='Debug mode. Does not automatically submit the workflow, '
+                             'and jobs do not update runsDB nor upload to rucio.')
+    parser.add_argument('--name', help="Custom name of workflow directory. If not passed, inferred from today's date")
+    parser.add_argument('--image', default=DEFAULT_IMAGE,
+                        help='Singularity image. Accepts either a full path or a single name '
+                             'and assumes a format like this: '
+                             '/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}')
+    parser.add_argument('--force', action='store_true',
+                        help='Force overwrites workflows and reprocesses data even if processed already. '
+                             'Will not re-upload to rucio though.')
+    parser.add_argument('--dry-run', dest='dry_run', action='store_true')
+    parser.add_argument('--detector', default='all',
+                        help="Detector to focus on. If 'all' (default) will consider all three detectors. "
+                             "Otherwise pass a single one of 'tpc', 'neutron_veto', 'muon_veto'."
+                             " Pairs of detectors not yet supported. ",
+                        choices=['all', 'tpc', 'muon_veto', 'neutron_veto'])
+    parser.add_argument('--from', type=int, help='Run number to start with', dest='number_from')
+    parser.add_argument('--to', type=int, help='Run number to end with', dest='number_to')
+    parser.add_argument('--mode', nargs='*', help='Space separated run mode(s) to consider. ')
+    parser.add_argument('--run', nargs='*', type=int, help='space separated specific run number(s) to process')
+    parser.add_argument('--runlist', type=int, help='Path to a runlist file')
+    parser.add_argument('--source', type=str, nargs='*', help='Space separated source(s) to consider')
+    args = parser.parse_args()
+
+    upload_to_rucio = update_db = True
+
+    if args.debug:
+        upload_to_rucio = update_db = False
+
+    st = getattr(cutax.contexts, args.context)()
+
+    if args.run and args.runlist:
+        raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
+
+    # subset of runs to consider during data find
+    _runlist = None
+
+    if args.run:
+        _runlist = args.run
+
+    elif args.runlist:
+        _runlist = load_runlist(args.runlist)
+
+    runlist = data_find(st,
+                        args.detector,
+                        number_from=args.number_from,
+                        number_to=args.number_to,
+                        specify_modes=args.mode,
+                        runlist=_runlist,
+                        specify_sources=args.source
+                        )
+
+    if args.dry_run:
+        print(runlist)
+        print(f"DRY RUN: would process {len(runlist)} runs "
+              f"from {min(runlist)} to {max(runlist)}.")
+        return
+
+    image = args.image
+    if not os.path.exists(image):
+        image = f"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}"
+
+    outsource = Outsource(runlist,
+                          args.context,
+                          debug=args.debug,
+                          image=image,
+                          wf_id=args.name,
+                          upload_to_rucio=upload_to_rucio,
+                          update_db=update_db,
+                          force_rerun=args.force
+                          )
+
+    outsource.submit_workflow()
+
+
+if __name__ == '__main__':
+    main()
