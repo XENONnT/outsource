@@ -627,6 +627,7 @@ class Outsource:
         condorpool = Site("condorpool")
         condorpool.add_profiles(Namespace.PEGASUS, style='condor')
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
+        condorpool.add_profiles(Namespace.CONDOR, key='+ProjectName', value='"xenon1t"')
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
                                 value=f'"{self.singularity_image}"')
         condorpool.add_profiles(Namespace.CONDOR, key='periodic_remove',
