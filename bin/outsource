@@ -215,6 +215,7 @@ def main():
     if not os.path.exists(image):
         image = f"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}"
 
+    # This object contains all the information needed to submit the workflow
     outsource = Outsource(runlist,
                           args.context,
                           debug=args.debug,
@@ -225,6 +226,7 @@ def main():
                           force_rerun=args.force
                           )
 
+    # Finally submit the workflow
     outsource.submit_workflow()
 
 
