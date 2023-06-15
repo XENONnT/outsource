@@ -101,6 +101,7 @@ class Outsource:
         self.context_name = context_name
         self.context = getattr(cutax.contexts, context_name)(cut_list=None)
 
+        # Load from xenon_config
         self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
         self.debug = debug
         self.singularity_image = image
