@@ -30,6 +30,16 @@ def data_find(st, detector, number_from=None, number_to=None,
               specify_modes=None, specify_sources=None,
               runlist=None
               ):
+    """Find data to outsource
+    :param st: straxen context
+    :param detector: detector to process
+    :param number_from: start run number
+    :param number_to: end run number
+    :param specify_modes: list of run modes to process
+    :param specify_sources: list of sources to process
+    :param runlist: list of run numbers to process
+    :return: list of run numbers
+    """
     exclude_tags = ['messy', 'bad', 'abandon']
     exclude_modes = config.get_list('Outsource', 'exclude_modes')
     min_run_number = config.getint('Outsource', 'min_run_number')
