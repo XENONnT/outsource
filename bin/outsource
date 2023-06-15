@@ -211,6 +211,7 @@ def main():
         return
 
     image = args.image
+    # Assume that if the image is not a full path, it is a name
     if not os.path.exists(image):
         image = f"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}"
 
