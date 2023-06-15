@@ -172,8 +172,14 @@ class Outsource:
         
         # ensure we have a proxy with enough time left
         self._validate_x509_proxy()
+
+        # generate the workflow
         wf = self._generate_workflow()
+
+        # submit the workflow
         self._plan_and_submit(wf)
+
+        # return to initial dir
         os.chdir(self._initial_dir)
     
     def _generate_workflow(self):
