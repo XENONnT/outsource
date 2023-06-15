@@ -166,7 +166,7 @@ class Outsource:
         except OSError:
             pass
         try:
-            os.makedirs(runs_dir, 0o755)
+            os.makedirs(runs_dir, 0o755) #  0o755 means read/write/execute for owner, read/execute for everyone else
         except OSError:
             pass
         
