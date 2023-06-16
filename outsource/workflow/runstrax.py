@@ -30,7 +30,7 @@ rechunk_dtypes = ['pulse_counts',
                   'lone_hits',
                   'hitlets_nv',
                   'afterpulses',
-                  'led_calibration'
+                  'led_calibration',
                   ]
 
 # these dtypes will not be uploaded to rucio
