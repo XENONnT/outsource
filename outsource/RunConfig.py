@@ -165,7 +165,7 @@ class DBConfig(RunConfig):
 
     def process_these(self):
         """Returns the list of datatypes we need to process"""
-        # do we need to process?
+        # do we need to process? read from xenon_config
         requested_dtypes = config.get_list('Outsource', 'dtypes')
 
         # if we are using LED data, only process those dtyopes
