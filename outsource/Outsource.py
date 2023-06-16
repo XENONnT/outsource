@@ -235,6 +235,7 @@ class Outsource:
 
         rc.add_replica('local', 'cutax.tar.gz', tarball_path)
 
+        # runs 
         iterator = self._runlist if len(self._runlist) == 1 else tqdm(self._runlist)
 
         # keep track of what runs we submit, useful for bookkeeping
