@@ -189,6 +189,7 @@ class Outsource:
         
         # Create a abstract dag
         wf = Workflow('xenonnt')
+        # Initialize the catalogs
         tc = TransformationCatalog()
         rc = ReplicaCatalog()
         sc = self._generate_sc()
