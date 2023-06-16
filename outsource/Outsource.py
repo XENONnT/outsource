@@ -625,7 +625,7 @@ class Outsource:
         scratch_dir.add_file_servers(FileServer('gsiftp://xenon-gridftp.grid.uchicago.edu:2811/xenon/workflow_scratch/{}'.format(getpass.getuser()), Operation.ALL))
         staging.add_directories(scratch_dir)
         
-        # staging ISI
+        # staging ISI (retiring features)
         staging_isi = Site("staging-isi")
         scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/lizard/scratch-90-days/XENONnT/{}'.format(getpass.getuser()))
         scratch_dir.add_file_servers(FileServer('gsiftp://workflow.isi.edu:2811/lizard/scratch-90-days/XENONnT/{}'.format(getpass.getuser()), Operation.ALL))
