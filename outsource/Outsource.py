@@ -202,8 +202,8 @@ class Outsource:
         wf.add_shell_hook(EventType.END, pegasus_path + '/share/pegasus/notification/email -t ' + notification_email)
 
         # add executables to the wf-level transformation catalog
-        for human, script in self._transformations_map.items():
-            t = Transformation(human,
+        for job_type, script in self._transformations_map.items():
+            t = Transformation(job_type,
                                site='local',
                                pfn='file://' + base_dir + '/workflow/' + script,
                                is_stageable=True)
@@ -281,7 +281,7 @@ class Outsource:
                     self.dtype_valid_cache[dtype] = (start_valid, end_valid)
 
                 if not start_valid < dbcfg.start < end_valid:
-                    #print(f"Can't process {dtype} for Run {dbcfg.number}.")
+                    print(f"Can't process {dtype} for Run {dbcfg.number}, because it's not valid")
                     continue
 
                 logger.debug(f"|-----> adding {dtype}")
