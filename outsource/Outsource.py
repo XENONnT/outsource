@@ -317,7 +317,7 @@ class Outsource:
                 if dtype in PER_CHUNK_DTYPES:
                     # Set up the combine job first - we can then add to that job inside the chunk file loop
                     # only need combine job for low-level stuff
-                    combine_job = self._job('combine', disk=30000)
+                    combine_job = self._job('combine', disk=40000)
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
@@ -516,7 +516,7 @@ class Outsource:
                                %(valid_hours, min_valid_hours))
 
 
-    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=10000):
+    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=15000):
         '''
         Wrapper for a Pegasus job, also sets resource requirement profiles. Memory and
         disk units are in MBs.
