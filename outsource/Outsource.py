@@ -72,10 +72,10 @@ class Outsource:
                            }
 
     # jobs details for a given datatype
-    job_kwargs = {'records': dict(name='records', memory=3000),
-                  'peaklets': dict(name='peaklets', memory=4000),
-                  'event_info_double': dict(name='events', memory=12000, disk=15000, cores=1),
-                  'peak_basics_he': dict(name='peaksHE', memory=5000, cores=1),
+    job_kwargs = {'records': dict(name='records', memory=5000),
+                  'peaklets': dict(name='peaklets', memory=8000),
+                  'event_info_double': dict(name='events', memory=18000, disk=24000, cores=1),
+                  'peak_basics_he': dict(name='peaksHE', memory=8000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
                   'events_nv': dict(name='nv_events', memory=8000, disk=20000),
                   'events_mv': dict(name='mv', memory=1700),
