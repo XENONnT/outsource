@@ -660,6 +660,11 @@ class Outsource:
         return sc
 
     def dtype_validity(self, dtype):
+        """
+        Return the validity range of a dtype
+        :param dtype: dtype name
+        :return: (start, end) validity range
+        """
         st = self.context
         cmt_used = {d: [] for d in st.provided_dtypes()}
         cmt_options = straxen.get_corrections.get_cmt_options(st)
