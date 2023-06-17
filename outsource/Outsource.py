@@ -101,6 +101,7 @@ class Outsource:
         self.context_name = context_name
         self.context = getattr(cutax.contexts, context_name)(cut_list=None)
 
+        # Load from xenon_config
         self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
         self.debug = debug
         self.singularity_image = image
@@ -165,14 +166,20 @@ class Outsource:
         except OSError:
             pass
         try:
-            os.makedirs(runs_dir, 0o755)
+            os.makedirs(runs_dir, 0o755) #  0o755 means read/write/execute for owner, read/execute for everyone else
         except OSError:
             pass
         
         # ensure we have a proxy with enough time left
         self._validate_x509_proxy()
+
+        # generate the workflow
         wf = self._generate_workflow()
+
+        # submit the workflow
         self._plan_and_submit(wf)
+
+        # return to initial dir
         os.chdir(self._initial_dir)
     
     def _generate_workflow(self):
@@ -182,6 +189,7 @@ class Outsource:
         
         # Create a abstract dag
         wf = Workflow('xenonnt')
+        # Initialize the catalogs
         tc = TransformationCatalog()
         rc = ReplicaCatalog()
         sc = self._generate_sc()
@@ -194,8 +202,8 @@ class Outsource:
         wf.add_shell_hook(EventType.END, pegasus_path + '/share/pegasus/notification/email -t ' + notification_email)
 
         # add executables to the wf-level transformation catalog
-        for human, script in self._transformations_map.items():
-            t = Transformation(human,
+        for job_type, script in self._transformations_map.items():
+            t = Transformation(job_type,
                                site='local',
                                pfn='file://' + base_dir + '/workflow/' + script,
                                is_stageable=True)
@@ -227,6 +235,7 @@ class Outsource:
 
         rc.add_replica('local', 'cutax.tar.gz', tarball_path)
 
+        # runs 
         iterator = self._runlist if len(self._runlist) == 1 else tqdm(self._runlist)
 
         # keep track of what runs we submit, useful for bookkeeping
@@ -264,7 +273,7 @@ class Outsource:
                     if not all([dbcfg._raw_data_exists(raw_type=d) for d in DEPENDS_ON[dtype]]):
                         continue
 
-                # can we process this dtype of this run?
+                # can we process this dtype of this run, with correction validity in the time range?
                 if dtype in self.dtype_valid_cache:
                     start_valid, end_valid = self.dtype_valid_cache[dtype]
                 else:
@@ -272,7 +281,7 @@ class Outsource:
                     self.dtype_valid_cache[dtype] = (start_valid, end_valid)
 
                 if not start_valid < dbcfg.start < end_valid:
-                    #print(f"Can't process {dtype} for Run {dbcfg.number}.")
+                    print(f"Can't process {dtype} for Run {dbcfg.number}, because there's no valid correction with this run's time range!")
                     continue
 
                 logger.debug(f"|-----> adding {dtype}")
@@ -616,12 +625,6 @@ class Outsource:
         scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/xenon_dcache/workflow_scratch/{}'.format(getpass.getuser()))
         scratch_dir.add_file_servers(FileServer('gsiftp://xenon-gridftp.grid.uchicago.edu:2811/xenon/workflow_scratch/{}'.format(getpass.getuser()), Operation.ALL))
         staging.add_directories(scratch_dir)
-        
-        # staging ISI
-        staging_isi = Site("staging-isi")
-        scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/lizard/scratch-90-days/XENONnT/{}'.format(getpass.getuser()))
-        scratch_dir.add_file_servers(FileServer('gsiftp://workflow.isi.edu:2811/lizard/scratch-90-days/XENONnT/{}'.format(getpass.getuser()), Operation.ALL))
-        staging_isi.add_directories(scratch_dir)
 
         # condorpool
         condorpool = Site("condorpool")
@@ -630,6 +633,7 @@ class Outsource:
         condorpool.add_profiles(Namespace.CONDOR, key='+ProjectName', value='"xenon1t"')
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
                                 value=f'"{self.singularity_image}"')
+        # This profile will make all jobs in this workflow removed after 5 hours if the job is still idle (JobStatus == 2) or 30 seconds if the job is still held (JobStatus == 5).
         condorpool.add_profiles(Namespace.CONDOR, key='periodic_remove',
                                 value="((JobStatus == 2) && ((CurrentTime - EnteredCurrentStatus) > 18000)) || "
                                       "((JobStatus == 5) && ((CurrentTime - EnteredCurrentStatus) > 30)) "
@@ -650,13 +654,17 @@ class Outsource:
 
         sc.add_sites(local,
                      staging,
-                     staging_isi,
                      #output,
                      condorpool)
 
         return sc
 
     def dtype_validity(self, dtype):
+        """
+        Return the correction validity time range of a dtype
+        :param dtype: dtype name
+        :return: (start, end) validity range
+        """
         st = self.context
         cmt_used = {d: [] for d in st.provided_dtypes()}
         cmt_options = straxen.get_corrections.get_cmt_options(st)

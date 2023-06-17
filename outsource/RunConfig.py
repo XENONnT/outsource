@@ -64,7 +64,7 @@ def get_hashes(st):
 class RunConfigBase:
     """Base class that sets the defaults"""
     _force_rerun = False
-    _standalone_download = True
+    _standalone_download = False # if True, download data only from OSG
     _x509_proxy = os.path.join(os.environ['HOME'], 'user_cert')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
@@ -149,8 +149,6 @@ class DBConfig(RunConfig):
         # get the datatypes that need to be processed
         self.needs_processed = self.process_these()
 
-        # make sure the
-
         # determine which rse the input data is on
         self.rses = self.rse_data_find()
         self.raw_data_exists = self._raw_data_exists()
@@ -165,7 +163,7 @@ class DBConfig(RunConfig):
 
     def process_these(self):
         """Returns the list of datatypes we need to process"""
-        # do we need to process?
+        # do we need to process? read from xenon_config
         requested_dtypes = config.get_list('Outsource', 'dtypes')
 
         # if we are using LED data, only process those dtyopes
