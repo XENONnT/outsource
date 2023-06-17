@@ -273,7 +273,7 @@ class Outsource:
                     if not all([dbcfg._raw_data_exists(raw_type=d) for d in DEPENDS_ON[dtype]]):
                         continue
 
-                # can we process this dtype of this run?
+                # can we process this dtype of this run, with correction validity in the time range?
                 if dtype in self.dtype_valid_cache:
                     start_valid, end_valid = self.dtype_valid_cache[dtype]
                 else:
@@ -281,7 +281,7 @@ class Outsource:
                     self.dtype_valid_cache[dtype] = (start_valid, end_valid)
 
                 if not start_valid < dbcfg.start < end_valid:
-                    print(f"Can't process {dtype} for Run {dbcfg.number}, because it's not valid")
+                    print(f"Can't process {dtype} for Run {dbcfg.number}, because there's no valid correction with this run's time range!")
                     continue
 
                 logger.debug(f"|-----> adding {dtype}")
@@ -661,7 +661,7 @@ class Outsource:
 
     def dtype_validity(self, dtype):
         """
-        Return the validity range of a dtype
+        Return the correction validity time range of a dtype
         :param dtype: dtype name
         :return: (start, end) validity range
         """
