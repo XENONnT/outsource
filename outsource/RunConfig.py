@@ -149,8 +149,6 @@ class DBConfig(RunConfig):
         # get the datatypes that need to be processed
         self.needs_processed = self.process_these()
 
-        # make sure the
-
         # determine which rse the input data is on
         self.rses = self.rse_data_find()
         self.raw_data_exists = self._raw_data_exists()
