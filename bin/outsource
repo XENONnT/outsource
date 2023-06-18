@@ -115,12 +115,7 @@ def data_find(st, detector, number_from=None, number_to=None,
                  'data': {'$elemMatch': {'type': raw_dtype,
                                          'host': 'rucio-catalogue',
                                          'status': 'transferred',
-                                         'location': {'$in': ['UC_OSG_USERDISK',
-                                                              'SDSC_USERDISK',
-                                                              'NIKHEF2_USERDISK',
-                                                              'SURFSARA_USERDISK'
-                                                              ]
-                                                      }
+                                         'location': {'$in': ['UC_OSG_USERDISK']}
                                          }
                           },
                  'detectors': det
