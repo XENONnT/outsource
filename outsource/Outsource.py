@@ -517,7 +517,7 @@ class Outsource:
                                %(valid_hours, min_valid_hours))
 
 
-    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=10000):
+    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=20000):
         '''
         Wrapper for a Pegasus job, also sets resource requirement profiles. Memory and
         disk units are in MBs.
