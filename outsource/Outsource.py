@@ -537,7 +537,7 @@ class Outsource:
         # increase memory/disk if the first attempt fails
         memory = f"ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, {memory}, (DAGNodeRetry + 1)*{memory})"
 
-        disk_str = f"ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, {disk}, {2*disk})"
+        disk_str = f"ifthenelse(isundefined(DAGNodeRetry) || DAGNodeRetry == 0, {disk}, (DAGNodeRetry + 1)*{disk})"
 
         job.add_profiles(Namespace.CONDOR, 'request_disk', disk_str)
         job.add_profiles(Namespace.CONDOR, 'request_memory', memory)
