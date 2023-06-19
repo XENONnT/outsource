@@ -363,7 +363,7 @@ class Outsource:
                         download_job = None
                         if dbcfg.standalone_download:
                             data_tar = File('%06d-data-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
-                            download_job = self._job(name='download')
+                            download_job = self._job(name='download', disk=40000)
                             download_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                             download_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
