@@ -77,7 +77,7 @@ class Outsource:
                   'download': dict(name='download', disk=45000),
                   'records': dict(name='records', memory=5000),
                   'peaklets': dict(name='peaklets', memory=8000),
-                  'event_info_double': dict(name='events', memory=18000, disk=30000, cores=1),
+                  'event_info_double': dict(name='events', memory=18000, disk=45000, cores=1),
                   'peak_basics_he': dict(name='peaksHE', memory=8000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
                   'events_nv': dict(name='nv_events', memory=8000, disk=20000),
