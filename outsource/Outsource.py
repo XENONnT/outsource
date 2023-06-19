@@ -73,9 +73,11 @@ class Outsource:
                            }
 
     # jobs details for a given datatype
-    job_kwargs = {'records': dict(name='records', memory=5000),
+    job_kwargs = {'combine': dict(name='combine', disk=40000),
+                  'download': dict(name='download', disk=45000),
+                  'records': dict(name='records', memory=5000),
                   'peaklets': dict(name='peaklets', memory=8000),
-                  'event_info_double': dict(name='events', memory=18000, disk=24000, cores=1),
+                  'event_info_double': dict(name='events', memory=18000, disk=30000, cores=1),
                   'peak_basics_he': dict(name='peaksHE', memory=8000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
                   'events_nv': dict(name='nv_events', memory=8000, disk=20000),
@@ -318,7 +320,7 @@ class Outsource:
                 if dtype in PER_CHUNK_DTYPES:
                     # Set up the combine job first - we can then add to that job inside the chunk file loop
                     # only need combine job for low-level stuff
-                    combine_job = self._job('combine', disk=40000)
+                    combine_job = self._job('combine', disk=job_kwargs['combine']['disk'])
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
@@ -363,7 +365,7 @@ class Outsource:
                         download_job = None
                         if dbcfg.standalone_download:
                             data_tar = File('%06d-data-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
-                            download_job = self._job(name='download', disk=40000)
+                            download_job = self._job(name='download', disk=job_kwargs['download']['disk'])
                             download_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                             download_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
