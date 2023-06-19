@@ -73,10 +73,10 @@ class Outsource:
                            }
 
     # jobs details for a given datatype
-    job_kwargs = {'records': dict(name='records', memory=3000),
-                  'peaklets': dict(name='peaklets', memory=4000),
-                  'event_info_double': dict(name='events', memory=12000, disk=15000, cores=1),
-                  'peak_basics_he': dict(name='peaksHE', memory=5000, cores=1),
+    job_kwargs = {'records': dict(name='records', memory=5000),
+                  'peaklets': dict(name='peaklets', memory=8000),
+                  'event_info_double': dict(name='events', memory=18000, disk=24000, cores=1),
+                  'peak_basics_he': dict(name='peaksHE', memory=8000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
                   'events_nv': dict(name='nv_events', memory=8000, disk=20000),
                   'events_mv': dict(name='mv', memory=1700),
@@ -318,7 +318,7 @@ class Outsource:
                 if dtype in PER_CHUNK_DTYPES:
                     # Set up the combine job first - we can then add to that job inside the chunk file loop
                     # only need combine job for low-level stuff
-                    combine_job = self._job('combine', disk=30000)
+                    combine_job = self._job('combine', disk=40000)
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
@@ -363,7 +363,7 @@ class Outsource:
                         download_job = None
                         if dbcfg.standalone_download:
                             data_tar = File('%06d-data-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
-                            download_job = self._job(name='download')
+                            download_job = self._job(name='download', disk=40000)
                             download_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                             download_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
@@ -517,7 +517,7 @@ class Outsource:
                                %(valid_hours, min_valid_hours))
 
 
-    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=10000):
+    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=15000):
         '''
         Wrapper for a Pegasus job, also sets resource requirement profiles. Memory and
         disk units are in MBs.
