@@ -73,14 +73,14 @@ class Outsource:
                            }
 
     # jobs details for a given datatype
-    job_kwargs = {'combine': dict(name='combine', disk=40000),
-                  'download': dict(name='download', disk=45000),
+    job_kwargs = {'combine': dict(name='combine', disk=2_000_000),
+                  'download': dict(name='download', disk=2_000_000),
                   'records': dict(name='records', memory=5000),
                   'peaklets': dict(name='peaklets', memory=8000),
-                  'event_info_double': dict(name='events', memory=24000, disk=45000, cores=1),
+                  'event_info_double': dict(name='events', memory=24000, disk=10_000_000, cores=1),
                   'peak_basics_he': dict(name='peaksHE', memory=8000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
-                  'events_nv': dict(name='nv_events', memory=8000, disk=20000),
+                  'events_nv': dict(name='nv_events', memory=8000, disk=2_000_000),
                   'events_mv': dict(name='mv', memory=1700),
                   'afterpulses': dict(name='ap', memory=3000),
                   'led_calibration': dict(name='led', memory=4000)
