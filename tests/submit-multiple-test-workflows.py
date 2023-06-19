@@ -16,5 +16,5 @@ if __name__ == '__main__':
     configs = [DBConfig(r, context_name=args.context, cmt_version=args.cmt,
                         ignore_rucio=False, ignore_db=False) for r in runs
                ]
-    outsource = Outsource(configs, xsede=True)
+    outsource = Outsource(configs, xsede=False)
     outsource.submit_workflow()
