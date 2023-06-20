@@ -73,6 +73,7 @@ class Outsource:
                            }
 
     # jobs details for a given datatype
+    # disk is in KB, memory in MB
     job_kwargs = {'combine': dict(name='combine', disk=2_000_000),
                   'download': dict(name='download', disk=2_000_000),
                   'records': dict(name='records', memory=5000),
@@ -521,8 +522,8 @@ class Outsource:
 
     def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=1_000_000):
         '''
-        Wrapper for a Pegasus job, also sets resource requirement profiles. Memory and
-        disk units are in MBs.
+        Wrapper for a Pegasus job, also sets resource requirement profiles. Memory in unit of MB, and 
+        disk in unit of MB.
         '''
         job = Job(name)
 
