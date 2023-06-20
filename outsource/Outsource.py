@@ -77,7 +77,7 @@ class Outsource:
                   'download': dict(name='download', disk=2_000_000),
                   'records': dict(name='records', memory=5000),
                   'peaklets': dict(name='peaklets', memory=8000),
-                  'event_info_double': dict(name='events', memory=24000, disk=10_000_000, cores=1),
+                  'event_info_double': dict(name='events', memory=24000, disk=20_000_000, cores=1),
                   'peak_basics_he': dict(name='peaksHE', memory=8000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5000),
                   'events_nv': dict(name='nv_events', memory=8000, disk=2_000_000),
@@ -519,7 +519,7 @@ class Outsource:
                                %(valid_hours, min_valid_hours))
 
 
-    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=15000):
+    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=1_000_000):
         '''
         Wrapper for a Pegasus job, also sets resource requirement profiles. Memory and
         disk units are in MBs.
