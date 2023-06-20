@@ -320,7 +320,7 @@ class Outsource:
                 if dtype in PER_CHUNK_DTYPES:
                     # Set up the combine job first - we can then add to that job inside the chunk file loop
                     # only need combine job for low-level stuff
-                    combine_job = self._job('combine', disk=job_kwargs['combine']['disk'])
+                    combine_job = self._job('combine', disk=self.job_kwargs['combine']['disk'])
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
@@ -365,7 +365,7 @@ class Outsource:
                         download_job = None
                         if dbcfg.standalone_download:
                             data_tar = File('%06d-data-%s-%04d.tar.gz' % (dbcfg.number, dtype, job_i))
-                            download_job = self._job(name='download', disk=job_kwargs['download']['disk'])
+                            download_job = self._job(name='download', disk=self.job_kwargs['download']['disk'])
                             download_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                             download_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
