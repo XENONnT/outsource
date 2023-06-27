@@ -200,6 +200,9 @@ def main():
                         runlist=_runlist,
                         specify_sources=args.source
                         )
+    if len(runlist)!=len(_runlist):
+        print("The following run numbers were not processible after checking dependeicies in the runsDB:")
+        print(set(_runlist)-set(runlist))
     assert len(runlist), "Cannot find any runs matching the criteria specified in your input and xenon_config!"
     if args.dry_run:
         print(runlist)
