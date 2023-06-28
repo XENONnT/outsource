@@ -30,7 +30,7 @@ def data_find(st, detector, number_from=None, number_to=None,
               specify_modes=None, specify_sources=None,
               runlist=None
               ):
-    """Find data to outsource
+    """Find data to outsource. Check if dependencies are available in RunDB.
     :param st: straxen context
     :param detector: detector to process
     :param number_from: start run number
@@ -191,7 +191,6 @@ def main():
 
     elif args.runlist:
         _runlist = load_runlist(args.runlist)
-
     runlist = data_find(st,
                         args.detector,
                         number_from=args.number_from,
@@ -200,7 +199,10 @@ def main():
                         runlist=_runlist,
                         specify_sources=args.source
                         )
-
+    if len(runlist)!=len(_runlist):
+        print("The following run numbers were not processible after checking dependeicies in the runsDB:")
+        print(set(_runlist)-set(runlist))
+    assert len(runlist), "Cannot find any runs matching the criteria specified in your input and xenon_config!"
     if args.dry_run:
         print(runlist)
         print(f"DRY RUN: would process {len(runlist)} runs "
