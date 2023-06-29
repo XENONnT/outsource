@@ -109,7 +109,6 @@ class Outsource:
         # cutax.plugins.acsideband.ACSideband for event_info
         del self.context._plugin_class_registry['event_info']
         self.context.register(straxen.EventInfo)
-
         # remove cuts if there is any
         all_plugin_keys_registrerd = list(self.context._plugin_class_registry.keys())
         for registered_plugin in all_plugin_keys_registrerd:
@@ -117,6 +116,9 @@ class Outsource:
                 del self.context._plugin_class_registry[registered_plugin]
             elif 'cutax' in str(self.context._plugin_class_registry[registered_plugin]):
                 del self.context._plugin_class_registry[registered_plugin]
+        # remove diffusion_constant if there is one to avoid warning message
+        if "diffusion_constant" in st.config.keys():
+            del st.config["diffusion_constant"]
 
         # Load from xenon_config
         self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
