@@ -685,7 +685,7 @@ class Outsource:
         for opt, cmt_info in cmt_options.items():
             for d, plugin in st._plugin_class_registry.items():
                 if opt in plugin.takes_config:
-                    #
+                    # get the correction name and version
                     if isinstance(cmt_info, dict):
                         collname = cmt_info['correction']
                         strax_opt = cmt_info['strax_option']
