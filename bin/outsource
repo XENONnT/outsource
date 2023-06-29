@@ -6,6 +6,7 @@ from utilix.io import load_runlist
 from utilix import xent_collection
 from utilix.rundb import cmt_local_valid_range
 import cutax
+import straxen
 
 from outsource.Outsource import Outsource, DEFAULT_IMAGE
 from outsource.Config import config
@@ -178,7 +179,21 @@ def main():
     if args.debug:
         upload_to_rucio = update_db = False
 
+    # register event_info manually, otherwise in cutax v1.15.0 you will have
+    # cutax.plugins.acsideband.ACSideband for event_info
     st = getattr(cutax.contexts, args.context)()
+    del st._plugin_class_registry['event_info']
+    st.register(straxen.EventInfo)
+    # remove cuts if there is any
+    all_plugin_keys_registrerd = list(st._plugin_class_registry.keys())
+    for registered_plugin in all_plugin_keys_registrerd:
+        if ('cut' in registered_plugin) or ('cuts' in registered_plugin):
+            del st._plugin_class_registry[registered_plugin]
+        elif 'cut' in str(st._plugin_class_registry[registered_plugin]):
+            del st._plugin_class_registry[registered_plugin]
+    # remove diffusion_constant if there is one to avoid warning message
+    if "diffusion_constant" in st.config.keys():
+        del st.config["diffusion_constant"]
 
     if args.run and args.runlist:
         raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
