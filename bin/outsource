@@ -184,7 +184,6 @@ def main():
     st = getattr(cutax.contexts, args.context)()
     del st._plugin_class_registry['event_info']
     st.register(straxen.EventInfo)
-    
     # remove cuts if there is any
     all_plugin_keys_registrerd = list(st._plugin_class_registry.keys())
     for registered_plugin in all_plugin_keys_registrerd:
@@ -192,6 +191,9 @@ def main():
             del st._plugin_class_registry[registered_plugin]
         elif 'cut' in str(st._plugin_class_registry[registered_plugin]):
             del st._plugin_class_registry[registered_plugin]
+    # remove diffusion_constant if there is one to avoid warning message
+    if "diffusion_constant" in st.config.keys():
+        del st.config["diffusion_constant"]
 
     if args.run and args.runlist:
         raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
