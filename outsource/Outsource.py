@@ -110,6 +110,14 @@ class Outsource:
         del self.context._plugin_class_registry['event_info']
         self.context.register(straxen.EventInfo)
 
+        # remove cuts if there is any
+        all_plugin_keys_registrerd = list(self.context._plugin_class_registry.keys())
+        for registered_plugin in all_plugin_keys_registrerd:
+            if ('cut_' in registered_plugin) or ('cuts_' in registered_plugin):
+                del self.context._plugin_class_registry[registered_plugin]
+            elif 'cutax' in str(self.context._plugin_class_registry[registered_plugin]):
+                del self.context._plugin_class_registry[registered_plugin]
+
         # Load from xenon_config
         self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
         self.debug = debug
