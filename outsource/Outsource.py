@@ -105,6 +105,11 @@ class Outsource:
         self.context_name = context_name
         self.context = getattr(cutax.contexts, context_name)(cut_list=None)
 
+        # register event_info manually, otherwise in cutax v1.15.0 you will have
+        # cutax.plugins.acsideband.ACSideband for event_info
+        del self.context._plugin_class_registry['event_info']
+        self.context.register(straxen.EventInfo)
+
         # Load from xenon_config
         self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
         self.debug = debug
@@ -680,7 +685,7 @@ class Outsource:
         for opt, cmt_info in cmt_options.items():
             for d, plugin in st._plugin_class_registry.items():
                 if opt in plugin.takes_config:
-                    #
+                    # get the correction name and version
                     if isinstance(cmt_info, dict):
                         collname = cmt_info['correction']
                         strax_opt = cmt_info['strax_option']
