@@ -117,7 +117,7 @@ class Outsource:
             elif 'cutax' in str(self.context._plugin_class_registry[registered_plugin]):
                 del self.context._plugin_class_registry[registered_plugin]
         # remove diffusion_constant if there is one to avoid warning message
-        if "diffusion_constant" in selfcontext.config.keys():
+        if "diffusion_constant" in self.context.config.keys():
             del self.context.config["diffusion_constant"]
 
         # Load from xenon_config
