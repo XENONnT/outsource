@@ -43,7 +43,7 @@ class Shell(object):
         thread.start()
 
         thread.join(self._timeout_secs)
-        if thread.is_alive():
+        if thread.isAlive():
             # do our best to kill the whole process group
             try:
                 kill_cmd = 'kill -TERM -%d' %(os.getpgid(self._process.pid))
