@@ -193,8 +193,8 @@ def main():
         elif 'cut' in str(st._plugin_class_registry[registered_plugin]):
             del st._plugin_class_registry[registered_plugin]
 
-        if args.run and args.runlist:
-            raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
+    if args.run and args.runlist:
+        raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
 
     # subset of runs to consider during data find
     _runlist = None
