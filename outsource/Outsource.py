@@ -82,9 +82,9 @@ class Outsource:
                   'peak_basics_he': dict(name='peaksHE', memory=8_000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5_000),
                   'events_nv': dict(name='nv_events', memory=8_000, disk=2_000_000),
-                  'events_mv': dict(name='mv', memory=1700),
-                  'afterpulses': dict(name='ap', memory=3000),
-                  'led_calibration': dict(name='led', memory=4000)
+                  'events_mv': dict(name='mv', memory=1_700),
+                  'afterpulses': dict(name='ap', memory=3_000),
+                  'led_calibration': dict(name='led', memory=4_000)
                   }
 
     def __init__(self, runlist, context_name,
