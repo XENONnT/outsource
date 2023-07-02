@@ -74,7 +74,7 @@ class Outsource:
 
     # jobs details for a given datatype
     # disk is in KB, memory in MB
-    job_kwargs = {'combine': dict(name='combine', memory=5_000, disk=5_000_000),
+    job_kwargs = {'combine': dict(name='combine', memory=5_000, disk=25_000_000),
                   'download': dict(name='download', disk=2_000_000),
                   'records': dict(name='records', memory=5_000),
                   'peaklets': dict(name='peaklets', memory=20_000, disk=40_000_000),
