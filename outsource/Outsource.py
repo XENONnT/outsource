@@ -47,15 +47,15 @@ class Outsource:
         'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
         'UC_DALI_USERDISK':   {'expr': 'GLIDEIN_Country == "US"'},
         'UC_MIDWAY_USERDISK': {'expr': 'GLIDEIN_Country == "US"'},
-        'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
-        'CNAF_TAPE_USERDISK': {},
-        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
-        'LNGS_USERDISK':      {},
-        'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-        'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-        'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
-        'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
-        'SDSC_USERDISK': {'expr': 'GLIDEIN_ResourceName == "SDSC-Expanse"'}
+        #'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
+        #'CNAF_TAPE_USERDISK': {},
+        #'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
+        #'LNGS_USERDISK':      {},
+        #'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        #'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        #'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
+        #'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
+        #'SDSC_USERDISK': {'expr': 'GLIDEIN_ResourceName == "SDSC-Expanse"'}
     }
 
     # transformation map (high level name -> script)
