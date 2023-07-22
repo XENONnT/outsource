@@ -47,15 +47,15 @@ class Outsource:
         'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
         'UC_DALI_USERDISK':   {'expr': 'GLIDEIN_Country == "US"'},
         'UC_MIDWAY_USERDISK': {'expr': 'GLIDEIN_Country == "US"'},
-        'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
-        'CNAF_TAPE_USERDISK': {},
-        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
-        'LNGS_USERDISK':      {},
-        'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-        'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-        'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
-        'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
-        'SDSC_USERDISK': {'expr': 'GLIDEIN_ResourceName == "SDSC-Expanse"'}
+        #'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
+        #'CNAF_TAPE_USERDISK': {},
+        #'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
+        #'LNGS_USERDISK':      {},
+        #'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        #'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        #'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
+        #'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
+        #'SDSC_USERDISK': {'expr': 'GLIDEIN_ResourceName == "SDSC-Expanse"'}
     }
 
     # transformation map (high level name -> script)
@@ -74,17 +74,17 @@ class Outsource:
 
     # jobs details for a given datatype
     # disk is in KB, memory in MB
-    job_kwargs = {'combine': dict(name='combine', disk=2_000_000),
+    job_kwargs = {'combine': dict(name='combine', memory=5_000, disk=25_000_000),
                   'download': dict(name='download', disk=2_000_000),
-                  'records': dict(name='records', memory=5000),
-                  'peaklets': dict(name='peaklets', memory=8000),
-                  'event_info_double': dict(name='events', memory=24000, disk=20_000_000, cores=1),
-                  'peak_basics_he': dict(name='peaksHE', memory=8000, cores=1),
-                  'hitlets_nv': dict(name='nv_hitlets', memory=5000),
-                  'events_nv': dict(name='nv_events', memory=8000, disk=2_000_000),
-                  'events_mv': dict(name='mv', memory=1700),
-                  'afterpulses': dict(name='ap', memory=3000),
-                  'led_calibration': dict(name='led', memory=4000)
+                  'records': dict(name='records', memory=5_000),
+                  'peaklets': dict(name='peaklets', memory=20_000, disk=40_000_000),
+                  'event_info_double': dict(name='events', memory=24_000, disk=100_000_000, cores=1),
+                  'peak_basics_he': dict(name='peaksHE', memory=8_000, cores=1),
+                  'hitlets_nv': dict(name='nv_hitlets', memory=5_000),
+                  'events_nv': dict(name='nv_events', memory=8_000, disk=2_000_000),
+                  'events_mv': dict(name='mv', memory=1_700),
+                  'afterpulses': dict(name='ap', memory=3_000),
+                  'led_calibration': dict(name='led', memory=4_000)
                   }
 
     def __init__(self, runlist, context_name,
@@ -535,7 +535,7 @@ class Outsource:
                                %(valid_hours, min_valid_hours))
 
 
-    def _job(self, name, run_on_submit_node=False, cores=1, memory=1700, disk=1_000_000):
+    def _job(self, name, run_on_submit_node=False, cores=1, memory=1_700, disk=1_000_000):
         '''
         Wrapper for a Pegasus job, also sets resource requirement profiles. Memory in unit of MB, and 
         disk in unit of MB.
