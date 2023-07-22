@@ -27,6 +27,7 @@ db = DB()
 rechunk_dtypes = ['pulse_counts',
                   'veto_regions',
                   'peaklets',
+                  'merged_s2s',
                   'lone_hits',
                   'hitlets_nv',
                   'afterpulses',

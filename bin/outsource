@@ -14,7 +14,7 @@ from outsource.Config import config
 
 # do a query to see if these data types are present
 DETECTOR_DTYPES = {'tpc': {'raw': 'raw_records',
-                           'processed': ['peaklets', 'event_info', 'peak_basics_he', 'event_pattern_fit']
+                           'processed': ['peaklets', 'merged_s2s', 'event_info', 'peak_basics_he', 'event_pattern_fit']
                           },
                    'neutron_veto': {'raw': 'raw_records_nv',
                                     'processed': ['hitlets_nv', 'events_nv']

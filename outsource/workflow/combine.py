@@ -27,6 +27,9 @@ def merge(runid_str, # run number padded with 0s
           st,        # strax context
           path       # path where the data is stored
           ):
+    """
+    Merge the data in the path for the given dtype. 
+    """
 
     # get the storage path, since will need to reset later
     _storage_paths = [storage.path for storage in st.storage]
@@ -120,7 +123,7 @@ def main():
     elif 'led_calibration' in dtypes:
         plugin_levels = ['led_calibration']
     else:
-        plugin_levels = ['peaklets']
+        plugin_levels = ['peaklets', 'merged_s2s']
 
     # merge
     for dtype in plugin_levels:
@@ -148,7 +151,7 @@ def main():
         # based on the dtype and the utilix config, where should this data go?
         if keystring in ['records', 'pulse_counts', 'veto_regions']:
             rse = uconfig.get('Outsource', 'records_rse')
-        elif keystring in ['peaklets', 'lone_hits']:
+        elif keystring in ['peaklets', 'lone_hits', 'merged_s2s']:
             rse = uconfig.get('Outsource', 'peaklets_rse')
         else:
             rse = uconfig.get('Outsource', 'events_rse')

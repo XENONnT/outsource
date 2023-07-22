@@ -14,6 +14,7 @@ import numpy as np
 # maybe we could put this in database?
 DEPENDS_ON = {'records': ['raw_records'],
               'peaklets': ['raw_records'],
+              'merged_s2s': ['peaklets', 'lone_hits'],
               'peak_basics_he': ['raw_records_he'],
               'event_info_double': ['peaklets'],
               'hitlets_nv': ['raw_records_nv'],
@@ -23,7 +24,7 @@ DEPENDS_ON = {'records': ['raw_records'],
               'led_calibration': ['raw_records']
               }
 
-DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'event_info_double', 'peak_basics_he',
+DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'merged_s2s', 'event_info_double', 'peak_basics_he',
                            'afterpulses', 'led_calibration'],
                    'neutron_veto': ['hitlets_nv', 'events_nv'],
                    'muon_veto': ['events_mv']
@@ -34,6 +35,7 @@ ACTUALLY_STORED = {'event_info_double': ['event_info', 'distinct_channels', 'eve
                    'peak_basics_he': ['peak_basics_he'],
                    'events_nv': ['events_nv'],
                    'peaklets': ['peaklets', 'lone_hits'],
+                   'merged_s2s': ['merged_s2s'],
                    'hitlets_nv': ['hitlets_nv'],
                    'events_mv': ['events_mv'],
                    'afterpulses': ['afterpulses'],
