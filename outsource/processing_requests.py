@@ -27,7 +27,7 @@ def unsubmitted_jobs(token=None, **query):
 
 
 def submit_workflows(jobs, wf_id=None, upload_to_rucio=True, 
-                     update_db=True, force=True, debug=False, token=None):
+                     update_db=True, force=True, debug=True, token=None):
     """
     Submit workflows for list of jobs
     Jobs are grouped by env tag and context
