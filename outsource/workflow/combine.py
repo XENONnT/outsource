@@ -153,8 +153,17 @@ def main():
         else:
             rse = uconfig.get('Outsource', 'events_rse')
 
+        # Test if the data is complete
+        try:
+            st.get_array(runid_str, keystring, keep_columns='time')
+        except Exception as e:
+            print(f"Data is not complete for {this_dir}. Skipping")
+            print("Below is the error message we get when trying to load the data:")
+            print(e)
+            print("Let's see what's inside the directory:")
+
         this_path = os.path.join(final_path, this_dir)
-        print(f"Uploading {this_path} to {rse}")
+        print(f"Trying to upload {this_path} to {rse}")
         print("The following files are inside %s"%(this_path))
         contents_to_upload = os.listdir(this_path)
         print(contents_to_upload)
