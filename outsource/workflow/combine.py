@@ -154,6 +154,7 @@ def main():
             rse = uconfig.get('Outsource', 'events_rse')
 
         this_path = os.path.join(final_path, this_dir)
+        print(f"Uploading {this_path} to {rse}")
         admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
 
 
