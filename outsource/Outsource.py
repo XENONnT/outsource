@@ -74,7 +74,7 @@ class Outsource:
 
     # jobs details for a given datatype
     # disk is in KB, memory in MB
-    job_kwargs = {'combine': dict(name='combine', memory=5_000, disk=25_000_000),
+    job_kwargs = {'combine': dict(name='combine', memory=10_000, disk=50_000_000),
                   'download': dict(name='download', disk=2_000_000),
                   'records': dict(name='records', memory=5_000),
                   'peaklets': dict(name='peaklets', memory=20_000, disk=40_000_000),
@@ -91,7 +91,7 @@ class Outsource:
                  #cmt_version='global_v5',
                  wf_id=None, force_rerun=False,
                  upload_to_rucio=True, update_db=True,
-                 debug=False, image=DEFAULT_IMAGE):
+                 debug=True, image=DEFAULT_IMAGE):
         '''
         Creates a new Outsource object. Specifying a list of DBConfig objects required.
         '''
@@ -135,9 +135,9 @@ class Outsource:
         logger.setLevel(logging.WARNING)
         console.setLevel(logging.WARNING)
         # debug - where to get this from?
-        # if debug:
-        #     logger.setLevel(logging.DEBUG)
-        #     console.setLevel(logging.DEBUG)
+        if debug:
+            logger.setLevel(logging.DEBUG)
+            console.setLevel(logging.DEBUG)
         # formatter
         formatter = logging.Formatter("%(asctime)s %(levelname)7s:  %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
         console.setFormatter(formatter)
