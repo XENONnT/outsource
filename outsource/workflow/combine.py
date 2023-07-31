@@ -162,7 +162,7 @@ def main():
         if len(contents_to_upload):
             admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
         else:
-            raise ValueError(f"Empty directory {this_path}")
+            raise ValueError(f"Empty directory in the directory we want to upload: {this_path}")
 
 if __name__ == "__main__":
     main()
