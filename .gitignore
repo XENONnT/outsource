@@ -8,3 +8,4 @@ outsource.egg-info
 .config
 .xenonnt.conf
 *~
+.vscode
