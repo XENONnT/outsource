@@ -10,16 +10,14 @@
             "request": "launch",
             "program": "/home/yuanlq/software/outsource/bin/outsource",
             "args": [
-                "--run",
-                "48692",
-                "48693",
+                "--runlist",
+                "/home/yuanlq/v11_reprocess/segmented/sr0_bkg_batch_0.txt",
                 "--name",
-                "sr1_rn220_401-402",
+                "sr0_bkg_batch_0_0",
                 "--context",
                 "xenonnt_offline",
-                "--force",
                 "--detector",
-                "tpc"
+                "tpc",
             ],
             "console": "integratedTerminal",
             "justMyCode": true
