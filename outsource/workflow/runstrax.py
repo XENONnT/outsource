@@ -438,7 +438,7 @@ def main():
         path = os.path.join(data_dir, dirname)
 
         try:
-            # print("Doing upload")
+            print(f"Uploading {path} to rucio!")
             admix.upload(path, rse=rse, did=dataset_did)
         except:
             print(f"Upload of {dset_name} failed for some reason")

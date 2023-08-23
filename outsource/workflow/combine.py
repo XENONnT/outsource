@@ -153,10 +153,28 @@ def main():
         else:
             rse = uconfig.get('Outsource', 'events_rse')
 
-        this_path = os.path.join(final_path, this_dir)
-        print(f"Uploading {this_path} to {rse}")
-        admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
+        # Test if the data is complete
+        try:
+            print("Try loading the data to see if it is complete.")
+            st.get_array(runid_str, keystring, keep_columns='time')
+            print("Successfully loaded! It is complete.")
+        except Exception as e:
+            print(f"Data is not complete for {this_dir}. Skipping")
+            print("Below is the error message we get when trying to load the data:")
+            print(e)
+            print("Let's see what's inside the directory:")
 
+        this_path = os.path.join(final_path, this_dir)
+        print(f"Trying to upload {this_path} to {rse}")
+        print("The following files are inside %s"%(this_path))
+        print("--------------------------")
+        contents_to_upload = os.listdir(this_path)
+        print(contents_to_upload)
+
+        if len(contents_to_upload):
+            admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
+        else:
+            raise ValueError(f"Empty directory in the directory we want to upload: {this_path}")
 
 if __name__ == "__main__":
     main()
