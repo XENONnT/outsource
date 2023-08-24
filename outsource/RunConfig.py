@@ -14,7 +14,7 @@ import numpy as np
 # maybe we could put this in database?
 DEPENDS_ON = {'records': ['raw_records'],
               'peaklets': ['raw_records'],
-              'peak_basics': ['raw_records'],
+              'peak_basics': ['peaklets'],
               'peak_basics_he': ['raw_records_he'],
               'event_info_double': ['peaklets'],
               'hitlets_nv': ['raw_records_nv'],
@@ -34,7 +34,7 @@ DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'peak_basics', 'event_info_dou
 ACTUALLY_STORED = {'event_info_double': ['event_info', 'distinct_channels', 'event_pattern_fit'],
                    'peak_basics_he': ['peak_basics_he'],
                    'events_nv': ['events_nv'],
-                   'peak_basics': ['peaklets', 'lone_hits', 'merged_s2s', 'peak_basics', 'peaklet_classification'],
+                   'peak_basics': ['merged_s2s', 'peak_basics', 'peaklet_classification'],
                    'peaklets': ['peaklets', 'lone_hits'],
                    'hitlets_nv': ['hitlets_nv'],
                    'events_mv': ['events_mv'],
