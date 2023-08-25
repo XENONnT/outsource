@@ -249,7 +249,7 @@ class Outsource:
         cutax_tarball = File('cutax.tar.gz')
         if 'CUTAX_LOCATION' not in os.environ:
             logger.warning("No CUTAX_LOCATION env variable found. Using the latest by default!")
-            tarball_path = '/xenon/xenonnt/software/cutax/latest.tar.gz'
+            tarball_path = '/ospool/uc-shared/project/xenon/xenonnt/software/cutax/latest.tar.gz'
         else:
             tarball_path = os.environ['CUTAX_LOCATION'].replace('.', '-') + '.tar.gz'
             logger.warning(f"Using cutax: {tarball_path}")
