@@ -651,7 +651,9 @@ class Outsource:
         condorpool = Site("condorpool")
         condorpool.add_profiles(Namespace.PEGASUS, style='condor')
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
-        condorpool.add_profiles(Namespace.CONDOR, key='+ProjectName', value='"xenon1t"')
+        # we need the x509 proxy for Rucio transfers
+        condorpool.add_profiles(Namespace.CONDOR, key='x509userproxy',
+                                value=os.environ['HOME'] + '/user_cert')
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
                                 value=f'"{self.singularity_image}"')
         # This profile will make all jobs in this workflow removed after 5 hours if the job is still idle (JobStatus == 2) or 30 seconds if the job is still held (JobStatus == 5).
