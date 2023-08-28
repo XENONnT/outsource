@@ -104,6 +104,7 @@ then
   chunkarg="--chunks ${chunks}"
 fi
 
+chmod +x runstrax.py
 ./runstrax.py ${run_id} --output ${output_dtype} --context ${context} ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];

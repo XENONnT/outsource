@@ -249,7 +249,7 @@ class Outsource:
         cutax_tarball = File('cutax.tar.gz')
         if 'CUTAX_LOCATION' not in os.environ:
             logger.warning("No CUTAX_LOCATION env variable found. Using the latest by default!")
-            tarball_path = '/xenon/xenonnt/software/cutax/latest.tar.gz'
+            tarball_path = '/ospool/uc-shared/project/xenon/xenonnt/software/cutax/latest.tar.gz'
         else:
             tarball_path = os.environ['CUTAX_LOCATION'].replace('.', '-') + '.tar.gz'
             logger.warning(f"Using cutax: {tarball_path}")
@@ -643,15 +643,17 @@ class Outsource:
 
         # staging site
         staging = Site("staging")
-        scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/xenon_dcache/workflow_scratch/{}'.format(getpass.getuser()))
-        scratch_dir.add_file_servers(FileServer('gsiftp://xenon-gridftp.grid.uchicago.edu:2811/xenon/workflow_scratch/{}'.format(getpass.getuser()), Operation.ALL))
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/ospool/uc-shared/project/xenon/wf-scratch/{}'.format(getpass.getuser()))
+        scratch_dir.add_file_servers(FileServer('osdf:///ospool/uc-shared/project/xenon/wf-scratch/{}'.format(getpass.getuser()), Operation.ALL))
         staging.add_directories(scratch_dir)
 
         # condorpool
         condorpool = Site("condorpool")
         condorpool.add_profiles(Namespace.PEGASUS, style='condor')
         condorpool.add_profiles(Namespace.CONDOR, universe='vanilla')
-        condorpool.add_profiles(Namespace.CONDOR, key='+ProjectName', value='"xenon1t"')
+        # we need the x509 proxy for Rucio transfers
+        condorpool.add_profiles(Namespace.CONDOR, key='x509userproxy',
+                                value=os.environ['HOME'] + '/user_cert')
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
                                 value=f'"{self.singularity_image}"')
         # This profile will make all jobs in this workflow removed after 5 hours if the job is still idle (JobStatus == 2) or 30 seconds if the job is still held (JobStatus == 5).

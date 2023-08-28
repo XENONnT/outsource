@@ -50,6 +50,7 @@ tar -xzf cutax.tar.gz -C cutax --strip-components=1
 pip install ./cutax --user --no-deps -qq
 python -c "import cutax; print(cutax.__file__)"
 
+chmod +x combine.py
 
 # combine the data
 time ./combine.py ${runid} ${dtype} --input data --context ${context} ${combine_extra_args}
