@@ -41,7 +41,7 @@ def data_find(st, detector, number_from=None, number_to=None,
     :param runlist: list of run numbers to process
     :return: list of run numbers
     """
-    exclude_tags = ['messy', 'bad', 'abandon']
+    exclude_tags = ['bad', 'abandon']
     exclude_modes = config.get_list('Outsource', 'exclude_modes')
     min_run_number = config.getint('Outsource', 'min_run_number')
     max_run_number = 999999
