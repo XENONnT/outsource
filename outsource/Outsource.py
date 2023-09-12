@@ -47,15 +47,15 @@ class Outsource:
         'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
         'UC_DALI_USERDISK':   {'expr': 'GLIDEIN_Country == "US"'},
         'UC_MIDWAY_USERDISK': {'expr': 'GLIDEIN_Country == "US"'},
-        #'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
-        #'CNAF_TAPE_USERDISK': {},
-        #'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
-        #'LNGS_USERDISK':      {},
-        #'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-        #'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
-        #'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
-        #'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
-        #'SDSC_USERDISK': {'expr': 'GLIDEIN_ResourceName == "SDSC-Expanse"'}
+        'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
+        'CNAF_TAPE_USERDISK': {},
+        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
+        'LNGS_USERDISK':      {},
+        'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
+        'SURFSARA_USERDISK':  {'desired_sites': 'SURFsara', 'expr': 'GLIDEIN_Site == "SURFsara"'},
+        'WEIZMANN_USERDISK':  {'desired_sites': 'Weizmann', 'expr': 'GLIDEIN_Site == "Weizmann"'},
+        'SDSC_USERDISK': {'expr': 'GLIDEIN_ResourceName == "SDSC-Expanse"'}
     }
 
     # transformation map (high level name -> script)
@@ -79,8 +79,8 @@ class Outsource:
                   'download': dict(name='download', disk=2_000_000),
                   'records': dict(name='records', memory=5_000),
                   'peaklets': dict(name='peaklets', memory=20_000, disk=40_000_000),
-                  'peak_basics': dict(name='peak_basics', memory=20_000, disk=40_000_000),
-                  'event_info_double': dict(name='events', memory=24_000, disk=100_000_000, cores=1),
+                  'peak_basics': dict(name='peak_basics', memory=40_000, disk=40_000_000),
+                  'event_info_double': dict(name='events', memory=40_000, disk=100_000_000, cores=1),
                   'peak_basics_he': dict(name='peaksHE', memory=8_000, cores=1),
                   'hitlets_nv': dict(name='nv_hitlets', memory=5_000),
                   'events_nv': dict(name='nv_events', memory=8_000, disk=2_000_000),
