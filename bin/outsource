@@ -7,6 +7,7 @@ from utilix import xent_collection
 from utilix.rundb import cmt_local_valid_range
 import cutax
 import straxen
+import numpy as np
 
 from outsource.Outsource import Outsource, DEFAULT_IMAGE
 from outsource.Config import config
@@ -53,7 +54,9 @@ def data_find(st, detector, number_from=None, number_to=None,
     hashes = {key: val['hash'] for key, val in st.provided_dtypes().items()}
 
     # setup queries for different detectors
-    queries = []
+    basic_queries = []
+    basic_queries_w_raw = []
+    basic_queries_wo_to_process = []
 
     for det, det_info in DETECTOR_DTYPES.items():
         if detector != 'all' and detector != det:
@@ -120,35 +123,82 @@ def data_find(st, detector, number_from=None, number_to=None,
         if runlist:
             number_query['$in'] = runlist
 
-        # FIXME: why is it $or
-        query = {'number': number_query,
-                 'tags.name': {'$not': {'$in': exclude_tags}},
-                 'start': {'$gt': gain_range[0],
-                           '$lt': gain_range[1]},
-                 'mode': mode_query.copy(),
-                 '$or': to_process_dtype_query.copy(),
-                 'data': has_raw_dtype_query,
-                 'detectors': det
-                }
+        # Basic query
+        basic_query = {'number': number_query,
+                       'tags.name': {'$not': {'$in': exclude_tags}},
+                       'start': {'$gt': gain_range[0],
+                                 '$lt': gain_range[1]},
+                       'mode': mode_query.copy(),
+                       'detectors': det,
+                      }
         if specify_sources:
-            query['source'] = {'$in': specify_sources}
+            basic_query['source'] = {'$in': specify_sources}
+        basic_queries.append(basic_query)
 
-        queries.append(query)
+        # Basic query with raw data
+        basic_query_w_raw = basic_query.copy()
+        basic_query_w_raw['data'] = has_raw_dtype_query
+        basic_queries_w_raw.append(basic_query_w_raw)
 
-    full_query = {'$or': queries}
 
-    cursor = coll.find(full_query, {'number': 1, '_id': 0, 'mode': 1},
+        # Basic query without to_process data
+        basic_query_wo_to_process = basic_query.copy()
+        basic_query_wo_to_process['$or'] = to_process_dtype_query
+        basic_queries_wo_to_process.append(basic_query_wo_to_process)
+
+
+    full_query_basic = {'$or': basic_queries}
+    full_query_basic_w_raw = {'$or': basic_queries_w_raw}
+    full_query_basic_wo_to_process = {'$or': basic_queries_wo_to_process}
+
+    cursor_basic = coll.find(full_query_basic, {'number': 1, '_id': 0, 'mode': 1},
                        limit=config.getint('Outsource', 'max_daily', fallback=None),
                        sort=[('number', -1)]
                        )
+    cursor_basic_w_raw = coll.find(full_query_basic_w_raw, {'number': 1, '_id': 0, 'mode': 1},
+                        limit=config.getint('Outsource', 'max_daily', fallback=None),
+                        sort=[('number', -1)]
+                        )
+    cursor_basic_wo_to_process = coll.find(full_query_basic_wo_to_process, {'number': 1, '_id': 0, 'mode': 1},
+                        limit=config.getint('Outsource', 'max_daily', fallback=None),
+                        sort=[('number', -1)]
+                        )
 
-    modes = []
-    runlist = []
-    for r in cursor:
-        if r['mode'] not in modes:
-            modes.append(r['mode'])
-        runlist.append(r['number'])
-    print(f"Run modes: {', '.join(modes)}")
+    modes_basic = []
+    runlist_basic = []
+    modes_basic_w_raw = []
+    runlist_basic_w_raw = []
+    modes_basic_wo_to_process = []
+    runlist_basic_wo_to_process = []
+
+    for r in cursor_basic:
+        if r['mode'] not in modes_basic:
+            modes_basic.append(r['mode'])
+        runlist_basic.append(r['number'])
+    print(f"Run modes for runs passing the basic queires: {', '.join(modes_basic)}")
+    print("The following are the run numbers passing the basic queries:")
+    print(runlist_basic)
+    print("------------------------------------------")
+
+    for r in cursor_basic_w_raw:
+        if r['mode'] not in modes_basic_w_raw:
+            modes_basic_w_raw.append(r['mode'])
+        runlist_basic_w_raw.append(r['number'])
+    print(f"Run modes for runs passing the basic queires and have raw data available: {', '.join(modes_basic_w_raw)}")
+    print("The following are the run numbers passing the basic queries and have raw data available:")
+    print(runlist_basic_w_raw)
+    print("------------------------------------------")
+
+    for r in cursor_basic_wo_to_process:
+        if r['mode'] not in modes_basic_wo_to_process:
+            modes_basic_wo_to_process.append(r['mode'])
+        runlist_basic_wo_to_process.append(r['number'])
+    print("The following are the run numbers passing the basic queries and have no to_process data available:")
+    print(runlist_basic_wo_to_process)
+    print("------------------------------------------")
+
+    runlist = list(set(runlist_basic_wo_to_process) & set(runlist_basic_w_raw))
+
     return runlist
 
 
