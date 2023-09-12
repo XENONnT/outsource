@@ -77,12 +77,14 @@ def data_find(st, detector, number_from=None, number_to=None,
         local_gain_version = st.config.get(straxen_opt)
         gain_range = cmt_local_valid_range(gain_model, local_gain_version)
 
-        dtype_list = det_info['to_process'] 
+        # We will check if the data type in the following list is already present in the runDB
+        dtype_to_process_list = det_info['to_process'] 
 
+        # Check if the data type is in the list of data types to outsource
         outsource_dtypes = config.get('Outsource', 'dtypes')
-        dtype_list = [d for d in dtype_list if d in outsource_dtypes]
+        dtype_to_process_list = [d for d in dtype_to_process_list if d in outsource_dtypes]
 
-        if not len(dtype_list):
+        if not len(dtype_to_process_list):
             continue
 
         raw_dtype = det_info['raw']
@@ -95,7 +97,7 @@ def data_find(st, detector, number_from=None, number_to=None,
                                         }
                                 }
                         }
-                        for dtype in dtype_list
+                        for dtype in dtype_to_process_list
                       ]
 
         if specify_modes:
