@@ -73,11 +73,10 @@ def data_find(st, detector, number_from=None, number_to=None,
         else:
             raise NotImplementedError
 
-        local_gain_version = st.config.get(straxen_opt)[1]
-
+        local_gain_version = st.config.get(straxen_opt)
         gain_range = cmt_local_valid_range(gain_model, local_gain_version)
 
-        dtype_list = det_info['processed']
+        dtype_list = det_info['processed'] 
 
         outsource_dtypes = config.get('Outsource', 'dtypes')
         dtype_list = [d for d in dtype_list if d in outsource_dtypes]
@@ -87,6 +86,7 @@ def data_find(st, detector, number_from=None, number_to=None,
 
         raw_dtype = det_info['raw']
 
+        # Check if the data type (peaklets, event_info, etc) is already present in the runDB, added by ruciocatalogue
         data_query = [{'data': {'$not': {'$elemMatch': {'host': 'rucio-catalogue',
                                                         'type': dtype,
                                                         'did': {'$regex': hashes[dtype]},
@@ -107,6 +107,8 @@ def data_find(st, detector, number_from=None, number_to=None,
         if runlist:
             number_query['$in'] = runlist
 
+        # FIXME: we want the raw data location to be flexible, as specified in xenon_config for raw_records_rse
+        # FIXME: why is it $or
         query = {'number': number_query,
                  'tags.name': {'$not': {'$in': exclude_tags}},
                  'start': {'$gt': gain_range[0],
