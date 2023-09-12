@@ -78,13 +78,13 @@ def data_find(st, detector, number_from=None, number_to=None,
         gain_range = cmt_local_valid_range(gain_model, local_gain_version)
 
         # We will check if the data type in the following list is already present in the runDB
-        dtype_to_process_list = det_info['to_process'] 
+        dtype_to_check_avail_list = det_info['to_process'] 
 
         # Check if the data type is in the list of data types to outsource
         outsource_dtypes = config.get('Outsource', 'dtypes')
-        dtype_to_process_list = [d for d in dtype_to_process_list if d in outsource_dtypes]
+        dtype_to_check_avail_list = [d for d in dtype_to_check_avail_list if d in outsource_dtypes]
 
-        if not len(dtype_to_process_list):
+        if not len(dtype_to_check_avail_list):
             print(f"Skipping {det} data because no data types to outsource were found in intersection of outsource dtypes and %s to processdtypes"%(det))
             continue
 
@@ -98,7 +98,7 @@ def data_find(st, detector, number_from=None, number_to=None,
                                         }
                                 }
                         }
-                        for dtype in dtype_to_process_list
+                        for dtype in dtype_to_check_avail_list
                       ]
 
         if specify_modes:
