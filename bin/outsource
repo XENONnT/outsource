@@ -14,13 +14,13 @@ from outsource.Config import config
 
 # do a query to see if these data types are present
 DETECTOR_DTYPES = {'tpc': {'raw': 'raw_records',
-                           'processed': ['peaklets', 'event_info', 'peak_basics', 'peak_basics_he', 'event_pattern_fit']
+                           'to_process': ['peaklets', 'event_info', 'peak_basics', 'peak_basics_he', 'event_pattern_fit']
                           },
                    'neutron_veto': {'raw': 'raw_records_nv',
-                                    'processed': ['hitlets_nv', 'events_nv']
+                                    'to_process': ['hitlets_nv', 'events_nv']
                                     },
                    'muon_veto': {'raw': 'raw_records_mv',
-                                 'processed': ['events_mv']
+                                 'to_process': ['events_mv']
                                  }
                    }
 
@@ -77,7 +77,7 @@ def data_find(st, detector, number_from=None, number_to=None,
         local_gain_version = st.config.get(straxen_opt)
         gain_range = cmt_local_valid_range(gain_model, local_gain_version)
 
-        dtype_list = det_info['processed'] 
+        dtype_list = det_info['to_process'] 
 
         outsource_dtypes = config.get('Outsource', 'dtypes')
         dtype_list = [d for d in dtype_list if d in outsource_dtypes]
