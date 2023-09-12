@@ -85,6 +85,7 @@ def data_find(st, detector, number_from=None, number_to=None,
         dtype_to_process_list = [d for d in dtype_to_process_list if d in outsource_dtypes]
 
         if not len(dtype_to_process_list):
+            print(f"Skipping {det} data because no data types to outsource were found in intersection of outsource dtypes and %s to processdtypes"%(det))
             continue
 
         raw_dtype = det_info['raw']
