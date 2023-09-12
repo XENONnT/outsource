@@ -320,7 +320,7 @@ class Outsource:
                 # determine the job requirements based on the data locations
                 # for standalone downloads, only target us
                 if dbcfg.standalone_download:
-                    rses = ['UC_OSG_USERDISK']
+                    rses = config.get('Outsource', 'raw_records_rse').split(',')
                 sites_expression, desired_sites = self._determine_target_sites(rses)
 
                 # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
