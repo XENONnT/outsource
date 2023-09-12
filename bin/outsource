@@ -81,8 +81,8 @@ def data_find(st, detector, number_from=None, number_to=None,
         dtype_to_check_avail_list = det_info['to_process'] 
 
         # Check if the data type is in the list of data types to outsource
-        outsource_dtypes = config.get('Outsource', 'dtypes')
-        dtype_to_check_avail_list = [d for d in dtype_to_check_avail_list if d in outsource_dtypes]
+        outsource_dtypes_str = config.get('Outsource', 'dtypes')
+        dtype_to_check_avail_list = [d for d in dtype_to_check_avail_list if d in outsource_dtypes_str]
 
         if not len(dtype_to_check_avail_list):
             print(f"Skipping {det} data because no data types to outsource were found in intersection of outsource dtypes and %s to processdtypes"%(det))
