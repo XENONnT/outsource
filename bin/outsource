@@ -108,9 +108,7 @@ def data_find(st, detector, number_from=None, number_to=None,
         has_raw_dtype_query = {'$elemMatch': {'type': raw_dtype,
                                          'host': 'rucio-catalogue',
                                          'status': 'transferred',
-                                         'location': {'$in': ['UC_OSG_USERDISK'
-                                                              ]
-                                                      }
+                                         'location': {'$in': config.get('Outsource', 'raw_records_rse').split(',')}
                                 }}
 
         if specify_modes:
