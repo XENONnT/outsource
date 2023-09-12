@@ -91,7 +91,7 @@ def data_find(st, detector, number_from=None, number_to=None,
         raw_dtype = det_info['raw']
 
         # Check if the data type (peaklets, event_info, etc) is already present in the runDB, added by ruciocatalogue
-        data_query = [{'data': {'$not': {'$elemMatch': {'host': 'rucio-catalogue',
+        to_process_dtype_query = [{'data': {'$not': {'$elemMatch': {'host': 'rucio-catalogue',
                                                         'type': dtype,
                                                         'did': {'$regex': hashes[dtype]},
                                                        }
@@ -100,6 +100,15 @@ def data_find(st, detector, number_from=None, number_to=None,
                         }
                         for dtype in dtype_to_check_avail_list
                       ]
+        
+        # FIXME: we want the raw data location to be flexible, as specified in xenon_config for raw_records_rse
+        has_raw_dtype_query = {'$elemMatch': {'type': raw_dtype,
+                                         'host': 'rucio-catalogue',
+                                         'status': 'transferred',
+                                         'location': {'$in': ['UC_OSG_USERDISK'
+                                                              ]
+                                                      }
+                                }}
 
         if specify_modes:
             mode_query = {'$in': specify_modes}
@@ -111,22 +120,14 @@ def data_find(st, detector, number_from=None, number_to=None,
         if runlist:
             number_query['$in'] = runlist
 
-        # FIXME: we want the raw data location to be flexible, as specified in xenon_config for raw_records_rse
         # FIXME: why is it $or
         query = {'number': number_query,
                  'tags.name': {'$not': {'$in': exclude_tags}},
                  'start': {'$gt': gain_range[0],
                            '$lt': gain_range[1]},
                  'mode': mode_query.copy(),
-                 '$or': data_query.copy(),
-                 'data': {'$elemMatch': {'type': raw_dtype,
-                                         'host': 'rucio-catalogue',
-                                         'status': 'transferred',
-                                         'location': {'$in': ['UC_OSG_USERDISK'
-                                                              ]
-                                                      }
-                                         }
-                          },
+                 '$or': to_process_dtype_query.copy(),
+                 'data': has_raw_dtype_query,
                  'detectors': det
                 }
         if specify_sources:
