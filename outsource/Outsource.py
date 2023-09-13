@@ -81,11 +81,11 @@ class Outsource:
                   'records': dict(name='records', memory=5_000),
                   'peaklets': dict(name='peaklets', memory=20_000, disk=40_000_000),
                   'peak_basics': dict(name='peak_basics', memory=40_000, disk=40_000_000),
-                  'event_info_double': dict(name='events', memory=40_000, disk=100_000_000, cores=1),
-                  'peak_basics_he': dict(name='peaksHE', memory=8_000, cores=1),
-                  'hitlets_nv': dict(name='nv_hitlets', memory=5_000),
-                  'events_nv': dict(name='nv_events', memory=8_000, disk=2_000_000),
-                  'events_mv': dict(name='mv', memory=1_700),
+                  'event_info_double': dict(name='events', memory=60_000, disk=100_000_000),
+                  'peak_basics_he': dict(name='peaksHE', memory=8_000),
+                  'hitlets_nv': dict(name='nv_hitlets', memory=40_000, disk=40_000_000),
+                  'events_nv': dict(name='nv_events', memory=60_000, disk=100_000_000),
+                  'events_mv': dict(name='mv', memory=40_000, disk=40_000_000),
                   'afterpulses': dict(name='ap', memory=3_000),
                   'led_calibration': dict(name='led', memory=4_000)
                   }
