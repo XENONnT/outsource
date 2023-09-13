@@ -96,6 +96,7 @@ def data_find(st, detector, number_from=None, number_to=None,
         # Check if the data type (peaklets, event_info, etc) is already present in the runDB, added by ruciocatalogue
         to_process_dtype_query = [{'data': {'$not': {'$elemMatch': {'host': 'rucio-catalogue',
                                                         'type': dtype,
+                                                        'status': 'transferred',
                                                         'did': {'$regex': hashes[dtype]},
                                                        }
                                         }
