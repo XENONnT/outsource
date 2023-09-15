@@ -274,7 +274,7 @@ class Outsource:
                 logger.debug(f"Run {dbcfg.number} is already processed with context {self.context_name}")
                 continue
 
-            requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org'
+            requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org' + ' && (HAS_AVX2 || HAS_AVX)'
             # should we use XSEDE?
             # if self.xsede:
             #     requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
@@ -464,8 +464,7 @@ class Outsource:
                     # Add job
                     job = self._job(**self.job_kwargs[dtype])
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
-                    requirements_for_highlevel = requirements + ' && (HAS_AVX2 || HAS_AVX)'
-                    job.add_profiles(Namespace.CONDOR, 'requirements', requirements_for_highlevel)
+                    job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
 
                     # Note that any changes to this argument list, also means strax-wrapper.sh has to be updated
