@@ -328,10 +328,10 @@ class Outsource:
                    config.getboolean('Outsource', 'hs06_test_run') == True:
                     requirements_base = requirements_base + ' && GLIDEIN_ResourceName == "MWT2" && regexp("uct2-c4[1-7]", Machine)'
 
-                # mwt2_only limits the run to a set of compute nodes at UChicago for testing
-                if config.has_option('Outsource', 'mwt2_only') and \
-                   config.getboolean('Outsource', 'mwt2_only') == True:
-                    requirements_base = requirements_base + ' && GLIDEIN_ResourceName == "MWT2"'
+                # this_site_only limits the run to a set of compute nodes at UChicago for testing
+                if config.has_option('Outsource', 'this_site_only') and \
+                   len(config.get('Outsource', 'this_site_only')):
+                    requirements_base = requirements_base + ' && GLIDEIN_ResourceName == "%s"'%(config.get('Outsource', 'this_site_only'))
 
                 # general compute jobs
                 _requirements_base = requirements_base if len(rses) > 0 else requirements_us
