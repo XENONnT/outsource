@@ -657,11 +657,6 @@ class Outsource:
                                 value=os.environ['HOME'] + '/user_cert')
         condorpool.add_profiles(Namespace.CONDOR, key='+SingularityImage',
                                 value=f'"{self.singularity_image}"')
-        # This profile will make all jobs in this workflow removed after 5 hours if the job is still idle (JobStatus == 2) or 30 seconds if the job is still held (JobStatus == 5).
-        condorpool.add_profiles(Namespace.CONDOR, key='periodic_remove',
-                                value="((JobStatus == 2) && ((CurrentTime - EnteredCurrentStatus) > 18000)) || "
-                                      "((JobStatus == 5) && ((CurrentTime - EnteredCurrentStatus) > 30)) "
-                                )
         if self.xsede:
             condorpool.add_profiles(Namespace.CONDOR, key='+Desired_Allocations', value='"Expanse"')
 
