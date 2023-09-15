@@ -122,6 +122,8 @@ use_xsede =
 notification_email =
 min_run_number = 
 max_daily = 
+this_site_only = 
+hs06_test_run = False
 ```
 
 ## Add a setup script
