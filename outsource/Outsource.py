@@ -318,10 +318,14 @@ class Outsource:
                         logger.debug(f'No data found for {dbcfg.number} {dtype}... '
                                      f'hopefully those will be created by the workflow')
             
+                rses_specified = config.get('Outsource', 'raw_records_rse').split(',')
                 # determine the job requirements based on the data locations
                 # for standalone downloads, only target us
                 if dbcfg.standalone_download:
-                    rses = config.get('Outsource', 'raw_records_rse').split(',')
+                    rses = rses_specified
+
+                # The rse list should be intersection of what we want and what we have
+                rses = list(set(rses_specified) & set(rses))
                 sites_expression, desired_sites = self._determine_target_sites(rses)
 
                 # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
