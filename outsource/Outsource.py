@@ -38,6 +38,7 @@ DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment
 db = DB()
 
 PER_CHUNK_DTYPES = ['records', 'peaklets', 'hitlets_nv', 'afterpulses', 'led_calibration']
+NEED_RAW_DATA_DTYPES = ['peaklets', 'peak_basics_he', 'hitlets_nv', 'events_mv', 'afterpulses', 'led_calibration']
 
 
 class Outsource:
@@ -79,12 +80,12 @@ class Outsource:
     job_kwargs = {'combine': dict(name='combine', memory=10_000, disk=50_000_000),
                   'download': dict(name='download', disk=2_000_000),
                   'records': dict(name='records', memory=5_000),
-                  'peaklets': dict(name='peaklets', memory=20_000, disk=40_000_000),
+                  'peaklets': dict(name='peaklets', memory=15_000, disk=20_000_000),
                   'peak_basics': dict(name='peak_basics', memory=40_000, disk=40_000_000),
-                  'event_info_double': dict(name='events', memory=60_000, disk=100_000_000),
+                  'event_info_double': dict(name='events', memory=30_000, disk=30_000_000),
                   'peak_basics_he': dict(name='peaksHE', memory=8_000),
                   'hitlets_nv': dict(name='nv_hitlets', memory=40_000, disk=40_000_000),
-                  'events_nv': dict(name='nv_events', memory=60_000, disk=100_000_000),
+                  'events_nv': dict(name='nv_events', memory=40_000, disk=100_000_000),
                   'events_mv': dict(name='mv', memory=40_000, disk=40_000_000),
                   'afterpulses': dict(name='ap', memory=3_000),
                   'led_calibration': dict(name='led', memory=4_000)
@@ -216,7 +217,7 @@ class Outsource:
         rc = ReplicaCatalog()
         sc = self._generate_sc()
         
-        # event callouts
+        # event callouts: currently not working?
         notification_email = ''
         if config.has_option('Outsource', 'notification_email'):
             notification_email = config.get('Outsource', 'notification_email')
@@ -288,14 +289,14 @@ class Outsource:
             # get dtypes to process
             for dtype_i, dtype in enumerate(dbcfg.needs_processed):
                 # these dtypes need raw data
-                if dtype in ['peaklets', 'peak_basics_he', 'hitlets_nv', 'events_mv',
-                             'afterpulses', 'led_calibration'
-                             ]:
+                if dtype in NEED_RAW_DATA_DTYPES:
                     # check that raw data exist for this run
                     if not all([dbcfg._raw_data_exists(raw_type=d) for d in DEPENDS_ON[dtype]]):
+                        print("Doesn't have raw data for %s of run %s, skipping"%(dtype, run))
                         continue
 
                 # can we process this dtype of this run, with correction validity in the time range?
+                # FIXME: currently not working because cmt has been removed
                 if dtype in self.dtype_valid_cache:
                     start_valid, end_valid = self.dtype_valid_cache[dtype]
                 else:
