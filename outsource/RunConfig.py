@@ -71,7 +71,7 @@ class RunConfigBase:
     _x509_proxy = os.path.join(os.environ['HOME'], 'user_cert')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
-    _chunks_per_job = 25
+    _chunks_per_job = 25 # 25 chunks per per-chunk job. eg. peaklets
 
     @property
     def force_rerun(self):
