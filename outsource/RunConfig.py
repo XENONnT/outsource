@@ -67,7 +67,7 @@ def get_hashes(st):
 class RunConfigBase:
     """Base class that sets the defaults"""
     _force_rerun = False
-    _standalone_download = True 
+    _standalone_download = False 
     _x509_proxy = os.path.join(os.environ['HOME'], 'user_cert')
     _workdir = work_dir
     _workflow_id = re.sub('\..*', '', str(time.time()))
