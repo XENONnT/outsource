@@ -43,7 +43,7 @@ NEED_RAW_DATA_DTYPES = ['peaklets', 'peak_basics_he', 'hitlets_nv', 'events_mv',
 
 class Outsource:
 
-    # Data availability to site selection map
+    # Data availability to site selection map. desired_sites mean condor will try to run the job on those sites
     _rse_site_map = {
         'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
         'UC_DALI_USERDISK':   {'expr': 'GLIDEIN_Country == "US"'},
