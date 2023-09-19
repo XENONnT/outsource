@@ -347,7 +347,7 @@ class Outsource:
                     # only need combine job for low-level stuff
                     combine_job = self._job('combine', disk=self.job_kwargs['combine']['disk'])
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
-                    combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
+                    combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority)) # priority is given in the order they were submitted
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
                     combine_output_tar_name = f'{dbcfg.number:06d}-{dtype}-combined.tar.gz'
                     combine_output_tar = File(combine_output_tar_name)
@@ -440,7 +440,7 @@ class Outsource:
                         job.add_outputs(job_output_tar, stage_out=True)
                         wf.add_jobs(job)
 
-                        # all strax jobs depend on the pre-flight or a download job
+                        # all strax jobs depend on the pre-flight or a download job, but pre-flight jobs have been outdated so it is not necessary.
                         if download_job:
                             job.add_inputs(data_tar)
                             wf.add_dependency(job, parents=[download_job])
