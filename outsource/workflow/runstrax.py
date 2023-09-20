@@ -141,7 +141,7 @@ def process(runid,
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
-    plugin.chunk_target_size_mb = 500
+    plugin.chunk_target_size_mb = 500 #FIXME is it dangerous?
 
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
@@ -151,7 +151,7 @@ def process(runid,
         for keystring in plugin.provides:
             print(f"Making {keystring}")
             st.make(runid_str, keystring,
-                    max_workers=4,
+                    max_workers=4, #FIXME is it dangerous?
                     allow_multiple=True,
                     )
             print(f"DONE processing {keystring}")
