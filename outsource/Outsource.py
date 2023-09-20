@@ -79,7 +79,7 @@ class Outsource:
     job_kwargs = {'combine': dict(name='combine', memory=10_000, disk=50_000_000),
                   'download': dict(name='download', disk=2_000_000),
                   'records': dict(name='records', memory=5_000),
-                  'peaklets': dict(name='peaklets', memory=20_000, disk=40_000_000),
+                  'peaklets': dict(name='peaklets', memory=10_000, disk=20_000_000),
                   'peak_basics': dict(name='peak_basics', memory=40_000, disk=40_000_000),
                   'event_info_double': dict(name='events', memory=60_000, disk=100_000_000),
                   'peak_basics_he': dict(name='peaksHE', memory=8_000),
