@@ -111,6 +111,7 @@ def find_data_to_download(runid, target, st):
                                                )
                     ]
             # for checking if local path exists
+            # here st.storage[0] is the local storage like ./data
             local_path = os.path.join(st.storage[0].path, f'{runid:06d}-{in_dtype}-{hash}')
 
             if len(rses) == 0 and not os.path.exists(local_path):
