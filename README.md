@@ -123,6 +123,7 @@ notification_email =
 min_run_number = 
 max_daily = 
 this_site_only = 
+chunks_per_job = 
 hs06_test_run = False
 ```
 
