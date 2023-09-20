@@ -50,6 +50,9 @@ buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
 
 
 def get_bottom_dtypes(dtype):
+    """
+    Get the lowest level dependencies for a given dtype.
+    """
     if dtype in ['hitlets_nv', 'events_nv', 'veto_regions_nv']:
         return ('raw_records_nv',)
     elif dtype in ['peak_basics_he']:
@@ -63,6 +66,9 @@ def get_bottom_dtypes(dtype):
 
 
 def get_hashes(st):
+    """
+    Get the hashes for all the datatypes in this context.
+    """
     return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
 
 
