@@ -85,9 +85,16 @@ def find_data_to_download(runid, target, st):
 
     to_download = []
 
+    # all data entries from the runDB for certain runid
     data = db.get_data(runid, host='rucio-catalogue')
 
     def find_data(_target):
+        """
+        Recursively find all the data needed to make the target dtype.
+        This function will consult RunDB to know where the data you want to download is.
+        Returns a list of tuples (dtype, hash) that need to be downloaded.
+        """
+        # check if we have the data already
         if all([(d, h) in to_download for d, h in zip(bottoms, bottom_hashes)]):
             return
 
