@@ -38,11 +38,12 @@ DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment
 db = DB()
 
 PER_CHUNK_DTYPES = ['records', 'peaklets', 'hitlets_nv', 'afterpulses', 'led_calibration']
+NEED_RAW_DATA_DTYPES = ['peaklets', 'peak_basics_he', 'hitlets_nv', 'events_mv', 'afterpulses', 'led_calibration']
 
 
 class Outsource:
 
-    # Data availability to site selection map
+    # Data availability to site selection map. desired_sites mean condor will try to run the job on those sites
     _rse_site_map = {
         'UC_OSG_USERDISK':    {'expr': 'GLIDEIN_Country == "US"'},
         'UC_DALI_USERDISK':   {'expr': 'GLIDEIN_Country == "US"'},
@@ -240,7 +241,7 @@ class Outsource:
         rc = ReplicaCatalog()
         sc = self._generate_sc()
         
-        # event callouts
+        # event callouts: currently not working?
         notification_email = ''
         if config.has_option('Outsource', 'notification_email'):
             notification_email = config.get('Outsource', 'notification_email')
@@ -312,14 +313,14 @@ class Outsource:
             # get dtypes to process
             for dtype_i, dtype in enumerate(dbcfg.needs_processed):
                 # these dtypes need raw data
-                if dtype in ['peaklets', 'peak_basics_he', 'hitlets_nv', 'events_mv',
-                             'afterpulses', 'led_calibration'
-                             ]:
+                if dtype in NEED_RAW_DATA_DTYPES:
                     # check that raw data exist for this run
                     if not all([dbcfg._raw_data_exists(raw_type=d) for d in DEPENDS_ON[dtype]]):
+                        print("Doesn't have raw data for %s of run %s, skipping"%(dtype, run))
                         continue
 
                 # can we process this dtype of this run, with correction validity in the time range?
+                # FIXME: currently not working because cmt has been removed
                 if dtype in self.dtype_valid_cache:
                     start_valid, end_valid = self.dtype_valid_cache[dtype]
                 else:
@@ -341,10 +342,16 @@ class Outsource:
                         logger.debug(f'No data found for {dbcfg.number} {dtype}... '
                                      f'hopefully those will be created by the workflow')
             
+                rses_specified = config.get('Outsource', 'raw_records_rse').split(',')
                 # determine the job requirements based on the data locations
                 # for standalone downloads, only target us
                 if dbcfg.standalone_download:
-                    rses = config.get('Outsource', 'raw_records_rse').split(',')
+                    rses = rses_specified
+
+                # The rse list should be intersection of what we want and what we have
+                rses = list(set(rses_specified) & set(rses))
+                if len(rses) == 0:
+                    raise RuntimeError(f'Unable to find a raw records location for {dbcfg.number} in raw_records_rse %s'%(rses_specified))
                 sites_expression, desired_sites = self._determine_target_sites(rses)
 
                 # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
@@ -370,7 +377,7 @@ class Outsource:
                     # only need combine job for low-level stuff
                     combine_job = self._job('combine', disk=self.job_kwargs['combine']['disk'])
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
-                    combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
+                    combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority)) # priority is given in the order they were submitted
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
                     combine_output_tar_name = f'{dbcfg.number:06d}-{dtype}-combined.tar.gz'
                     combine_output_tar = File(combine_output_tar_name)
@@ -463,7 +470,7 @@ class Outsource:
                         job.add_outputs(job_output_tar, stage_out=True)
                         wf.add_jobs(job)
 
-                        # all strax jobs depend on the pre-flight or a download job
+                        # all strax jobs depend on the pre-flight or a download job, but pre-flight jobs have been outdated so it is not necessary.
                         if download_job:
                             job.add_inputs(data_tar)
                             wf.add_dependency(job, parents=[download_job])

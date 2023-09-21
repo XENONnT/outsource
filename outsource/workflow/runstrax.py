@@ -45,11 +45,14 @@ ignore_dtypes = ['records',
 
 # these dtypes should always be made at the same time:
 buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
-                ('event_info_double', 'event_pattern_fit')
+                ('event_info_double', 'event_pattern_fit', 'event_area_per_channel')
                 ]
 
 
 def get_bottom_dtypes(dtype):
+    """
+    Get the lowest level dependencies for a given dtype.
+    """
     if dtype in ['hitlets_nv', 'events_nv', 'veto_regions_nv']:
         return ('raw_records_nv',)
     elif dtype in ['peak_basics_he']:
@@ -63,6 +66,9 @@ def get_bottom_dtypes(dtype):
 
 
 def get_hashes(st):
+    """
+    Get the hashes for all the datatypes in this context.
+    """
     return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
 
 
@@ -79,9 +85,16 @@ def find_data_to_download(runid, target, st):
 
     to_download = []
 
+    # all data entries from the runDB for certain runid
     data = db.get_data(runid, host='rucio-catalogue')
 
     def find_data(_target):
+        """
+        Recursively find all the data needed to make the target dtype.
+        This function will consult RunDB to know where the data you want to download is.
+        Returns a list of tuples (dtype, hash) that need to be downloaded.
+        """
+        # check if we have the data already
         if all([(d, h) in to_download for d, h in zip(bottoms, bottom_hashes)]):
             return
 
@@ -98,6 +111,7 @@ def find_data_to_download(runid, target, st):
                                                )
                     ]
             # for checking if local path exists
+            # here st.storage[0] is the local storage like ./data
             local_path = os.path.join(st.storage[0].path, f'{runid:06d}-{in_dtype}-{hash}')
 
             if len(rses) == 0 and not os.path.exists(local_path):
@@ -127,7 +141,7 @@ def process(runid,
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
-    plugin.chunk_target_size_mb = 500
+    plugin.chunk_target_size_mb = 500 #FIXME is it dangerous?
 
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
@@ -137,7 +151,7 @@ def process(runid,
         for keystring in plugin.provides:
             print(f"Making {keystring}")
             st.make(runid_str, keystring,
-                    max_workers=4,
+                    max_workers=4, #FIXME is it dangerous?
                     allow_multiple=True,
                     )
             print(f"DONE processing {keystring}")
@@ -255,7 +269,7 @@ def main():
 
     runid = args.dataset
     runid_str = "%06d" % runid
-    out_dtype = args.output
+    out_dtype = args.output # eg. ypically for tpc: peaklets/event_info
 
     to_download = find_data_to_download(runid, out_dtype, st)
 
@@ -269,7 +283,8 @@ def main():
                 if other_dtype == out_dtype:
                     continue
                 to_download.extend(find_data_to_download(runid, other_dtype, st))
-
+    # remove duplicates
+    to_download = list(set(to_download))
 
     # initialize plugin needed for processing this output type
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
@@ -281,6 +296,8 @@ def main():
     for buddies in buddy_dtypes:
         if args.output in buddies:
             to_process = list(buddies)
+    # remove duplicates
+    to_process = list(set(to_process))
 
     # keep track of the data we can download now -- will be important for the upload step later
     available_dtypes = st.available_for_run(runid_str)
@@ -290,10 +307,12 @@ def main():
     intermediates = missing.copy()
     to_process = list(intermediates) + to_process
 
+    # now we need to figure out what intermediate data we need to make
     while len(intermediates) > 0:
         new_intermediates = []
         for _dtype in intermediates:
             _plugin = st._get_plugins((_dtype,), runid_str)[_dtype]
+            # adding missing dependencies to to-process list
             for dependency in _plugin.depends_on:
                 if dependency not in available_dtypes:
                     if dependency not in to_process:
