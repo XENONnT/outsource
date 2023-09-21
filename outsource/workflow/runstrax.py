@@ -375,7 +375,7 @@ def main():
         if this_dtype in ['records', 'pulse_counts', 'veto_regions', 'records_nv',
                           'records_he']:
             rse = uconfig.get('Outsource', 'records_rse')
-        elif this_dtype in ['peaklets', 'lone_hits']:
+        elif this_dtype in ['peaklets', 'lone_hits', 'merged_s2s', 'hitlets_nv']:
             rse = uconfig.get('Outsource', 'peaklets_rse')
         else:
             rse = uconfig.get('Outsource', 'events_rse')
