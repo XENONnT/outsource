@@ -296,6 +296,8 @@ def main():
     for buddies in buddy_dtypes:
         if args.output in buddies:
             to_process = list(buddies)
+    # remove duplicates
+    to_process = list(set(to_process))
 
     # keep track of the data we can download now -- will be important for the upload step later
     available_dtypes = st.available_for_run(runid_str)
