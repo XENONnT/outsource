@@ -123,6 +123,12 @@ max_daily =
 this_site_only = 
 chunks_per_job = 
 hs06_test_run = False
+combine_memory = 10000   # MB
+combine_disk = 50000000  # KB
+peaklets_memory = 10000  # MB
+peaklets_disk = 20000000 # KB
+events_memory = 60000    # MB
+events_disk = 100000000  # KB
 ```
 
 ## Add a setup script
