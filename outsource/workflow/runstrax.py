@@ -283,7 +283,8 @@ def main():
                 if other_dtype == out_dtype:
                     continue
                 to_download.extend(find_data_to_download(runid, other_dtype, st))
-
+    # remove duplicates
+    to_download = list(set(to_download))
 
     # initialize plugin needed for processing this output type
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
