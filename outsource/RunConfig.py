@@ -32,7 +32,8 @@ DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'peak_basics', 'event_info_dou
 
 # these are datetypes to look for in runDB
 ACTUALLY_STORED = {'event_info_double': ['event_info', 'distinct_channels', 'event_pattern_fit', 
-                                         'event_area_per_channel', 'event_n_channel'],
+                                         'event_area_per_channel', 'event_n_channel',
+                                         'event_top_bottom_params', 'event_ms_naive'],
                    'peak_basics_he': ['peak_basics_he'],
                    'events_nv': ['events_nv'],
                    'peak_basics': ['merged_s2s', 'peak_basics', 'peaklet_classification'],
