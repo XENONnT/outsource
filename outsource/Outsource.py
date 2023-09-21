@@ -348,10 +348,6 @@ class Outsource:
                 if dbcfg.standalone_download:
                     rses = rses_specified
 
-                # The rse list should be intersection of what we want and what we have
-                rses = list(set(rses_specified) & set(rses))
-                if len(rses) == 0:
-                    raise RuntimeError(f'Unable to find a raw records location for {dbcfg.number} in raw_records_rse %s'%(rses_specified))
                 sites_expression, desired_sites = self._determine_target_sites(rses)
 
                 # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
