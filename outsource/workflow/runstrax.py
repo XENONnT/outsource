@@ -307,10 +307,12 @@ def main():
     intermediates = missing.copy()
     to_process = list(intermediates) + to_process
 
+    # now we need to figure out what intermediate data we need to make
     while len(intermediates) > 0:
         new_intermediates = []
         for _dtype in intermediates:
             _plugin = st._get_plugins((_dtype,), runid_str)[_dtype]
+            # adding missing dependencies to to-process list
             for dependency in _plugin.depends_on:
                 if dependency not in available_dtypes:
                     if dependency not in to_process:
