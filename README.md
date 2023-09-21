@@ -115,15 +115,20 @@ dtypes = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpul
 records_rse = 
 peaklets_rse = 
 events_rse = 
-hitlets_nv_rse = 
-events_nv_rse =
 exclude_modes = 
 use_xsede = 
 notification_email =
 min_run_number = 
 max_daily = 
 this_site_only = 
+chunks_per_job = 
 hs06_test_run = False
+combine_memory = 10000   # MB
+combine_disk = 50000000  # KB
+peaklets_memory = 10000  # MB
+peaklets_disk = 20000000 # KB
+events_memory = 60000    # MB
+events_disk = 100000000  # KB
 ```
 
 ## Add a setup script
