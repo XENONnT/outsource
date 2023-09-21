@@ -269,7 +269,7 @@ def main():
 
     runid = args.dataset
     runid_str = "%06d" % runid
-    out_dtype = args.output
+    out_dtype = args.output # eg. ypically for tpc: peaklets/event_info
 
     to_download = find_data_to_download(runid, out_dtype, st)
 
