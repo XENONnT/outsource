@@ -36,7 +36,7 @@ def merge(runid_str, # run number padded with 0s
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    plugin.default_chunk_size_mb = 500
+    # plugin.default_chunk_size_mb = 500 # this is not doing anything
 
     to_merge = [d.split('-')[1] for d in os.listdir(path)]
 
@@ -148,7 +148,7 @@ def main():
         # based on the dtype and the utilix config, where should this data go?
         if keystring in ['records', 'pulse_counts', 'veto_regions']:
             rse = uconfig.get('Outsource', 'records_rse')
-        elif keystring in ['peaklets', 'lone_hits']:
+        elif keystring in ['peaklets', 'lone_hits', 'merged_s2s']:
             rse = uconfig.get('Outsource', 'peaklets_rse')
         else:
             rse = uconfig.get('Outsource', 'events_rse')
