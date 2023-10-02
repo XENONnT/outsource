@@ -38,11 +38,6 @@ fi
 sleep $[ ( $RANDOM % 20 )  + 1 ]s
 
 
-# set GLIDEIN_Country variable if not already
-if [[ -z "$GLIDEIN_Country" ]]; then
-    export GLIDEIN_Country="US"
-fi
-#
 if [ -e /image-build-info.txt ]; then
     echo
     echo "Running in image with build info:"
