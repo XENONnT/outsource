@@ -307,6 +307,7 @@ class Outsource:
                    len(config.get('Outsource', 'us_only')):
                 if config.getboolean('Outsource', 'us_only') == True:
                     requirements_base += ' && GLIDEIN_Country == "US"'
+            requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
             # requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
             #                                                  '!regexp("campuscluster.illinois.edu", Machine)'
 
