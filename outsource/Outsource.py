@@ -303,7 +303,10 @@ class Outsource:
             # should we use XSEDE?
             # if self.xsede:
             #     requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
-            requirements_us = requirements_base + ' && GLIDEIN_Country == "US"'
+            if config.has_option('Outsource', 'us_only') and \
+                   len(config.get('Outsource', 'us_only')):
+                if config.getboolean('Outsource', 'us_only') == True:
+                    requirements_base += ' && GLIDEIN_Country == "US"'
             # requirements_for_highlevel = requirements_base + '&& GLIDEIN_ResourceName == "MWT2" && ' \
             #                                                  '!regexp("campuscluster.illinois.edu", Machine)'
 
