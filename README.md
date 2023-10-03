@@ -129,6 +129,7 @@ peaklets_memory = 10000  # MB
 peaklets_disk = 20000000 # KB
 events_memory = 60000    # MB
 events_disk = 100000000  # KB
+us_only = True 
 ```
 
 ## Add a setup script
