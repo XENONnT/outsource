@@ -376,7 +376,7 @@ class Outsource:
                     # Set up the combine job first - we can then add to that job inside the chunk file loop
                     # only need combine job for low-level stuff
                     combine_job = self._job('combine', disk=self.job_kwargs['combine']['disk'])
-                    combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
+                    combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_us)
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority)) # priority is given in the order they were submitted
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
                     combine_output_tar_name = f'{dbcfg.number:06d}-{dtype}-combined.tar.gz'
