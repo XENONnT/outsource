@@ -1,4 +1,4 @@
-#log_digest
+# log_digest
 
 written il perl, log_digest parsing input files returns in short any error message characterized by the word ERROR in it. 
 
@@ -6,19 +6,17 @@ written il perl, log_digest parsing input files returns in short any error messa
 
 if executable (remember to chmod 755 if not), just use the following command inside the exe directory
 
-```bash
-./log_digest.pl file1 file2```
+```./log_digest.pl file1 file2```
 
 It can process multiple files at the same time. 
 
 ### example 
 
-```bash
-./log_digest.pl input_files/pa_sr0_rn220_all_0.txt input_files/sr0_ambe_all_0.txt input_files/sr0_bkg_batch_0_0.txt input_files/sr0_ybe_all_0.txt ```
+```./log_digest.pl input_files/pa_sr0_rn220_all_0.txt input_files/sr0_ambe_all_0.txt input_files/sr0_bkg_batch_0_0.txt input_files/sr0_ybe_all_0.txt ```
 
 this command line produces the following output:
 
-```bash
+```
 Digesting: input_files/pa_sr0_rn220_all_0.txt input_files/sr0_ambe_all_0.txt input_files/sr0_bkg_batch_0_0.txt input_files/sr0_ybe_all_0.txt
 
 ========= Output for: input_files/sr0_ambe_all_0.txt =========
