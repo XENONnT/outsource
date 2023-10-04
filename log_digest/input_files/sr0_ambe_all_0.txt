@@ -1,0 +1,281 @@
+Database version: '5.0.6' (sqlite:////scratch/yuanlq/workflows/runs/straxen_v2.1.3/xenonnt_offline/sr0_ambe_all_0/xenonnt-0.stampede.db)
+Database version: '5.0.6' (sqlite:////scratch/yuanlq/workflows/runs/straxen_v2.1.3/xenonnt_offline/sr0_ambe_all_0/xenonnt-0.stampede.db)
+Database version: '5.0.6' (sqlite:////scratch/yuanlq/workflows/runs/straxen_v2.1.3/xenonnt_offline/sr0_ambe_all_0/xenonnt-0.stampede.db)
+
+************************************Summary*************************************
+
+ Submit Directory   : /scratch/yuanlq/workflows/runs/straxen_v2.1.3/xenonnt_offline/sr0_ambe_all_0
+ Workflow Status    : running
+ Total jobs         :  16501 (100.00%)
+ # jobs succeeded   :  16062 (97.34%)
+ # jobs failed      :    230 (1.39%)
+ # jobs held        :      5 (0.03%)
+ # jobs unsubmitted :    209 (1.27%)
+
+*******************************Held jobs' details*******************************
+
+===============================combine_ID0014513================================
+
+submit file            : combine_ID0014513.sub
+last_job_instance_id   : 18869
+reason                 :  Error from slot1_30@Expanse-PATH-EP.osgvo-docker-pilot-ospool-7889455cdc-dmlg7: memory usage exceeded request_memory
+
+===============================combine_ID0013327================================
+
+submit file            : combine_ID0013327.sub
+last_job_instance_id   : 17687
+reason                 :  Error from slot1_26@Expanse-PATH-EP.osgvo-docker-pilot-ospool-7889455cdc-svl9n: memory usage exceeded request_memory
+
+===============================combine_ID0013579================================
+
+submit file            : combine_ID0013579.sub
+last_job_instance_id   : 18281
+reason                 :  Error from slot1_27@Expanse-PATH-EP.osgvo-docker-pilot-ospool-7889455cdc-pwdsr: memory usage exceeded request_memory
+
+===============================combine_ID0014011================================
+
+submit file            : combine_ID0014011.sub
+last_job_instance_id   : 19306
+reason                 :  Error from slot1_46@Expanse-PATH-EP.osgvo-docker-pilot-ospool-7889455cdc-29thp: memory usage exceeded request_memory
+
+===============================combine_ID0013975================================
+
+submit file            : combine_ID0013975.sub
+last_job_instance_id   : 19304
+reason                 :  Error from slot1_30@Expanse-PATH-EP.osgvo-docker-pilot-ospool-7889455cdc-kjw4j: memory usage exceeded request_memory
+
+******************************Failed jobs' details******************************
+
+===============================peaklets_ID0006564===============================
+
+ last state: POST_SCRIPT_FAILED
+       site: condorpool
+submit file: 00/05/peaklets_ID0006564.sub
+output file: 00/05/peaklets_ID0006564.out.002
+ error file: 00/05/peaklets_ID0006564.err.002
+
+---------------Job stderr file - 00/05/peaklets_ID0006564.err.002---------------
+
+2023-09-29 00:13:03: PegasusLite: version 5.0.6
+2023-09-29 00:13:03: Executing on host cc-cpu-05.hpc.siue.edu IP=10.10.44.15
+
+########################[Pegasus Lite] Setting up workdir ########################
+2023-09-29 00:13:03: Checking /tmp for potential use as work space... 
+2023-09-29 00:13:03:   Workdir is /tmp/pegasus.PiZH4ohuJ - 1.6T available
+2023-09-29 00:13:03: Changing cwd to /tmp/pegasus.PiZH4ohuJ
+
+##############[Pegasus Lite] Figuring out the worker package to use ##############
+2023-09-29 00:13:03: The job contained a Pegasus worker package
+2023-09-29 00:13:03: Warning: worker package pegasus-worker-5.0.6-x86_64_rhel_8.tar.gz does not seem to match the system x86_64_rhel_7
+2023-09-29 00:13:03: Checking for untar worker package in /srv
+2023-09-29 00:13:03: Using existing Pegasus binaries in /usr/bin
+
+###################### Staging in input data and executables ######################
+2023-09-29 00:13:03,868    INFO:  Reading URL pairs from stdin
+2023-09-29 00:13:03,869    INFO:  5 transfers loaded
+2023-09-29 00:13:03,869    INFO:  PATH=/opt/XENONnT/anaconda/envs/XENONnT_development/bin:/opt/XENONnT/anaconda/condabin:/opt/rh/devtoolset-9/root/usr/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin
+2023-09-29 00:13:03,869    INFO:  LD_LIBRARY_PATH=/opt/XENONnT/anaconda/envs/XENONnT_development/lib64:/opt/XENONnT/anaconda/envs/XENONnT_development/lib:/opt/rh/devtoolset-9/root/usr/lib64:/opt/rh/devtoolset-9/root/usr/lib:/opt/rh/devtoolset-9/root/usr/lib64/dyninst:/opt/rh/devtoolset-9/root/usr/lib/dyninst:/opt/rh/devtoolset-9/root/usr/lib64:/opt/rh/devtoolset-9/root/usr/lib:/lib
+2023-09-29 00:13:03,902    INFO:  --------------------------------------------------------------------------------
+2023-09-29 00:13:03,902    INFO:  Starting transfers - attempt 1
+2023-09-29 00:13:05,905    INFO:  Tool found: stashcp   Version: N/A   Path: /usr/bin/stashcp
+2023-09-29 00:13:05,905    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken' '/tmp/pegasus.PiZH4ohuJ/.dbtoken'
+2023-09-29 00:13:06,048    INFO:  time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken (100ms since start)"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken (100ms since start)"
+2023-09-29 00:13:06,048   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken' '/tmp/pegasus.PiZH4ohuJ/.dbtoken'
+2023-09-29 00:13:06,048    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz' '/tmp/pegasus.PiZH4ohuJ/cutax.tar.gz'
+2023-09-29 00:13:06,190    INFO:  time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz (100ms since start)"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz (100ms since start)"
+2023-09-29 00:13:06,190   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz' '/tmp/pegasus.PiZH4ohuJ/cutax.tar.gz'
+2023-09-29 00:13:06,190    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py' '/tmp/pegasus.PiZH4ohuJ/runstrax.py'
+2023-09-29 00:13:06,336    INFO:  time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py (100ms since start)"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py (100ms since start)"
+2023-09-29 00:13:06,336   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py' '/tmp/pegasus.PiZH4ohuJ/runstrax.py'
+2023-09-29 00:13:06,336    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets' '/tmp/pegasus.PiZH4ohuJ/peaklets'
+2023-09-29 00:13:06,473    INFO:  time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets (100ms since start)"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets (100ms since start)"
+2023-09-29 00:13:06,473   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets' '/tmp/pegasus.PiZH4ohuJ/peaklets'
+2023-09-29 00:13:06,473    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config' '/tmp/pegasus.PiZH4ohuJ/.xenon_config'
+2023-09-29 00:13:06,610    INFO:  time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config (100ms since start)"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:13:06-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:13:06-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config"
+time="2023-09-29T00:13:06-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:13:06-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config (100ms since start)"
+2023-09-29 00:13:06,610   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config' '/tmp/pegasus.PiZH4ohuJ/.xenon_config'
+2023-09-29 00:15:35,947    INFO:  --------------------------------------------------------------------------------
+2023-09-29 00:15:35,947    INFO:  Starting transfers - attempt 2
+2023-09-29 00:15:37,950    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken' '/tmp/pegasus.PiZH4ohuJ/.dbtoken'
+2023-09-29 00:15:38,966    INFO:  time="2023-09-29T00:15:38-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:38-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:38-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken"
+time="2023-09-29T00:15:38-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:38-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken (1s since start)"
+time="2023-09-29T00:15:38-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:38-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:38-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken"
+time="2023-09-29T00:15:38-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:38-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken (1s since start)"
+2023-09-29 00:15:38,966   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken' '/tmp/pegasus.PiZH4ohuJ/.dbtoken'
+2023-09-29 00:15:38,966    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py' '/tmp/pegasus.PiZH4ohuJ/runstrax.py'
+2023-09-29 00:15:39,112    INFO:  time="2023-09-29T00:15:39-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:39-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py"
+time="2023-09-29T00:15:39-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:39-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py (100ms since start)"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:39-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py"
+time="2023-09-29T00:15:39-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:39-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py (100ms since start)"
+2023-09-29 00:15:39,112   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py' '/tmp/pegasus.PiZH4ohuJ/runstrax.py'
+2023-09-29 00:15:39,113    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config' '/tmp/pegasus.PiZH4ohuJ/.xenon_config'
+2023-09-29 00:15:39,667    INFO:  time="2023-09-29T00:15:39-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:39-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config"
+time="2023-09-29T00:15:39-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:39-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config (500ms since start)"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:39-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config"
+time="2023-09-29T00:15:39-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:39-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config (500ms since start)"
+2023-09-29 00:15:39,667   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config' '/tmp/pegasus.PiZH4ohuJ/.xenon_config'
+2023-09-29 00:15:39,668    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets' '/tmp/pegasus.PiZH4ohuJ/peaklets'
+2023-09-29 00:15:39,792    INFO:  time="2023-09-29T00:15:39-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:39-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets"
+time="2023-09-29T00:15:39-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:39-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets (100ms since start)"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:39-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets"
+time="2023-09-29T00:15:39-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:39-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets (100ms since start)"
+2023-09-29 00:15:39,793   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets' '/tmp/pegasus.PiZH4ohuJ/peaklets'
+2023-09-29 00:15:39,793    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz' '/tmp/pegasus.PiZH4ohuJ/cutax.tar.gz'
+2023-09-29 00:15:39,932    INFO:  time="2023-09-29T00:15:39-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:39-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz"
+time="2023-09-29T00:15:39-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:39-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz (100ms since start)"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:15:39-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:15:39-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz"
+time="2023-09-29T00:15:39-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:15:39-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz (100ms since start)"
+2023-09-29 00:15:39,932   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz' '/tmp/pegasus.PiZH4ohuJ/cutax.tar.gz'
+2023-09-29 00:20:46,055    INFO:  --------------------------------------------------------------------------------
+2023-09-29 00:20:46,055    INFO:  Starting transfers - attempt 3
+2023-09-29 00:20:48,058    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken' '/tmp/pegasus.PiZH4ohuJ/.dbtoken'
+2023-09-29 00:20:48,193    INFO:  time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken (100ms since start)"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken (100ms since start)"
+2023-09-29 00:20:48,193   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.dbtoken' '/tmp/pegasus.PiZH4ohuJ/.dbtoken'
+2023-09-29 00:20:48,193    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config' '/tmp/pegasus.PiZH4ohuJ/.xenon_config'
+2023-09-29 00:20:48,342    INFO:  time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config (100ms since start)"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config (100ms since start)"
+2023-09-29 00:20:48,342   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/.xenon_config' '/tmp/pegasus.PiZH4ohuJ/.xenon_config'
+2023-09-29 00:20:48,342    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz' '/tmp/pegasus.PiZH4ohuJ/cutax.tar.gz'
+2023-09-29 00:20:48,477    INFO:  time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz (100ms since start)"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz (100ms since start)"
+2023-09-29 00:20:48,477   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/cutax.tar.gz' '/tmp/pegasus.PiZH4ohuJ/cutax.tar.gz'
+2023-09-29 00:20:48,478    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets' '/tmp/pegasus.PiZH4ohuJ/peaklets'
+2023-09-29 00:20:48,608    INFO:  time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets (100ms since start)"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets (100ms since start)"
+2023-09-29 00:20:48,608   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/peaklets' '/tmp/pegasus.PiZH4ohuJ/peaklets'
+2023-09-29 00:20:48,608    INFO:  /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py' '/tmp/pegasus.PiZH4ohuJ/runstrax.py'
+2023-09-29 00:20:48,745    INFO:  time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py (100ms since start)"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to generate a new authorization token for this transfer:  Issuer https://osg-htc.org/ospool/uc-shared does not support dynamic client registration"
+time="2023-09-29T00:20:48-05:00" level=error msg="This transfer requires authorization to complete and no token is available"
+time="2023-09-29T00:20:48-05:00" level=error msg="Failed to get token though required to read from this namespace: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py"
+time="2023-09-29T00:20:48-05:00" level=error msg="All methods failed! Unable to download file."
+time="2023-09-29T00:20:48-05:00" level=error msg="Failure downloading /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py: Attempt #1: failed to find or generate a token as required for /ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py (100ms since start)"
+2023-09-29 00:20:48,745   ERROR:  Command exited with non-zero exit code (1): /usr/bin/stashcp '/ospool/uc-shared/project/xenon/wf-scratch/yuanlq/sr0_ambe_all_0/00/00/runstrax.py' '/tmp/pegasus.PiZH4ohuJ/runstrax.py'
+2023-09-29 00:20:48,746    INFO:  --------------------------------------------------------------------------------
+2023-09-29 00:20:48,746    INFO:  Stats: Total 15 transfers, 0.0 B transferred in 465 seconds. Rate: 0.0 B/s (0.0 b/s)
+2023-09-29 00:20:48,746    INFO:         Between sites staging->condorpool : 15 transfers, 0.0 B transferred in 465 seconds. Rate: 0.0 B/s (0.0 b/s)
+2023-09-29 00:20:48,746 CRITICAL:  Some transfers failed! See above, and possibly stderr.
+2023-09-29 00:20:48: Last command exited with 1
+2023-09-29 00:20:48: /tmp/pegasus.PiZH4ohuJ cleaned up
+PegasusLite: exitcode 1
+
+
+===============================combine_ID0014119================================
+
+ last state: POST_SCRIPT_FAILED
+       site: condorpool
+submit file: 01/3C/combine_ID0014119.sub
+output file: 01/3C/combine_ID0014119.out.002
+ error file: 01/3C/combine_ID0014119.err.002
+
