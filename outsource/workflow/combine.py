@@ -148,7 +148,7 @@ def main():
         # based on the dtype and the utilix config, where should this data go?
         if keystring in ['records', 'pulse_counts', 'veto_regions']:
             rse = uconfig.get('Outsource', 'records_rse')
-        elif keystring in ['peaklets', 'lone_hits', 'merged_s2s']:
+        elif keystring in ['peaklets', 'lone_hits', 'merged_s2s', 'hitlets_nv']:
             rse = uconfig.get('Outsource', 'peaklets_rse')
         else:
             rse = uconfig.get('Outsource', 'events_rse')
