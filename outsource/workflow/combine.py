@@ -156,7 +156,7 @@ def main():
         # Test if the data is complete
         try:
             print("Try loading the data to see if it is complete.")
-            st.get_array(runid_str, keystring, keep_columns='time')
+            st.get_array(runid_str, keystring, keep_columns='time', progress_bar=False)
             print("Successfully loaded! It is complete.")
         except Exception as e:
             print(f"Data is not complete for {this_dir}. Skipping")
