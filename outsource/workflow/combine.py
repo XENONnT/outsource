@@ -165,13 +165,13 @@ def main():
             print("Let's see what's inside the directory:")
 
         this_path = os.path.join(final_path, this_dir)
+        contents_to_upload = os.listdir(this_path)
         print(f"Trying to upload {this_path} to {rse}")
         print("--------------------------")
 
         if len(contents_to_upload):
             admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
         else:
-            contents_to_upload = os.listdir(this_path)
             raise ValueError("Failed admix upload! The following files are inside %s: %s"%(
                 this_path, contents_to_upload))
 
