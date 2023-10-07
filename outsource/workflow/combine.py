@@ -11,6 +11,8 @@ import rucio
 from utilix import DB, uconfig
 from immutabledict import immutabledict
 import cutax
+import glob
+import json
 
 from admix.clients import rucio_client
 
@@ -82,6 +84,22 @@ def merge(runid_str, # run number padded with 0s
     # reset in case we need to merge more data
     st.storage = [strax.DataDirectory(path) for path in _storage_paths]
 
+def check_chunk_n(directory):
+    if directory[-1] != '/':
+        directory += '/'
+    files = sorted(glob.glob(directory+'*'))
+    n_chunks = len(files) - 1
+    metadata = json.loads(open(files[-1], 'r').read())
+    assert n_chunks == len(metadata['chunks']), "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+    compressor = metadata['compressor']
+    dtype = eval(metadata['dtype'])
+    for i in range(n_chunks):
+        chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
+        if metadata['chunks'][i]['n'] != len(chunk):
+            raise strax.DataCorrupted(
+                f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
+                f"but metadata says {metadata['chunks'][i]['n']}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
@@ -127,8 +145,8 @@ def main():
         print(f"Merging {dtype} level")
         merge(runid_str, dtype, st, path)
 
-    print(f"Current contents of {final_path}:")
-    print(os.listdir(final_path))
+    #print(f"Current contents of {final_path}:")
+    #print(os.listdir(final_path))
 
     # now upload the merged metadata
     # setup the rucio client(s)
@@ -148,16 +166,17 @@ def main():
         # based on the dtype and the utilix config, where should this data go?
         if keystring in ['records', 'pulse_counts', 'veto_regions']:
             rse = uconfig.get('Outsource', 'records_rse')
-        elif keystring in ['peaklets', 'lone_hits', 'merged_s2s']:
+        elif keystring in ['peaklets', 'lone_hits', 'merged_s2s', 'hitlets_nv']:
             rse = uconfig.get('Outsource', 'peaklets_rse')
         else:
             rse = uconfig.get('Outsource', 'events_rse')
 
         # Test if the data is complete
+        print("--------------------------")
         try:
-            print("Try loading the data to see if it is complete.")
-            st.get_array(runid_str, keystring, keep_columns='time')
-            print("Successfully loaded! It is complete.")
+            print("Try loading data in %s to see if it is complete."%(this_dir))
+            st.get_array(runid_str, keystring, keep_columns='time', progress_bar=False)
+            print("Successfully loaded %s! It is complete."%(this_dir))
         except Exception as e:
             print(f"Data is not complete for {this_dir}. Skipping")
             print("Below is the error message we get when trying to load the data:")
@@ -165,16 +184,22 @@ def main():
             print("Let's see what's inside the directory:")
 
         this_path = os.path.join(final_path, this_dir)
-        print(f"Trying to upload {this_path} to {rse}")
-        print("The following files are inside %s"%(this_path))
-        print("--------------------------")
         contents_to_upload = os.listdir(this_path)
-        print(contents_to_upload)
+
+        print("--------------------------")
+        print(f"Checking if chunk length is agreed with promise in metadata for {this_dir}")
+        check_chunk_n(this_path)
+        print("The chunk length is agreed with promise in metadata.")
+
+        print("--------------------------")
+        print(f"Trying to upload {this_path} to {rse}")
 
         if len(contents_to_upload):
             admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
         else:
-            raise ValueError(f"Empty directory in the directory we want to upload: {this_path}")
+            raise ValueError("Failed admix upload! The following files are inside %s: %s"%(
+                this_path, contents_to_upload))
+        
 
 if __name__ == "__main__":
     main()
