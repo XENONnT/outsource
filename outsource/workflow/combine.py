@@ -143,8 +143,8 @@ def main():
         print(f"Merging {dtype} level")
         merge(runid_str, dtype, st, path)
 
-    print(f"Current contents of {final_path}:")
-    print(os.listdir(final_path))
+    #print(f"Current contents of {final_path}:")
+    #print(os.listdir(final_path))
 
     # now upload the merged metadata
     # setup the rucio client(s)
@@ -170,6 +170,7 @@ def main():
             rse = uconfig.get('Outsource', 'events_rse')
 
         # Test if the data is complete
+        print("--------------------------")
         try:
             print("Try loading data in %s to see if it is complete."%(this_dir))
             st.get_array(runid_str, keystring, keep_columns='time', progress_bar=False)
@@ -186,6 +187,7 @@ def main():
         print("--------------------------")
         print(f"Checking if chunk length is agreed with promise in metadata for {this_dir}")
         check_chunk_n(this_path)
+        print("The chunk length is agreed with promise in metadata.")
 
         print("--------------------------")
         print(f"Trying to upload {this_path} to {rse}")
@@ -195,6 +197,7 @@ def main():
         else:
             raise ValueError("Failed admix upload! The following files are inside %s: %s"%(
                 this_path, contents_to_upload))
+        
 
 if __name__ == "__main__":
     main()
