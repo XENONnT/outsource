@@ -82,6 +82,22 @@ def merge(runid_str, # run number padded with 0s
     # reset in case we need to merge more data
     st.storage = [strax.DataDirectory(path) for path in _storage_paths]
 
+def check_chunk_n(directory):
+    if directory[-1] != '/':
+        directory += '/'
+    files = sorted(glob.glob(directory+'*'))
+    n_chunks = len(files) - 1
+    metadata = json.loads(open(files[-1], 'r').read())
+    assert n_chunks == len(metadata['chunks']), "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+    compressor = metadata['compressor']
+    dtype = eval(metadata['dtype'])
+    for i in range(n_chunks):
+        chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
+        if metadata['chunks'][i]['n'] != len(chunk):
+            raise strax.DataCorrupted(
+                f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
+                f"but metadata says {metadata['chunks'][i]['n']}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
@@ -155,9 +171,9 @@ def main():
 
         # Test if the data is complete
         try:
-            print("Try loading the data to see if it is complete.")
+            print("Try loading data in %s to see if it is complete."%(this_dir))
             st.get_array(runid_str, keystring, keep_columns='time', progress_bar=False)
-            print("Successfully loaded! It is complete.")
+            print("Successfully loaded %s! It is complete."%(this_dir))
         except Exception as e:
             print(f"Data is not complete for {this_dir}. Skipping")
             print("Below is the error message we get when trying to load the data:")
@@ -166,8 +182,13 @@ def main():
 
         this_path = os.path.join(final_path, this_dir)
         contents_to_upload = os.listdir(this_path)
-        print(f"Trying to upload {this_path} to {rse}")
+
         print("--------------------------")
+        print(f"Checking if chunk length is agreed with promise in metadata for {this_dir}")
+        check_chunk_n(this_path)
+
+        print("--------------------------")
+        print(f"Trying to upload {this_path} to {rse}")
 
         if len(contents_to_upload):
             admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
