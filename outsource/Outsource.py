@@ -352,9 +352,10 @@ class Outsource:
                 if dbcfg.standalone_download:
                     rses = rses_specified
 
-                # For low level data, we only want to run on sites that have the raw data
+                # For low level data, we only want to run on sites that we specified for raw_records_rse
                 if dtype in NEED_RAW_DATA_DTYPES:
                     rses = np.intersect1d(rses, rses_specified)
+                    assert len(rses) > 0, f'No sites found for {dbcfg.number} {dtype}, since no intersection between the available rses {rses} and the specified raw_records_rses {rses_specified}'
 
                 sites_expression, desired_sites = self._determine_target_sites(rses)
 
