@@ -352,6 +352,10 @@ class Outsource:
                 if dbcfg.standalone_download:
                     rses = rses_specified
 
+                # For low level data, we only want to run on sites that have the raw data
+                if dtype in NEED_RAW_DATA_DTYPES:
+                    rses = np.intersect1d(rses, rses_specified)
+
                 sites_expression, desired_sites = self._determine_target_sites(rses)
 
                 # hs06_test_run limits the run to a set of compute nodes at UChicago with a known HS06 factor
