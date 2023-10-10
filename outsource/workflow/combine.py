@@ -90,16 +90,20 @@ def check_chunk_n(directory):
     files = sorted(glob.glob(directory+'*'))
     n_chunks = len(files) - 1
     metadata = json.loads(open(files[-1], 'r').read())
-    assert n_chunks == len(metadata['chunks']), "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
-    compressor = metadata['compressor']
-    dtype = eval(metadata['dtype'])
-    for i in range(n_chunks):
-        chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
-        if metadata['chunks'][i]['n'] != len(chunk):
-            raise strax.DataCorrupted(
-                f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
-                f"but metadata says {metadata['chunks'][i]['n']}")
-
+    if n_chunks != 0:
+        assert n_chunks == len(metadata['chunks']), "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+        compressor = metadata['compressor']
+        dtype = eval(metadata['dtype'])
+        for i in range(n_chunks):
+            chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
+            if metadata['chunks'][i]['n'] != len(chunk):
+                raise strax.DataCorrupted(
+                    f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
+                    f"but metadata says {metadata['chunks'][i]['n']}")
+    else:
+        assert len(metadata['chunks']) == 1, "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+        assert metadata['chunks'][0]['n'] == 0, "Empty chunk has non-zero length in metadata!"
+    
 
 def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
@@ -196,6 +200,7 @@ def main():
 
         if len(contents_to_upload):
             admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
+            print(f"Uploaded {this_path} to {rse} with did {dataset_did}. ")
         else:
             raise ValueError("Failed admix upload! The following files are inside %s: %s"%(
                 this_path, contents_to_upload))
