@@ -7,7 +7,7 @@ def readme():
 
 
 setup(name='outsource',
-      version='0.1.0',
+      version='0.2.1',
       description='XENONnT Outsource module',
       long_description=readme(),
       url='https://github.com/XENONnT/outsource',
