@@ -85,6 +85,9 @@ def merge(runid_str, # run number padded with 0s
     st.storage = [strax.DataDirectory(path) for path in _storage_paths]
 
 def check_chunk_n(directory):
+    """
+    Check that the chunk length is agreed with promise in metadata.
+    """
     if directory[-1] != '/':
         directory += '/'
     files = sorted(glob.glob(directory+'*'))
