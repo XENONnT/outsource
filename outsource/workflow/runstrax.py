@@ -422,6 +422,10 @@ def main():
 
             # for some reason files get uploaded but not attached correctly
             need_attached = list(set(existing_files) - set(existing_files_in_dataset))
+            print('-----------------')
+            print("Need to attach the following files:")
+            print(need_attached)
+            print('-----------------')
 
             # only consider the chunks here
             if args.chunks:
