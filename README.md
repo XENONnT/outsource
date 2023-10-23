@@ -112,24 +112,25 @@ exclude_sites = SU-ITS, NotreDame, UConn-HPC, Purdue Geddes, Chameleon, WSU-GRID
 # data type to process
 dtypes = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpulses, led_calibration
 # below are specific dtype options
-records_rse = 
-peaklets_rse = 
-events_rse = 
-exclude_modes = 
-use_xsede = 
-notification_email =
-min_run_number = 
-max_daily = 
-this_site_only = 
-chunks_per_job = 
+raw_records_rse = UC_OSG_USERDISK
+records_rse = UC_MIDWAY_USERDISK
+peaklets_rse = UC_OSG_USERDISK
+events_rse = UC_MIDWAY_USERDISK
+exclude_modes = tpc_noise, tpc_rn_8pmts, tpc_commissioning_pmtgain, tpc_rn_6pmts, tpc_rn_12_pmts, nVeto_LED_calibration,tpc_rn_12pmts, nVeto_LED_calibration_2
+use_xsede = False
+notification_email = 
+min_run_number = 666
+max_daily = 2000
 hs06_test_run = False
-combine_memory = 10000   # MB
-combine_disk = 50000000  # KB
-peaklets_memory = 10000  # MB
-peaklets_disk = 20000000 # KB
-events_memory = 60000    # MB
-events_disk = 100000000  # KB
-us_only = True 
+this_site_only =
+chunks_per_job = 10
+combine_memory = 60000
+combine_disk = 120000000
+peaklets_memory = 14500
+peaklets_disk = 50000000
+events_memory = 60000
+events_disk = 120000000
+us_only = False
 ```
 
 ## Add a setup script
