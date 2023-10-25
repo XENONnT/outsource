@@ -449,7 +449,7 @@ def main():
                 need_attached = [f for f in need_attached if str(int(f.split('-')[-1])) in args.chunks]
 
             if len(need_attached) > 0:
-                dids_to_attach = [dict(scope=scope, name=name) for name in need_attached]
+                dids_to_attach = [scope+':'+name for name in need_attached]
                 print("---------")
                 print("Need to attach the following in rucio:")
                 print(dids_to_attach)
