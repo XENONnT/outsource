@@ -443,10 +443,6 @@ def main():
 
             # for some reason files get uploaded but not attached correctly
             need_attached = list(set(existing_files) - set(existing_files_in_dataset))
-            print("---------")
-            print("Need to attach the following in rucio:")
-            print(need_attached)
-            print("---------")
 
             # only consider the chunks here
             if args.chunks:
@@ -454,6 +450,10 @@ def main():
 
             if len(need_attached) > 0:
                 dids_to_attach = [dict(scope=scope, name=name) for name in need_attached]
+                print("---------")
+                print("Need to attach the following in rucio:")
+                print(dids_to_attach)
+                print("---------")
 
                 admix.rucio.attach(dataset_did, dids_to_attach)
 
