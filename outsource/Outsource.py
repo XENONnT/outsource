@@ -546,7 +546,7 @@ class Outsource:
         wf.plan(conf=base_dir + '/workflow/pegasus.conf',
                 submit=not self.debug,
                 sites=['condorpool'],
-                staging_sites={'condorpool': 'staging'},
+                staging_sites={'condorpool': 'staging-davs'},
                 output_sites=None,
                 dir=os.path.dirname(self.wf_dir),
                 relative_dir=self._wf_id
