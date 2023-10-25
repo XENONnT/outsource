@@ -386,7 +386,8 @@ class Outsource:
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
                     combine_output_tar_name = f'{dbcfg.number:06d}-{dtype}-combined.tar.gz'
                     combine_output_tar = File(combine_output_tar_name)
-                    combine_job.add_outputs(combine_output_tar, stage_out=True)
+                    # since this is triggerring problems, let's turn off for now
+                    #combine_job.add_outputs(combine_output_tar, stage_out=True)
                     combine_job.add_args(str(dbcfg.number),
                                          dtype,
                                          self.context_name,
