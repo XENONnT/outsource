@@ -300,6 +300,8 @@ class Outsource:
                 continue
 
             requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org' + ' && (HAS_AVX2 || HAS_AVX)'
+            # exclude some sites - only use this method if you really have to
+            requirements_base += ' && GLIDEIN_Site != "University of South Dakota"'
             # should we use XSEDE?
             # if self.xsede:
             #     requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
@@ -386,7 +388,7 @@ class Outsource:
                     combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
                     combine_output_tar_name = f'{dbcfg.number:06d}-{dtype}-combined.tar.gz'
                     combine_output_tar = File(combine_output_tar_name)
-                    combine_job.add_outputs(combine_output_tar, stage_out=True)
+                    combine_job.add_outputs(combine_output_tar, stage_out=(not self.upload_to_rucio))
                     combine_job.add_args(str(dbcfg.number),
                                          dtype,
                                          self.context_name,
@@ -472,7 +474,7 @@ class Outsource:
                                      )
 
                         job.add_inputs(straxify, xenon_config, token, cutax_tarball)
-                        job.add_outputs(job_output_tar, stage_out=True)
+                        job.add_outputs(job_output_tar, stage_out=(not self.upload_to_rucio))
                         wf.add_jobs(job)
 
                         # all strax jobs depend on the pre-flight or a download job, but pre-flight jobs have been outdated so it is not necessary.
@@ -547,7 +549,7 @@ class Outsource:
                 submit=not self.debug,
                 sites=['condorpool'],
                 staging_sites={'condorpool': 'staging-davs'},
-                output_sites=None,
+                output_sites=['local'],
                 dir=os.path.dirname(self.wf_dir),
                 relative_dir=self._wf_id
                )
