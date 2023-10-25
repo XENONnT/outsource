@@ -301,7 +301,7 @@ class Outsource:
 
             requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org' + ' && (HAS_AVX2 || HAS_AVX)'
             # exclude some sites - only use this method if you really have to
-            requirements_base += ' && GLIDEIN_Site != "University of South Dakota"'
+            #requirements_base += ' && GLIDEIN_Site != "University of South Dakota"'
             # should we use XSEDE?
             # if self.xsede:
             #     requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
