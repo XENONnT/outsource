@@ -688,6 +688,12 @@ class Outsource:
         scratch_dir.add_file_servers(FileServer('osdf:///ospool/uc-shared/project/xenon/wf-scratch/{}'.format(getpass.getuser()), Operation.ALL))
         staging.add_directories(scratch_dir)
 
+        # staging site - davs
+        staging_davs = Site("staging-davs")
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/xenon/scratch/{}'.format(getpass.getuser()))
+        scratch_dir.add_file_servers(FileServer('gsidavs://xenon-gridftp.grid.uchicago.edu:2880/xenon/scratch/{}'.format(getpass.getuser()), Operation.ALL))
+        staging_davs.add_directories(scratch_dir)
+
         # condorpool
         condorpool = Site("condorpool")
         condorpool.add_profiles(Namespace.PEGASUS, style='condor')
@@ -712,7 +718,7 @@ class Outsource:
         condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT='production')
 
         sc.add_sites(local,
-                     staging,
+                     staging_davs,
                      #output,
                      condorpool)
 
