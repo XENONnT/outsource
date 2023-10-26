@@ -188,7 +188,6 @@ def main():
             print(f"Data is not complete for {this_dir}. Skipping")
             print("Below is the error message we get when trying to load the data:")
             print(e)
-            print("Let's see what's inside the directory:")
 
         this_path = os.path.join(final_path, this_dir)
         contents_to_upload = os.listdir(this_path)
@@ -202,6 +201,8 @@ def main():
         print(f"Trying to upload {this_path} to {rse}")
 
         if len(contents_to_upload):
+            print("Here are the contents to upload:")
+            print(contents_to_upload)
             admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
             print(f"Uploaded {this_path} to {rse} with did {dataset_did}. ")
         else:
