@@ -17,6 +17,7 @@ DEPENDS_ON = {'records': ['raw_records'],
               'peak_basics': ['peaklets'],
               'peak_basics_he': ['raw_records_he'],
               'event_info_double': ['peaklets'],
+              'event_shadow': ['peaklets'],
               'hitlets_nv': ['raw_records_nv'],
               'events_nv': ['hitlets_nv'],
               'events_mv': ['raw_records_mv'],
@@ -25,7 +26,7 @@ DEPENDS_ON = {'records': ['raw_records'],
               }
 
 DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'peak_basics', 'event_info_double', 
-                           'peak_basics_he', 'afterpulses', 'led_calibration'],
+                           'event_shadow', 'peak_basics_he', 'afterpulses', 'led_calibration'],
                    'neutron_veto': ['hitlets_nv', 'events_nv'],
                    'muon_veto': ['events_mv']
                    }
@@ -35,6 +36,7 @@ ACTUALLY_STORED = {'event_info_double': ['event_info', 'distinct_channels', 'eve
                                          'event_area_per_channel', 'event_n_channel',
                                          'event_top_bottom_params', 'event_ms_naive',
                                          'event_ambience', 'event_shadow'],
+                   'event_shadow': ['event_shadow', 'event_ambience'],
                    'peak_basics_he': ['peak_basics_he'],
                    'events_nv': ['events_nv'],
                    'peak_basics': ['merged_s2s', 'peak_basics', 'peaklet_classification'],
