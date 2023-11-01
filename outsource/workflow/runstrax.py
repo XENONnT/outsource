@@ -16,6 +16,8 @@ import admix
 import rucio
 import datetime
 import cutax
+import glob
+import json
 
 from admix.clients import rucio_client
 
@@ -231,6 +233,31 @@ def process(runid,
                 saver.close()
     process_time = time.time() - t0
     print(f"=== Processing time for {out_dtype}: {process_time/60:0.2f} minutes === ")
+
+
+def check_chunk_n(directory):
+    """
+    Check that the chunk length is agreed with promise in metadata.
+    """
+    if directory[-1] != '/':
+        directory += '/'
+    files = sorted(glob.glob(directory+'*'))
+    n_chunks = len(files) - 1
+    metadata = json.loads(open(files[-1], 'r').read())
+    if n_chunks != 0:
+        assert n_chunks == len(metadata['chunks']), "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+        compressor = metadata['compressor']
+        dtype = eval(metadata['dtype'])
+        for i in range(n_chunks):
+            chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
+            if metadata['chunks'][i]['n'] != len(chunk):
+                raise strax.DataCorrupted(
+                    f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
+                    f"but metadata says {metadata['chunks'][i]['n']}")
+    else:
+        assert len(metadata['chunks']) == 1, "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+        assert metadata['chunks'][0]['n'] == 0, "Empty chunk has non-zero length in metadata!"
+    
 
 
 def main():
@@ -463,7 +490,13 @@ def main():
 
         path = os.path.join(data_dir, dirname)
 
+        print("--------------------------")
+        print(f"Checking if chunk length is agreed with promise in metadata for {path}")
+        check_chunk_n(path)
+        print("The chunk length is agreed with promise in metadata.")
+
         try:
+            print("--------------------------")
             print(f"Uploading {path} to rucio!")
             admix.upload(path, rse=rse, did=dataset_did)
         except:
