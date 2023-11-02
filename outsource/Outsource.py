@@ -302,9 +302,9 @@ class Outsource:
                 logger.debug(f"Run {dbcfg.number} is already processed with context {self.context_name}")
                 continue
 
-            requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org' + ' && (HAS_AVX2 || HAS_AVX)'
-            # exclude some sites - only use this method if you really have to
-            #requirements_base += ' && GLIDEIN_Site != "University of South Dakota"'
+            requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org' + \
+                                ' && PORT_2880 && PORT_8000 && PORT_27017' + \
+                                ' && (HAS_AVX2 || HAS_AVX)'
             # should we use XSEDE?
             # if self.xsede:
             #     requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
