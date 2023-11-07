@@ -6,6 +6,7 @@ import numpy as np
 import strax
 import straxen
 import datetime
+import time
 import admix
 import rucio
 from utilix import DB, uconfig
@@ -203,8 +204,11 @@ def main():
         if len(contents_to_upload):
             print("Here are the contents to upload:")
             print(contents_to_upload)
+            t0 = time.time()
             admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
             print(f"Uploaded {this_path} to {rse} with did {dataset_did}. ")
+            upload_time = time.time() - t0
+            print(f"=== Uploading time for {keystring}: {upload_time/60:0.2f} minutes === ")
         else:
             raise ValueError("Failed admix upload! The following files are inside %s: %s"%(
                 this_path, contents_to_upload))
