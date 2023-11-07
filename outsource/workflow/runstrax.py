@@ -498,7 +498,10 @@ def main():
         try:
             print("--------------------------")
             print(f"Uploading {path} to rucio!")
+            t0 = time.time()
             admix.upload(path, rse=rse, did=dataset_did)
+            upload_time = time.time() - t0
+            print(f"=== Uploading time for {this_dtype}: {upload_time/60:0.2f} minutes === ")
         except:
             print(f"Upload of {dset_name} failed for some reason")
             raise
