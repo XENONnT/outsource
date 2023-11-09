@@ -152,6 +152,10 @@ def process(runid,
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
     if chunks is None:
+        if plugin.save_when == strax.SaveWhen.NEVER:
+            print("This plugin is not saving anything. Skipping.")
+            return
+            
         print("Chunks is none -- processing whole thing!")
         # then we just process the whole thing
         for keystring in plugin.provides:
@@ -159,7 +163,7 @@ def process(runid,
             st.make(runid_str, keystring,
                     max_workers=4, #FIXME is it dangerous?
                     allow_multiple=True,
-                    save=keystring,
+                    save=plugin.provides,
                     )
             print(f"DONE processing {keystring}")
 
