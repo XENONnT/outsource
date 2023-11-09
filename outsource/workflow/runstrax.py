@@ -43,6 +43,7 @@ ignore_dtypes = ['records',
                  'lone_raw_record_statistics_nv',
                  'records_he',
                  'records_mv',
+                 'peaks',
                  ]
 
 # these dtypes should always be made at the same time:
