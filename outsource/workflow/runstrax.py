@@ -159,6 +159,7 @@ def process(runid,
             st.make(runid_str, keystring,
                     max_workers=4, #FIXME is it dangerous?
                     allow_multiple=True,
+                    save=keystring,
                     )
             print(f"DONE processing {keystring}")
 
