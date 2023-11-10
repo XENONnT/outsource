@@ -18,6 +18,7 @@ import datetime
 import cutax
 import glob
 import json
+import gc
 
 from admix.clients import rucio_client
 
@@ -390,6 +391,7 @@ def main():
                 close_savers=close_savers,
                 tmp_path=_tmp_path
                 )
+        gc.collect()
 
     print("Done processing. Now check if we should upload to rucio")
 
