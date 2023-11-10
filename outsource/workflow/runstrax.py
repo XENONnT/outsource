@@ -54,6 +54,8 @@ buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
                 ('event_shadow', 'event_ambience'),
                 ]
 
+# These are the dtypes we want to make first if any of them is in to-process list
+priority_rank = ['peaklet_classification', 'merged_s2s', 'peaks', 'peak_basics']
 
 def get_bottom_dtypes(dtype):
     """
@@ -152,6 +154,7 @@ def process(runid,
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
     if chunks is None:
+        # check if we need to save anything， if not, skip this plugin
         if plugin.save_when == strax.SaveWhen.NEVER:
             print("This plugin is not saving anything. Skipping.")
             return
@@ -163,7 +166,7 @@ def process(runid,
             st.make(runid_str, keystring,
                     max_workers=4, #FIXME is it dangerous?
                     allow_multiple=True,
-                    save=plugin.provides,
+                    save=keystring,
                     )
             print(f"DONE processing {keystring}")
 
@@ -370,6 +373,11 @@ def main():
 
     if args.download_only:
         sys.exit(0)
+
+    # If to-process has anything in priority_rank, we process them first
+    if len(set(priority_rank) & set(to_process)) > 0:
+        to_process_low_priority = [dt for dt in to_process if dt not in priority_rank]
+        to_process = priority_rank + to_process_low_priority
 
     print(f"To process: {', '.join(to_process)}")
     _tmp_path = tempfile.mkdtemp()
