@@ -124,12 +124,12 @@ max_daily = 2000
 hs06_test_run = False
 this_site_only =
 chunks_per_job = 10
-combine_memory = 60000
-combine_disk = 120000000
-peaklets_memory = 14500
-peaklets_disk = 50000000
-events_memory = 60000
-events_disk = 120000000
+combine_memory = 60000   # MB
+combine_disk = 120000000 # KB
+peaklets_memory = 14500  # MB
+peaklets_disk = 50000000 # KB
+events_memory = 60000    # MB
+events_disk = 120000000  # KB
 us_only = False
 ```
 
