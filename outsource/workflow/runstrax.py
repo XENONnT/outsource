@@ -156,7 +156,7 @@ def process(runid,
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
     if chunks is None:
         # check if we need to save anything， if not, skip this plugin
-        if plugin.save_when == strax.SaveWhen.NEVER:
+        if plugin.save_when[out_dtype] == strax.SaveWhen.NEVER:
             print("This plugin is not saving anything. Skipping.")
             return
             
