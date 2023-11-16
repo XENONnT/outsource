@@ -156,7 +156,7 @@ def process(runid,
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
     if chunks is None:
         # check if we need to save anything， if not, skip this plugin
-        if plugin.save_when == strax.SaveWhen.NEVER:
+        if plugin.save_when[out_dtype] == strax.SaveWhen.NEVER:
             print("This plugin is not saving anything. Skipping.")
             return
             
@@ -165,8 +165,6 @@ def process(runid,
         for keystring in plugin.provides:
             print(f"Making {keystring}")
             st.make(runid_str, keystring,
-                    max_workers=4, #FIXME is it dangerous?
-                    allow_multiple=True,
                     save=keystring,
                     )
             print(f"DONE processing {keystring}")
