@@ -168,6 +168,17 @@ def process(runid,
                     save=keystring,
                     )
             print(f"DONE processing {keystring}")
+                    
+            # Test if the data is complete
+            try:
+                print("Try loading data in %s to see if it is complete."%(this_dir))
+                st.get_array(runid_str, keystring, keep_columns='time', progress_bar=False)
+                print("Successfully loaded %s! It is complete."%(this_dir))
+            except Exception as e:
+                print(f"Data is not complete for {this_dir}. Skipping")
+                print("Below is the error message we get when trying to load the data:")
+                print(e)
+            print("--------------------------")
 
     # process chunk-by-chunk
     else:
@@ -227,6 +238,8 @@ def process(runid,
             elif isinstance(output_data, strax.Chunk):
                 # save the output -- you have to loop because there could be > 1 output dtypes
                 savers[keystring].save(output_data, chunk_i=int(chunk))
+            else:
+                raise TypeError("Unknown datatype %s for output"%(type(output_data)))
 
         if close_savers:
             for dtype, saver in savers.items():
