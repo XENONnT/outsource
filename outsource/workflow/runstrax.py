@@ -266,7 +266,7 @@ def check_chunk_n(directory):
     n_chunks = len(files) - 1
     metadata = json.loads(open(files[-1], 'r').read())
     if n_chunks != 0:
-        assert n_chunks == len(metadata['chunks']), "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+        assert n_chunks == len(metadata['chunks']), "For directory %s, there are %s chunks in storage, but metadata says %s"%(directory, n_chunks, len(metadata['chunks']))
         compressor = metadata['compressor']
         dtype = eval(metadata['dtype'])
         for i in range(n_chunks):
