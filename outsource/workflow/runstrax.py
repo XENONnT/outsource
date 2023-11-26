@@ -171,11 +171,11 @@ def process(runid,
                     
             # Test if the data is complete
             try:
-                print("Try loading data in %s to see if it is complete."%(this_dir))
+                print("Try loading data in %s to see if it is complete."%(runid_str+'-'+keystring))
                 st.get_array(runid_str, keystring, keep_columns='time', progress_bar=False)
-                print("Successfully loaded %s! It is complete."%(this_dir))
+                print("Successfully loaded %s! It is complete."%(runid_str+'-'+keystring))
             except Exception as e:
-                print(f"Data is not complete for {this_dir}. Skipping")
+                print(f"Data is not complete for {runid_str+'-'+keystring}. Skipping")
                 print("Below is the error message we get when trying to load the data:")
                 print(e)
             print("--------------------------")
