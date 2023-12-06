@@ -137,16 +137,17 @@ us_only = False
 For convenience, we recommend writing a simple bash 
 script to make it easy to setup the outsource 
 environment. Below is an example called `setup_outsource.
-sh`, but note you will need to change things like usernames.
+sh`, but note you will need to change things like usernames and container.
 
 ``` 
 #!/bin/bash
 
-. /cvmfs/xenon.opensciencegrid.org/releases/nT/2022.06.2/setup.sh
+. /cvmfs/xenon.opensciencegrid.org/releases/nT/2023.11.1/setup.sh
 
 export RUCIO_ACCOUNT=production
-export X509_USER_PROXY=/home/ershockley/user_cert
-export PATH=$PATH:/home/ershockley/.local/bin
+export X509_USER_PROXY=$HOME/user_cert
+export PATH=/opt/pegasus/current/bin:$PATH
+export PYTHONPATH=`pegasus-config --python`:$PYTHONPATH
 ```
 
 What this script does is
