@@ -99,10 +99,21 @@ field of the config with header 'Outsource', see below.
 **Note you will need to fill in the empty slots**. 
 
 ```
+[basic]
+# usually helpful for debugging but it's a lot of msg 
+logging_level=DEBUG
+
 [RunDB]
-rundb_api_url = 
-rundb_api_user = 
-rundb_api_password = 
+rundb_api_url = <ask teamA>
+rundb_api_user = xenon-admin
+rundb_api_password = <ask teamA>
+xent_user = nt_analysis
+xent_password = <ask teamA>
+xent_database = xenonnt
+xe1t_url = <ask teamA>
+xe1t_user = 1t_bookkeeping
+xe1t_password = <ask teamA>
+xe1t_database = run
 
 [Outsource]
 work_dir = /scratch/$USER/workflows
