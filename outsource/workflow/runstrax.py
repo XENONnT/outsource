@@ -168,6 +168,17 @@ def process(runid,
                     save=keystring,
                     )
             print(f"DONE processing {keystring}")
+                    
+            # Test if the data is complete
+            try:
+                print("Try loading data in %s to see if it is complete."%(runid_str+'-'+keystring))
+                st.get_array(runid_str, keystring, keep_columns='time', progress_bar=False)
+                print("Successfully loaded %s! It is complete."%(runid_str+'-'+keystring))
+            except Exception as e:
+                print(f"Data is not complete for {runid_str+'-'+keystring}. Skipping")
+                print("Below is the error message we get when trying to load the data:")
+                print(e)
+            print("--------------------------")
 
     # process chunk-by-chunk
     else:
@@ -227,6 +238,8 @@ def process(runid,
             elif isinstance(output_data, strax.Chunk):
                 # save the output -- you have to loop because there could be > 1 output dtypes
                 savers[keystring].save(output_data, chunk_i=int(chunk))
+            else:
+                raise TypeError("Unknown datatype %s for output"%(type(output_data)))
 
         if close_savers:
             for dtype, saver in savers.items():
@@ -253,7 +266,7 @@ def check_chunk_n(directory):
     n_chunks = len(files) - 1
     metadata = json.loads(open(files[-1], 'r').read())
     if n_chunks != 0:
-        assert n_chunks == len(metadata['chunks']), "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+        assert n_chunks == len(metadata['chunks']), "For directory %s, there are %s chunks in storage, but metadata says %s"%(directory, n_chunks, len(metadata['chunks']))
         compressor = metadata['compressor']
         dtype = eval(metadata['dtype'])
         for i in range(n_chunks):
