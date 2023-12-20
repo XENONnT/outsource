@@ -522,12 +522,14 @@ def main():
         check_chunk_n(path)
         print("The chunk length is agreed with promise in metadata.")
 
+        succeded_rucio_upload = False
         try:
             print("--------------------------")
             print(f"Uploading {path} to rucio!")
             t0 = time.time()
             admix.upload(path, rse=rse, did=dataset_did)
             upload_time = time.time() - t0
+            succeded_rucio_upload = True
             print(f"=== Uploading time for {this_dtype}: {upload_time/60:0.2f} minutes === ")
         except:
             print(f"Upload of {dset_name} failed for some reason")
@@ -538,8 +540,8 @@ def main():
 
         # if we processed the whole thing, add a rule at DALI update the runDB here
         if args.chunks is None:
-            # skip if update_db flag is false
-            if args.update_db:
+            # skip if update_db flag is false, or if the rucio upload failed
+            if args.update_db and succeded_rucio_upload:
                 md = st.get_meta(runid_str, this_dtype)
                 chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
                 data_size_mb = np.sum(chunk_mb)
