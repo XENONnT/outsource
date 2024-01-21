@@ -26,7 +26,7 @@ DEPENDS_ON = {'records': ['raw_records'],
               }
 
 # Corresponding to keys in ACTUALLY_STORED
-DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'peak_basics', 'event_info_double'
+DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'peak_basics', 'event_info_double',
                            'event_shadow', 'peak_basics_he', 'afterpulses', 'led_calibration'],
                    'neutron_veto': ['hitlets_nv', 'events_nv'],
                    'muon_veto': ['events_mv']
