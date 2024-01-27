@@ -302,7 +302,7 @@ def main():
     #     rmtree(data_dir)
 
     # get context
-    st = getattr(cutax.contexts, args.context)(cut_list=None)
+    st = getattr(cutax.contexts, args.context)()
     # st.storage = [strax.DataDirectory(data_dir),
     #               straxen.rucio.RucioFrontend(include_remote=True, download_heavy=True,
     #                                           staging_dir=os.path.join(data_dir, 'rucio'))
