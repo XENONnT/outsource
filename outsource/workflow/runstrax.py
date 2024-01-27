@@ -51,7 +51,7 @@ ignore_dtypes = ['records',
 buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
                 ('event_info_double', 'event_pattern_fit', 'event_area_per_channel', 
                  'event_top_bottom_params', 'event_ms_naive', 'peak_s1_positions_cnn',
-                 'event_ambience', 'event_shadow'),
+                 'event_ambience', 'event_shadow', 'cuts_basic'),
                 ('event_shadow', 'event_ambience'),
                 ]
 
