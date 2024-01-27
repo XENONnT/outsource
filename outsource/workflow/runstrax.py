@@ -164,9 +164,18 @@ def process(runid,
         # then we just process the whole thing
         for keystring in plugin.provides:
             print(f"Making {keystring}")
-            st.make(runid_str, keystring,
-                    save=keystring,
-                    )
+            # We want to be more tolerant on cuts_basic, because sometimes it is ill-defined
+            if keystring == 'cuts_basic':
+                try:
+                    st.make(runid_str, keystring,
+                            save=keystring,
+                            )
+                except:
+                    print(f"Failed to make {keystring}. Skipping")
+            else:
+                st.make(runid_str, keystring,
+                            save=keystring,
+                        )
             print(f"DONE processing {keystring}")
                     
             # Test if the data is complete
