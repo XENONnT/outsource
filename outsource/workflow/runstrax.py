@@ -436,7 +436,7 @@ def main():
     rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
 
     # now loop over datatypes we just made and upload the data
-    processed_data = [d for d in os.listdir(data_dir)]
+    processed_data = [d for d in os.listdir(data_dir) if '_temp' not in d]
     print("---- Processed data ----")
     for d in processed_data:
         print(d)
