@@ -51,7 +51,7 @@ ignore_dtypes = ['records',
 buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
                 ('event_info_double', 'event_pattern_fit', 'event_area_per_channel', 
                  'event_top_bottom_params', 'event_ms_naive', 'peak_s1_positions_cnn',
-                 'event_ambience', 'event_shadow'),
+                 'event_ambience', 'event_shadow', 'cuts_basic'),
                 ('event_shadow', 'event_ambience'),
                 ]
 
@@ -164,9 +164,18 @@ def process(runid,
         # then we just process the whole thing
         for keystring in plugin.provides:
             print(f"Making {keystring}")
-            st.make(runid_str, keystring,
-                    save=keystring,
-                    )
+            # We want to be more tolerant on cuts_basic, because sometimes it is ill-defined
+            if keystring == 'cuts_basic':
+                try:
+                    st.make(runid_str, keystring,
+                            save=keystring,
+                            )
+                except:
+                    print(f"Failed to make {keystring}. Skipping")
+            else:
+                st.make(runid_str, keystring,
+                            save=keystring,
+                        )
             print(f"DONE processing {keystring}")
                     
             # Test if the data is complete
@@ -302,7 +311,7 @@ def main():
     #     rmtree(data_dir)
 
     # get context
-    st = getattr(cutax.contexts, args.context)(cut_list=None)
+    st = getattr(cutax.contexts, args.context)()
     # st.storage = [strax.DataDirectory(data_dir),
     #               straxen.rucio.RucioFrontend(include_remote=True, download_heavy=True,
     #                                           staging_dir=os.path.join(data_dir, 'rucio'))
@@ -427,7 +436,7 @@ def main():
     rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
 
     # now loop over datatypes we just made and upload the data
-    processed_data = [d for d in os.listdir(data_dir)]
+    processed_data = [d for d in os.listdir(data_dir) if '_temp' not in d]
     print("---- Processed data ----")
     for d in processed_data:
         print(d)
