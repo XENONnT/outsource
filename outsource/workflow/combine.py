@@ -39,8 +39,6 @@ def merge(runid_str, # run number padded with 0s
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
 
-    # plugin.default_chunk_size_mb = 500 # this is not doing anything
-
     to_merge = [d.split('-')[1] for d in os.listdir(path)]
 
     for keystring in plugin.provides:
