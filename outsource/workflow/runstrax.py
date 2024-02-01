@@ -291,6 +291,9 @@ def check_chunk_n(directory):
                 raise strax.DataCorrupted(
                     f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
                     f"but metadata says {metadata['chunks'][i]['n']}")
+        
+        if n_chunks == n_metadata_chunks-1:
+            assert metadata['chunks'][n_chunks]['n'] == 0, "Empty chunk has non-zero length in metadata!"
 
     else:
         assert len(metadata['chunks']) == 1, "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
