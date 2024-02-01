@@ -95,6 +95,7 @@ def check_chunk_n(directory):
 
     if n_chunks != 0:
         n_metadata_chunks = len(metadata['chunks'])
+        # check that the number of chunks in storage is less than or equal to the number of chunks in metadata
         assert n_chunks == n_metadata_chunks or n_chunks == n_metadata_chunks-1, "For directory %s, \
                                                there are %s chunks in storage, \
                                                but metadata says %s. Chunks in storage must be \
@@ -104,6 +105,7 @@ def check_chunk_n(directory):
         compressor = metadata['compressor']
         dtype = eval(metadata['dtype'])
         
+        # check that the chunk length is agreed with promise in metadata
         for i in range(n_chunks):
             chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
             if metadata['chunks'][i]['n'] != len(chunk):
@@ -111,10 +113,12 @@ def check_chunk_n(directory):
                     f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
                     f"but metadata says {metadata['chunks'][i]['n']}")
 
+        # check that the last chunk is empty
         if n_chunks == n_metadata_chunks-1:
             assert metadata['chunks'][n_chunks]['n'] == 0, "Empty chunk has non-zero length in metadata!"
 
     else:
+        # check that the number of chunks in metadata is 1
         assert len(metadata['chunks']) == 1, "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
         assert metadata['chunks'][0]['n'] == 0, "Empty chunk has non-zero length in metadata!"
     
