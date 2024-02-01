@@ -266,7 +266,7 @@ def process(runid,
 
 def check_chunk_n(directory):
     """
-    Check that the chunk length is agreed with promise in metadata.
+    Check that the chunk length and number of chunk is agreed with promise in metadata.
     """
     if directory[-1] != '/':
         directory += '/'
