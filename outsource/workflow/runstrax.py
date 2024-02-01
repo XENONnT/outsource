@@ -150,7 +150,6 @@ def process(runid,
     plugin = st._get_plugins((out_dtype,), runid_str)[out_dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
-    plugin.chunk_target_size_mb = 500 #FIXME is it dangerous?
 
     # now move on to processing
     # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
@@ -267,29 +266,43 @@ def process(runid,
 
 def check_chunk_n(directory):
     """
-    Check that the chunk length is agreed with promise in metadata.
+    Check that the chunk length and number of chunk is agreed with promise in metadata.
     """
     if directory[-1] != '/':
         directory += '/'
     files = sorted(glob.glob(directory+'*'))
     n_chunks = len(files) - 1
     metadata = json.loads(open(files[-1], 'r').read())
+
     if n_chunks != 0:
-        assert n_chunks == len(metadata['chunks']), "For directory %s, there are %s chunks in storage, but metadata says %s"%(directory, n_chunks, len(metadata['chunks']))
+        n_metadata_chunks = len(metadata['chunks'])
+        # check that the number of chunks in storage is less than or equal to the number of chunks in metadata
+        assert n_chunks == n_metadata_chunks or n_chunks == n_metadata_chunks-1, "For directory %s, \
+                                               there are %s chunks in storage, \
+                                               but metadata says %s. Chunks in storage must be \
+                                               less than chunks in metadata!"%(
+                                                        directory, n_chunks, n_metadata_chunks)
+        
         compressor = metadata['compressor']
         dtype = eval(metadata['dtype'])
+        
+        # check that the chunk length is agreed with promise in metadata
         for i in range(n_chunks):
             chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
             if metadata['chunks'][i]['n'] != len(chunk):
                 raise strax.DataCorrupted(
                     f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
                     f"but metadata says {metadata['chunks'][i]['n']}")
+
+        # check that the last chunk is empty
+        if n_chunks == n_metadata_chunks-1:
+            assert metadata['chunks'][n_chunks]['n'] == 0, "Empty chunk has non-zero length in metadata!"
+
     else:
+        # check that the number of chunks in metadata is 1
         assert len(metadata['chunks']) == 1, "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
         assert metadata['chunks'][0]['n'] == 0, "Empty chunk has non-zero length in metadata!"
     
-
-
 def main():
     parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
     parser.add_argument('dataset', help='Run number', type=int)
