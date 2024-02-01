@@ -92,16 +92,25 @@ def check_chunk_n(directory):
     files = sorted(glob.glob(directory+'*'))
     n_chunks = len(files) - 1
     metadata = json.loads(open(files[-1], 'r').read())
+
     if n_chunks != 0:
-        assert n_chunks == len(metadata['chunks']), "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
+        n_metadata_chunks = len(metadata['chunks'])
+        assert n_chunks == n_metadata_chunks or n_chunks == n_metadata_chunks-1, "For directory %s, \
+                                               there are %s chunks in storage, \
+                                               but metadata says %s. Chunks in storage must be \
+                                               less than chunks in metadata!"%(
+                                                        directory, n_chunks, n_metadata_chunks)
+        
         compressor = metadata['compressor']
         dtype = eval(metadata['dtype'])
+        
         for i in range(n_chunks):
             chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
             if metadata['chunks'][i]['n'] != len(chunk):
                 raise strax.DataCorrupted(
                     f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
                     f"but metadata says {metadata['chunks'][i]['n']}")
+
     else:
         assert len(metadata['chunks']) == 1, "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
         assert metadata['chunks'][0]['n'] == 0, "Empty chunk has non-zero length in metadata!"
