@@ -184,7 +184,7 @@ def main():
         _run, keystring, straxhash = this_dir.split('-')
 
         # We don't want to upload records to rucio
-        if keystring == 'records':
+        if keystring == 'records' or keystring == 'records_nv':
             continue
 
         dataset_did = admix.utils.make_did(runid, keystring, straxhash)
