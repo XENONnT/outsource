@@ -182,6 +182,11 @@ def main():
     for this_dir in os.listdir(final_path):
         # prepare list of dicts to be uploaded
         _run, keystring, straxhash = this_dir.split('-')
+
+        # We don't want to upload records to rucio
+        if keystring == 'records':
+            continue
+
         dataset_did = admix.utils.make_did(runid, keystring, straxhash)
         scope, dset_name = dataset_did.split(':')
 
