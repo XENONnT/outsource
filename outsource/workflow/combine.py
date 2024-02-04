@@ -185,6 +185,7 @@ def main():
 
         # We don't want to upload records to rucio
         if keystring == 'records' or keystring == 'records_nv':
+            print("We don't want to upload %s to rucio. Skipping."%(keystring))
             continue
 
         dataset_did = admix.utils.make_did(runid, keystring, straxhash)
