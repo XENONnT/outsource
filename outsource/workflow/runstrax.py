@@ -412,7 +412,12 @@ def main():
 
     # If to-process has anything in priority_rank, we process them first
     if len(set(priority_rank) & set(to_process)) > 0:
+        # remove any prioritized dtypes that are not in to_process
+        priority_rank = [dtype for dtype in priority_rank if dtype in to_process]
+        # remove the priority_rank dtypes from to_process, as low priority datatypes which we don't
+        # rigorously care their order
         to_process_low_priority = [dt for dt in to_process if dt not in priority_rank]
+        # sort the priority by their dependencies
         to_process = priority_rank + to_process_low_priority
 
     print(f"To process: {', '.join(to_process)}")
