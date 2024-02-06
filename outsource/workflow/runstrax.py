@@ -56,7 +56,9 @@ buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
                 ]
 
 # These are the dtypes we want to make first if any of them is in to-process list
-priority_rank = ['peaklet_classification', 'merged_s2s', 'peaks', 'peak_basics']
+priority_rank = ['peaklet_classification', 'merged_s2s', 'peaks', 'peak_basics',
+                 'peak_positions_mlp', 'peak_positions_gcn', 'peak_positions_cnn',
+                 'peak_positions', 'peak_proximity', 'events', 'event_basics' ]
 
 def get_bottom_dtypes(dtype):
     """
