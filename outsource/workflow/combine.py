@@ -5,6 +5,8 @@ import shutil
 import numpy as np
 import strax
 import straxen
+straxen.Events.save_when = strax.SaveWhen.TARGET
+print("We have forced events to save always.")
 import datetime
 import time
 import admix

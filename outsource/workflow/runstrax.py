@@ -7,6 +7,8 @@ import tempfile
 import numpy as np
 import strax
 import straxen
+straxen.Events.save_when = strax.SaveWhen.TARGET
+print("We have forced events to save always.")
 import time
 from pprint import pprint
 from shutil import rmtree, copyfile
@@ -172,7 +174,7 @@ def process(runid,
                             save=keystring,
                             )
                 except:
-                    print(f"Failed to make {keystring}. Skipping")
+                    print(f"Failed to make {keystring}, but it might be due to that the cuts are not ready yet. Skipping")
             else:
                 st.make(runid_str, keystring,
                             save=keystring,
