@@ -110,6 +110,8 @@ fi
 
 echo "Here is what is in the data directory after processing:"
 ls -lah data/*
+echo "We want to find and delete any records or records_nv if existing, to save disk in combine jobs."
+find data -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -rf {} +
 
 
 if [ -z "${chunks}" ]
