@@ -7,6 +7,8 @@ import tempfile
 import numpy as np
 import strax
 import straxen
+straxen.Events.save_when = strax.SaveWhen.TARGET
+print("We have forced events to save always.")
 import time
 from pprint import pprint
 from shutil import rmtree, copyfile
@@ -56,7 +58,9 @@ buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
                 ]
 
 # These are the dtypes we want to make first if any of them is in to-process list
-priority_rank = ['peaklet_classification', 'merged_s2s', 'peaks', 'peak_basics']
+priority_rank = ['peaklet_classification', 'merged_s2s', 'peaks', 'peak_basics',
+                 'peak_positions_mlp', 'peak_positions_gcn', 'peak_positions_cnn',
+                 'peak_positions', 'peak_proximity', 'events', 'event_basics' ]
 
 def get_bottom_dtypes(dtype):
     """
@@ -170,7 +174,7 @@ def process(runid,
                             save=keystring,
                             )
                 except:
-                    print(f"Failed to make {keystring}. Skipping")
+                    print(f"Failed to make {keystring}, but it might be due to that the cuts are not ready yet. Skipping")
             else:
                 st.make(runid_str, keystring,
                             save=keystring,
@@ -410,8 +414,13 @@ def main():
 
     # If to-process has anything in priority_rank, we process them first
     if len(set(priority_rank) & set(to_process)) > 0:
-        to_process_low_priority = [dt for dt in to_process if dt not in priority_rank]
-        to_process = priority_rank + to_process_low_priority
+        # remove any prioritized dtypes that are not in to_process
+        filtered_priority_rank = [dtype for dtype in priority_rank if dtype in to_process]
+        # remove the priority_rank dtypes from to_process, as low priority datatypes which we don't
+        # rigorously care their order
+        to_process_low_priority = [dt for dt in to_process if dt not in filtered_priority_rank]
+        # sort the priority by their dependencies
+        to_process = filtered_priority_rank + to_process_low_priority
 
     print(f"To process: {', '.join(to_process)}")
     _tmp_path = tempfile.mkdtemp()
