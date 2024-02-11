@@ -123,6 +123,8 @@ fi
 
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
     tar czfv ${output_tar} data
+elif [ "X${output_dtype}" = "Xevent_info_double" ]; then
+    tar czfv ${output_tar} data
 else
     tar czfv ${output_tar} data/*_temp
 fi
