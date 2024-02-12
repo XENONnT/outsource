@@ -122,10 +122,13 @@ fi
 
 
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
+    echo "We are tarballing the data directory for download-only job."
     tar czfv ${output_tar} data
 elif [ "X${output_dtype}" = "Xevent_info_double" ]; then
+    echo "We are tarballing the data directory for event_info_double job."
     tar czfv ${output_tar} data
 else
+    echo "We are tarballing the data directory, but only for those with _temp."
     tar czfv ${output_tar} data/*_temp
 fi
 
