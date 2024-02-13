@@ -113,14 +113,6 @@ ls -lah data/*
 echo "We want to find and delete any records or records_nv if existing, to save disk in combine jobs."
 find data -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -rf {} +
 
-
-if [ -z "${chunks}" ]
-then
-  echo "No chunks passed, so exiting now with status 0"
-  exit 0
-fi
-
-
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
     echo "We are tarballing the data directory for download-only job."
     tar czfv ${output_tar} data
