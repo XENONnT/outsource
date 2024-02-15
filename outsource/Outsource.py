@@ -523,7 +523,7 @@ class Outsource:
                                  )
 
                     job.add_inputs(straxify, xenon_config, token, cutax_tarball)
-                    job.add_outputs(job_output_tar, stage_out=(not self.upload_to_rucio))
+                    job.add_outputs(job_output_tar, stage_out=True) # as long as we are giving outputs
                     wf.add_jobs(job)
 
                     # if there are multiple levels to the workflow, need to have current strax-wrapper depend on

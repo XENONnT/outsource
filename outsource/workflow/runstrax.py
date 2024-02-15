@@ -558,6 +558,13 @@ def main():
         succeded_rucio_upload = False
         try:
             print("--------------------------")
+            print(f"Pre-uploading {path} to rucio!")
+            t0 = time.time()
+            admix.preupload(path, rse=rse, did=dataset_did)
+            preupload_time = time.time() - t0
+            print(f"=== Preuploading time for {this_dtype}: {preupload_time/60:0.2f} minutes === ")
+
+            print("--------------------------")
             print(f"Uploading {path} to rucio!")
             t0 = time.time()
             admix.upload(path, rse=rse, did=dataset_did)
