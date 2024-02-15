@@ -224,6 +224,13 @@ def main():
         print(f"Trying to upload {this_path} to {rse}")
 
         if len(contents_to_upload):
+            print(f"Pre-uploading {path} to rucio!")
+            t0 = time.time()
+            admix.preupload(path, rse=rse, did=dataset_did)
+            preupload_time = time.time() - t0
+            print(f"=== Preuploading time for {keystring}: {preupload_time/60:0.2f} minutes === ")
+            print("--------------------------")
+
             print("Here are the contents to upload:")
             print(contents_to_upload)
             t0 = time.time()

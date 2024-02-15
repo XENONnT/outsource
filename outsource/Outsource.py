@@ -503,6 +503,9 @@ class Outsource:
 
                 else:
                     # high level data.. we do it all on one job
+                    # output files
+                    job_output_tar = File('%06d-output-%s.tar.gz' % (dbcfg.number, dtype))
+
                     # Add job
                     job = self._job(**self.job_kwargs[dtype])
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
@@ -513,13 +516,14 @@ class Outsource:
                     job.add_args(str(dbcfg.number),
                                  self.context_name,
                                  dtype,
-                                 'no_output_here',
+                                 job_output_tar,
                                  'false', #if not dbcfg.standalone_download else 'no-download',
                                  str(self.upload_to_rucio).lower(),
                                  str(self.update_db).lower()
                                  )
 
                     job.add_inputs(straxify, xenon_config, token, cutax_tarball)
+                    job.add_outputs(job_output_tar, stage_out=True) # as long as we are giving outputs
                     wf.add_jobs(job)
 
                     # if there are multiple levels to the workflow, need to have current strax-wrapper depend on
