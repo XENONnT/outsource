@@ -32,13 +32,13 @@ After you have these credentials set up, you are ready
 to use outsource and submit processing jobs to OSG. 
 
 #### Environment
-Please use the Python3.6 XENONnT environment. On the OSG submit hosts, this can be set up by sourcing:
+Please use the Python3.6 XENONnT environment. On the OSG submit hosts, this can be set up by sourcing (assuming you are on AP23):
 
     #!/bin/bash
     . /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
-    export XENON_CONFIG=/home/yuanlq/.xenon_config
+    export XENON_CONFIG=$HOME/.xenon_config
     export RUCIO_ACCOUNT=production
-    export X509_USER_PROXY=/home/yuanlq/user_cert
+    export X509_USER_PROXY=$HOME/user_cert
     export PATH=/opt/pegasus/current/bin:$PATH
     export PYTHONPATH=`pegasus-config --python`:$PYTHONPATH
     export PYTHONPATH="$HOME/.local/lib/python3.9/site-packages:$PYTHONPATH"
