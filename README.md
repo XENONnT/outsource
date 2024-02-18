@@ -281,4 +281,4 @@ maybe try submitting a single run in debug mode:
 outsource --run {run_number} --debug
 ```
 
-This will create and submit a pegasus workflow.
+This will create a pegasus workflow, which you need to use `pegasus-run` to submit yourself. Keep in mind that it will NOT upload results to rucio and update RunDB. What's more, the results will also be copied to your scratch folder in ap23 (`/scratch/$USER/...`). 
