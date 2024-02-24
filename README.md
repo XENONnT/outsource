@@ -12,8 +12,8 @@ itself something of a wrapper around
 Those running outsource need to be production users of 
 XENON (ie computing experts, etc). Therefore you will 
 need certain permissions:
-  - Access to the XENON OSG login node (and a CI account). 
-    For more details see [here](xenon:xenon1t:cmp:computing:midway_cluster:instructions).
+  - Access to the XENON OSG login node named ap23 (and a CI account). 
+    For more details see [here]([xenon:xenon1t:cmp:computing:midway_cluster:instructions](https://xe1t-wiki.lngs.infn.it/doku.php?id=xenon:xenonnt:analysis:guide#for_ci-connect_osg_service)).
   - Credentials for a production user to RunDB API
   - A grid certificate with access to the `production` 
     rucio account.
