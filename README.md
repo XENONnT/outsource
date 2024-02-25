@@ -12,8 +12,8 @@ itself something of a wrapper around
 Those running outsource need to be production users of 
 XENON (ie computing experts, etc). Therefore you will 
 need certain permissions:
-  - Access to the XENON OSG login node (and a CI account). 
-    For more details see [here](xenon:xenon1t:cmp:computing:midway_cluster:instructions).
+  - Access to the XENON OSG login node named ap23 (and a CI account). 
+    For more details see [here](https://xe1t-wiki.lngs.infn.it/doku.php?id=xenon:xenonnt:analysis:guide#for_ci-connect_osg_service).
   - Credentials for a production user to RunDB API
   - A grid certificate with access to the `production` 
     rucio account.
@@ -32,9 +32,16 @@ After you have these credentials set up, you are ready
 to use outsource and submit processing jobs to OSG. 
 
 #### Environment
-Please use the Python3.6 XENONnT environment. On the OSG submit hosts, this can be set up by sourcing:
+Please use the Python3.6 XENONnT environment. On the OSG submit hosts, this can be set up by sourcing (assuming you are on AP23):
 
+    #!/bin/bash
     . /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
+    export XENON_CONFIG=$HOME/.xenon_config
+    export RUCIO_ACCOUNT=production
+    export X509_USER_PROXY=$HOME/user_cert
+    export PATH=/opt/pegasus/current/bin:$PATH
+    export PYTHONPATH=`pegasus-config --python`:$PYTHONPATH
+    export PYTHONPATH="$HOME/.local/lib/python3.9/site-packages:$PYTHONPATH"
 
 #### Proxy
 Please make sure you create a 2048 bit long key. Example:
@@ -274,4 +281,4 @@ maybe try submitting a single run in debug mode:
 outsource --run {run_number} --debug
 ```
 
-This will create and submit a pegasus workflow.
+This will create a pegasus workflow, which you need to use `pegasus-run` to submit yourself. Keep in mind that it will NOT upload results to rucio and update RunDB. What's more, the results will also be copied to your scratch folder in ap23 (`/scratch/$USER/...`). 
