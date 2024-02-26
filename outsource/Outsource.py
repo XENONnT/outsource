@@ -72,7 +72,7 @@ class Outsource:
                             'nv_hitlets': 'strax-wrapper.sh',
                             'nv_events':  'strax-wrapper.sh',
                             'mv': 'strax-wrapper.sh',
-                            'ap': 'strax-wrapper.sh',
+                            'afterpulses': 'strax-wrapper.sh',
                             'led': 'strax-wrapper.sh'
                            }
 
@@ -111,7 +111,7 @@ class Outsource:
                   'events_mv': dict(name='mv', 
                                     memory=config.getint('Outsource','events_memory'), 
                                     disk=config.getint('Outsource','events_disk')),
-                  'afterpulses': dict(name='ap', 
+                  'afterpulses': dict(name='afterpulses', 
                                       memory=config.getint('Outsource','peaklets_memory'), 
                                       disk=config.getint('Outsource','peaklets_disk')),
                   'led_calibration': dict(name='led', 
