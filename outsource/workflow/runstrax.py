@@ -521,33 +521,6 @@ def main():
             print(f"No files to upload in {dirname}. Skipping.")
             continue
 
-        # get list of files that have already been uploaded
-        # this is to allow us re-run workflow for some chunks
-        try:
-            existing_files = [f for f in admix.clients.rucio_client.list_dids(scope, {'type': 'file'}, type='file')]
-            existing_files = [f for f in existing_files if dset_name in f]
-
-            existing_files_in_dataset = admix.rucio.list_files(dataset_did)
-
-            # for some reason files get uploaded but not attached correctly
-            need_attached = list(set(existing_files) - set(existing_files_in_dataset))
-
-            # only consider the chunks here
-            if args.chunks:
-                need_attached = [f for f in need_attached if str(int(f.split('-')[-1])) in args.chunks]
-
-            if len(need_attached) > 0:
-                dids_to_attach = [scope+':'+name for name in need_attached]
-                print("---------")
-                print("Need to attach the following in rucio:")
-                print(dids_to_attach)
-                print("---------")
-
-                admix.rucio.attach(dataset_did, dids_to_attach)
-
-        except rucio.common.exception.DataIdentifierNotFound:
-            pass
-
         path = os.path.join(data_dir, dirname)
 
         print("--------------------------")
