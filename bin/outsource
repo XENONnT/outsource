@@ -173,10 +173,11 @@ def data_find(st, detector, number_from=None, number_to=None,
     modes_basic_wo_to_process = []
     runlist_basic_wo_to_process = []
 
-    for r in cursor_basic:
-        if r['mode'] not in modes_basic:
-            modes_basic.append(r['mode'])
-        runlist_basic.append(r['number'])
+    if len(cursor_basic):
+        for r in cursor_basic:
+            if r['mode'] not in modes_basic:
+                modes_basic.append(r['mode'])
+            runlist_basic.append(r['number'])
     print(f"Run modes for runs passing the basic queires: {', '.join(modes_basic)}")
     print("The following are the run numbers passing the basic queries:")
     print(runlist_basic)
