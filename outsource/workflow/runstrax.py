@@ -57,6 +57,7 @@ buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
                  'event_top_bottom_params', 'event_ms_naive', 'peak_s1_positions_cnn',
                  'event_ambience', 'event_shadow', 'cuts_basic'),
                 ('event_shadow', 'event_ambience'),
+                ('events_nv', 'ref_mon_nv')
                 ]
 
 # These are the dtypes we want to make first if any of them is in to-process list
