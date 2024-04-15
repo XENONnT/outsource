@@ -22,7 +22,7 @@ DETECTOR_DTYPES = {'tpc': {'raw': 'raw_records',
                                           'peak_s1_positions_cnn', 'afterpulses']
                           },
                    'neutron_veto': {'raw': 'raw_records_nv',
-                                    'to_process': ['hitlets_nv', 'events_nv']
+                                    'to_process': ['hitlets_nv', 'events_nv', 'ref_mon_nv']
                                     },
                    'muon_veto': {'raw': 'raw_records_mv',
                                  'to_process': ['events_mv']
