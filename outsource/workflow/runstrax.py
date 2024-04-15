@@ -68,7 +68,7 @@ def get_bottom_dtypes(dtype):
     """
     Get the lowest level dependencies for a given dtype.
     """
-    if dtype in ['hitlets_nv', 'events_nv', 'veto_regions_nv']:
+    if dtype in ['hitlets_nv', 'events_nv', 'veto_regions_nv', 'ref_mon_nv']:
         return ('raw_records_nv',)
     elif dtype in ['peak_basics_he']:
         return ('raw_records_he',)

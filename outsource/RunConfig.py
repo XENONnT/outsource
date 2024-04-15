@@ -20,6 +20,7 @@ DEPENDS_ON = {'records': ['raw_records'],
               'event_shadow': ['peaklets'],
               'hitlets_nv': ['raw_records_nv'],
               'events_nv': ['hitlets_nv'],
+              'ref_mon_nv':['hitlets_nv'],
               'events_mv': ['raw_records_mv'],
               'afterpulses': ['raw_records'],
               'led_calibration': ['raw_records']
@@ -28,7 +29,7 @@ DEPENDS_ON = {'records': ['raw_records'],
 # Corresponding to keys in ACTUALLY_STORED
 DETECTOR_DTYPES = {'tpc': ['records', 'peaklets', 'peak_basics', 'event_info_double',
                            'event_shadow', 'peak_basics_he', 'afterpulses', 'led_calibration'],
-                   'neutron_veto': ['hitlets_nv', 'events_nv'],
+                   'neutron_veto': ['hitlets_nv', 'events_nv', 'ref_mon_nv'],
                    'muon_veto': ['events_mv']
                    }
 
@@ -40,7 +41,8 @@ ACTUALLY_STORED = {'event_info_double': ['peak_basics',
                                          'event_ambience', 'event_shadow', 'peak_s1_positions_cnn'],
                    'event_shadow': ['event_shadow', 'event_ambience'],
                    'peak_basics_he': ['peak_basics_he'],
-                   'events_nv': ['events_nv'],
+                   'events_nv': ['ref_mon_nv', 'events_nv'],
+                   'ref_mon_nv': ['ref_mon_nv']
                    'peak_basics': ['merged_s2s', 'peak_basics', 'peaklet_classification'],
                    'peaklets': ['peaklets', 'lone_hits'],
                    'hitlets_nv': ['hitlets_nv'],
