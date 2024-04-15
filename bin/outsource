@@ -173,7 +173,7 @@ def data_find(st, detector, number_from=None, number_to=None,
     modes_basic_wo_to_process = []
     runlist_basic_wo_to_process = []
 
-    if len(cursor_basic):
+    if len(list(cursor_basic)):
         for r in cursor_basic:
             if r['mode'] not in modes_basic:
                 modes_basic.append(r['mode'])
