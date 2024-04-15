@@ -108,7 +108,7 @@ class Outsource:
                   'events_nv': dict(name='nv_events',
                                     memory=config.getint('Outsource','events_memory'), 
                                     disk=config.getint('Outsource','events_disk')),
-                  'ref_mon_nv':dict(name='nv_events',
+                  'ref_mon_nv':dict(name='ref_mon_nv',
                                     memory=config.getint('Outsource','events_memory'), 
                                     disk=config.getint('Outsource','events_disk')),
                   'events_mv': dict(name='mv', 
