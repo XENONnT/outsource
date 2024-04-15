@@ -180,7 +180,7 @@ def data_find(st, detector, number_from=None, number_to=None,
                 modes_basic.append(r['mode'])
             runlist_basic.append(r['number'])
     except pymongo.errors.OperationFailure:
-        raise DataNotAvailable("Nothing was found in RunDB for even the most basic requirement.")
+        raise ValueError("Nothing was found in RunDB for even the most basic requirement.")
 
     print(f"Run modes for runs passing the basic queires: {', '.join(modes_basic)}")
     print("The following are the run numbers passing the basic queries:")
