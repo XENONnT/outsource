@@ -42,7 +42,7 @@ ACTUALLY_STORED = {'event_info_double': ['peak_basics',
                    'event_shadow': ['event_shadow', 'event_ambience'],
                    'peak_basics_he': ['peak_basics_he'],
                    'events_nv': ['ref_mon_nv', 'events_nv'],
-                   'ref_mon_nv': ['ref_mon_nv']
+                   'ref_mon_nv': ['ref_mon_nv'],
                    'peak_basics': ['merged_s2s', 'peak_basics', 'peaklet_classification'],
                    'peaklets': ['peaklets', 'lone_hits'],
                    'hitlets_nv': ['hitlets_nv'],
