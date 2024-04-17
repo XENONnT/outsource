@@ -7,6 +7,7 @@ from utilix import xent_collection
 from utilix.rundb import cmt_local_valid_range
 import cutax
 import straxen
+import pymongo
 import numpy as np
 
 from outsource.Outsource import Outsource, DEFAULT_IMAGE
@@ -21,7 +22,7 @@ DETECTOR_DTYPES = {'tpc': {'raw': 'raw_records',
                                           'peak_s1_positions_cnn', 'afterpulses']
                           },
                    'neutron_veto': {'raw': 'raw_records_nv',
-                                    'to_process': ['hitlets_nv', 'events_nv']
+                                    'to_process': ['hitlets_nv', 'events_nv', 'ref_mon_nv']
                                     },
                    'muon_veto': {'raw': 'raw_records_mv',
                                  'to_process': ['events_mv']
@@ -173,10 +174,14 @@ def data_find(st, detector, number_from=None, number_to=None,
     modes_basic_wo_to_process = []
     runlist_basic_wo_to_process = []
 
-    for r in cursor_basic:
-        if r['mode'] not in modes_basic:
-            modes_basic.append(r['mode'])
-        runlist_basic.append(r['number'])
+    try:
+        for r in cursor_basic:
+            if r['mode'] not in modes_basic:
+                modes_basic.append(r['mode'])
+            runlist_basic.append(r['number'])
+    except pymongo.errors.OperationFailure:
+        raise ValueError("Nothing was found in RunDB for even the most basic requirement.")
+
     print(f"Run modes for runs passing the basic queires: {', '.join(modes_basic)}")
     print("The following are the run numbers passing the basic queries:")
     print(runlist_basic)

@@ -57,6 +57,7 @@ buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
                  'event_top_bottom_params', 'event_ms_naive', 'peak_s1_positions_cnn',
                  'event_ambience', 'event_shadow', 'cuts_basic'),
                 ('event_shadow', 'event_ambience'),
+                ('events_nv', 'ref_mon_nv')
                 ]
 
 # These are the dtypes we want to make first if any of them is in to-process list
@@ -68,7 +69,7 @@ def get_bottom_dtypes(dtype):
     """
     Get the lowest level dependencies for a given dtype.
     """
-    if dtype in ['hitlets_nv', 'events_nv', 'veto_regions_nv']:
+    if dtype in ['hitlets_nv', 'events_nv', 'veto_regions_nv', 'ref_mon_nv']:
         return ('raw_records_nv',)
     elif dtype in ['peak_basics_he']:
         return ('raw_records_he',)
