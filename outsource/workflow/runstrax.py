@@ -176,8 +176,10 @@ def process(runid,
                     st.make(runid_str, keystring,
                             save=keystring,
                             )
-                except:
+                except Exception as e:
                     print(f"Failed to make {keystring}, but it might be due to that the cuts are not ready yet. Skipping")
+                    print("Below is the error:")
+                    print(e)
             else:
                 st.make(runid_str, keystring,
                             save=keystring,
