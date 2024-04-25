@@ -308,7 +308,7 @@ class Outsource:
 
             requirements_base = 'HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org' + \
                                 ' && PORT_2880 && PORT_8000 && PORT_27017' + \
-                                ' && HAS_AVX2'
+                                ' && (Microarch >= "x86_64-v3")'
             # should we use XSEDE?
             # if self.xsede:
             #     requirements_base += ' && GLIDEIN_ResourceName == "SDSC-Expanse"'
