@@ -91,6 +91,10 @@ if [ -f ./$runid_pad*.tar.gz ]; then
 fi
 echo
 
+echo "--- Check RunDB API ---"
+ping -c 5 xenon-runsdb.grid.uchicago.edu
+echo
+
 echo 'Processing now...'
 
 chunkarg=""
