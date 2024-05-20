@@ -24,9 +24,13 @@ import gc
 
 from admix.clients import rucio_client
 
+print("Initiing clients...")
 admix.clients._init_clients()
+print("Clients initiated")
 
+print("Initiing DB...")
 db = DB()
+print("DB initiated")
 
 # these dtypes we need to rechunk, so don't upload to rucio here!
 rechunk_dtypes = ['pulse_counts',
@@ -349,11 +353,15 @@ def main():
     except KeyError:
         print("No local RSE found")
 
+    print("Context is set up!")
+
     runid = args.dataset
     runid_str = "%06d" % runid
     out_dtype = args.output # eg. ypically for tpc: peaklets/event_info
 
+    print("Getting to-download list...")
     to_download = find_data_to_download(runid, out_dtype, st)
+    print("Got to-download list!")
 
     # see if we have rucio local frontend
     # if we do, it's probably more efficient to download data through the rucio frontend
