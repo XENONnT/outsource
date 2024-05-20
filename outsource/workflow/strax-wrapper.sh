@@ -51,6 +51,7 @@ echo "Start dir is $start_dir. Here's whats inside:"
 ls -lah
 
 unset http_proxy
+export HOME=$PWD
 export XENON_CONFIG=$PWD/.xenon_config
 # do we still neeed these?
 export XDG_CACHE_HOME=${start_dir}/.cache
@@ -96,7 +97,9 @@ echo "Pinging xenon-runsdb.grid.uchicago.edu"
 ping -c 5 xenon-runsdb.grid.uchicago.edu
 echo
 echo "Checking if we have .dbtoken"
+echo "ls -lah $HOME/.dbtoken"
 ls -lah $HOME/.dbtoken
+echo "ls -lah $USERPROFILE/.dbtoken"
 la -lah $USERPROFILE/.dbtoken
 echo 
 #echo "nmap xenon-runsdb.grid.uchicago.edu"
