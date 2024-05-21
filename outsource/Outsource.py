@@ -392,7 +392,7 @@ class Outsource:
                     combine_job = self._job('combine', disk=self.job_kwargs['combine']['disk'])
                     combine_job.add_profiles(Namespace.CONDOR, 'requirements', requirements_us) # combine jobs must happen in the US
                     combine_job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority)) # priority is given in the order they were submitted
-                    combine_job.add_inputs(combinepy, xenon_config, cutax_tarball)
+                    combine_job.add_inputs(combinepy, xenon_config, cutax_tarball, token)
                     combine_output_tar_name = f'{dbcfg.number:06d}-{dtype}-combined.tar.gz'
                     combine_output_tar = File(combine_output_tar_name)
                     combine_job.add_outputs(combine_output_tar, stage_out=(not self.upload_to_rucio))

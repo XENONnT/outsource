@@ -9,6 +9,8 @@ output=$4
 update_db=$5
 upload_to_rucio=$6
 
+export HOME=$PWD
+
 echo $*
 
 combine_extra_args=""

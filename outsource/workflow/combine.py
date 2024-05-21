@@ -21,9 +21,6 @@ from admix.clients import rucio_client
 
 admix.clients._init_clients()
 
-db = DB()
-
-
 def get_hashes(st):
     return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
 
