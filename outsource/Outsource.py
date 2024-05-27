@@ -33,7 +33,7 @@ from Pegasus.api import *
 #logging.basicConfig(level=config.logging_level)
 logger = logging.getLogger()
 
-DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:latest"
+DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:development"
 
 db = DB()
 
