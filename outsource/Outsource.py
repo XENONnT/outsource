@@ -223,9 +223,6 @@ class Outsource:
             os.makedirs(runs_dir, 0o755) #  0o755 means read/write/execute for owner, read/execute for everyone else
         except OSError:
             pass
-        
-        # ensure we have a proxy with enough time left
-        self._validate_x509_proxy()
 
         # generate the workflow
         wf = self._generate_workflow()
@@ -579,7 +576,8 @@ class Outsource:
     
     def _validate_x509_proxy(self):
         '''
-        ensure $HOME/user_cert exists and has enough time left
+        ensure $HOME/user_cert exists and has enough time left。
+        This function has been retired because of the retired grid-proxy-info command in ap23 since June 2024
         '''
         logger.debug('Verifying that the ~/user_cert proxy has enough lifetime')
         min_valid_hours = 20
