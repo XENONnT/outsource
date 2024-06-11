@@ -140,21 +140,6 @@ class Outsource:
         self.context_name = context_name
         self.context = getattr(cutax.contexts, context_name)(cut_list=None)
 
-        # register event_info manually, otherwise in cutax v1.15.0 you will have
-        # cutax.plugins.acsideband.ACSideband for event_info
-        del self.context._plugin_class_registry['event_info']
-        self.context.register(straxen.EventInfo)
-        # remove cuts if there is any
-        all_plugin_keys_registrerd = list(self.context._plugin_class_registry.keys())
-        for registered_plugin in all_plugin_keys_registrerd:
-            if ('cut_' in registered_plugin) or ('cuts_' in registered_plugin):
-                del self.context._plugin_class_registry[registered_plugin]
-            elif 'cutax' in str(self.context._plugin_class_registry[registered_plugin]):
-                del self.context._plugin_class_registry[registered_plugin]
-        # remove diffusion_constant if there is one to avoid warning message
-        if "diffusion_constant" in self.context.config.keys():
-            del self.context.config["diffusion_constant"]
-
         # Load from xenon_config
         self.xsede = config.getboolean('Outsource', 'use_xsede', fallback=False)
         self.debug = debug
