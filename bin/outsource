@@ -246,8 +246,6 @@ def main():
     # register event_info manually, otherwise in cutax v1.15.0 you will have
     # cutax.plugins.acsideband.ACSideband for event_info
     st = getattr(cutax.contexts, args.context)()
-    del st._plugin_class_registry['event_info']
-    st.register(straxen.EventInfo)
     # remove cuts if there is any
     all_plugin_keys_registrerd = list(st._plugin_class_registry.keys())
     for registered_plugin in all_plugin_keys_registrerd:
