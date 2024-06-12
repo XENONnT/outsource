@@ -131,8 +131,8 @@ find data -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
     echo "We are tarballing the data directory for download-only job."
     tar czfv ${output_tar} data
-elif [ "X${output_dtype}" = "Xevent_info_double" ]; then
-    echo "We are tarballing the data directory for event_info_double job."
+elif [ "X${output_dtype}" = "Xevent_info_double" ] || [ "X${output_dtype}" = "Xevents_mv" ] || [ "X${output_dtype}" = "Xevents_nv" ]; then
+    echo "We are tarballing the data directory for ${output_dtype} job."
     tar czfv ${output_tar} data
 else
     echo "We are tarballing the data directory, but only for those with _temp."
