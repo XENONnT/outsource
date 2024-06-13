@@ -545,7 +545,7 @@ class Outsource:
                 submit=not self.debug,
                 sites=['condorpool'],
                 staging_sites={'condorpool': 'staging-davs'},
-                output_sites=['local'],
+                output_sites=['staging-davs'],
                 dir=os.path.dirname(self.wf_dir),
                 relative_dir=self._wf_id
                )
