@@ -545,7 +545,7 @@ class Outsource:
                 submit=not self.debug,
                 sites=['condorpool'],
                 staging_sites={'condorpool': 'staging-davs'},
-                output_sites=['local'],
+                output_sites=['staging-davs'],
                 dir=os.path.dirname(self.wf_dir),
                 relative_dir=self._wf_id
                )
@@ -694,6 +694,11 @@ class Outsource:
         scratch_dir = Directory(Directory.SHARED_SCRATCH, path='/xenon/scratch/{}'.format(getpass.getuser()))
         scratch_dir.add_file_servers(FileServer('gsidavs://xenon-gridftp.grid.uchicago.edu:2880/xenon/scratch/{}'.format(getpass.getuser()), Operation.ALL))
         staging_davs.add_directories(scratch_dir)
+
+        # output on davs
+        output_dir = Directory(Directory.LOCAL_STORAGE, path='/xenon/output/{}'.format(getpass.getuser()))
+        output_dir.add_file_servers(FileServer('gsidavs://xenon-gridftp.grid.uchicago.edu:2880/xenon/output/{}'.format(getpass.getuser()), Operation.ALL))
+        staging_davs.add_directories(output_dir)
 
         # condorpool
         condorpool = Site("condorpool")
