@@ -50,7 +50,7 @@ class Outsource:
         'UC_MIDWAY_USERDISK': {'expr': 'GLIDEIN_Country == "US"'},
         'CCIN2P3_USERDISK':   {'desired_sites': 'CCIN2P3',  'expr': 'GLIDEIN_Site == "CCIN2P3"'},
         'CNAF_TAPE_USERDISK': {},
-        'CNAF_USERDISK':      {'desired_sites': 'CNAF',     'expr': 'GLIDEIN_Site == "CNAF"'},
+        'CNAF_USERDISK':      {},
         'LNGS_USERDISK':      {},
         'NIKHEF2_USERDISK':   {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
         'NIKHEF_USERDISK':    {'desired_sites': 'NIKHEF',   'expr': 'GLIDEIN_Site == "NIKHEF"'},
