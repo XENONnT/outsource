@@ -495,7 +495,7 @@ class Outsource:
                     job_output_tar = File('%06d-output-%s.tar.gz' % (dbcfg.number, dtype))
 
                     # Add job
-                    job = self._job(**self.job_kwargs[dtype])
+                    job = self._job(**self.job_kwargs[dtype], cores=2)
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
                     job.add_profiles(Namespace.CONDOR, 'requirements', requirements)
                     job.add_profiles(Namespace.CONDOR, 'priority', str(dbcfg.priority))
