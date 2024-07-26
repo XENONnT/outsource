@@ -178,7 +178,7 @@ def process(runid,
             if keystring == 'cuts_basic':
                 try:
                     st.make(runid_str, keystring,
-                            save=keystring,
+                            save=keystring, processor='single_thread'
                             )
                 except Exception as e:
                     print(f"Failed to make {keystring}, but it might be due to that the cuts are not ready yet. Skipping")
@@ -186,7 +186,7 @@ def process(runid,
                     print(e)
             else:
                 st.make(runid_str, keystring,
-                            save=keystring,
+                            save=keystring, processor='single_thread'
                         )
             print(f"DONE processing {keystring}")
                     
