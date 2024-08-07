@@ -97,8 +97,7 @@ up all your changes if you go this route.
 ## Configuration file
 
 Just like [utilix](https://github.com/XENONnT/utilix), 
-this tool expects a configuration file named `$HOME/.
-xenon_config`. You will need to create your own config 
+this tool expects a configuration file named `$HOME/.xenon_config`. You will need to create your own config 
 to look like below, but fill in the values.
 
 Particularly it uses information in the 
