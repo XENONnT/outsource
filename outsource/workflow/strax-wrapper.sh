@@ -44,9 +44,11 @@ if [ -e /image-build-info.txt ]; then
     cat /image-build-info.txt
     echo
 fi
-#
-export RUCIO_ACCOUNT=production
-#
+
+if [ "X$upload_to_rucio" = "Xtrue" ]; then
+    export RUCIO_ACCOUNT=production
+fi
+
 echo "Start dir is $start_dir. Here's whats inside:"
 ls -lah
 

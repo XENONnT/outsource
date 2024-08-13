@@ -678,7 +678,8 @@ class Outsource:
         local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ['USER'])
         local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ['HOME'] + '/user_cert')
         #local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
-        local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT='production')
+        if not self.debug:
+            local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT='production')
         # improve python logging / suppress depreciation warnings (from gfal2 for example)
         local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED='1')
         local.add_profiles(Namespace.ENV, PYTHONWARNINGS='ignore::DeprecationWarning')
@@ -721,7 +722,8 @@ class Outsource:
 
         condorpool.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ['USER'])
         condorpool.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")
-        condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT='production')
+        if not self.debug:
+            condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT='production')
 
         # improve python logging / suppress depreciation warnings (from gfal2 for example)
         condorpool.add_profiles(Namespace.ENV, PYTHONUNBUFFERED='1')

@@ -44,7 +44,9 @@ echo
 # source the environment
 . /opt/XENONnT/setup.sh
 export XENON_CONFIG=$PWD/.xenon_config
-export RUCIO_ACCOUNT=production
+if [ "X$upload_to_rucio" = "Xtrue" ]; then
+    export RUCIO_ACCOUNT=production
+fi
 
 echo "--- Installing cutax ---"
 mkdir cutax
