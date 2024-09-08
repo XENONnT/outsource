@@ -1,4 +1,7 @@
 # outsource
+
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/XENONnT/outsource/master.svg)](https://results.pre-commit.ci/latest/github/XENONnT/outsource/master)
+
 Job submission code for XENONnT.
 
 Outsource submits XENON processing jobs to the [Open Science Grid](osg-htc.org). It is essentially a wrapper around [Pegasus](https://pegasus.isi.edu), which is itself something of a wrapper around [HTCondor](https://htcondor.readthedocs.io/en/latest/).
