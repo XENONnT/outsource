@@ -208,7 +208,7 @@ def process(runid, out_dtype, st, chunks, close_savers=False, tmp_path=".tmp_for
                 st.get_array(runid_str, keystring, keep_columns="time", progress_bar=False)
                 print("Successfully loaded %s! It is complete." % (runid_str + "-" + keystring))
             except Exception as e:
-                print(f"Data is not complete for {runid_str+'-'+keystring}. Skipping")
+                print(f"Data is not complete for {runid_str + '-' + keystring}. Skipping")
                 print("Below is the error message we get when trying to load the data:")
                 print(e)
             print("--------------------------")
@@ -289,7 +289,7 @@ def process(runid, out_dtype, st, chunks, close_savers=False, tmp_path=".tmp_for
                         copyfile(src, dest)
                 saver.close()
     process_time = time.time() - t0
-    print(f"=== Processing time for {out_dtype}: {process_time/60:0.2f} minutes === ")
+    print(f"=== Processing time for {out_dtype}: {process_time / 60:0.2f} minutes === ")
 
 
 def check_chunk_n(directory):
@@ -597,7 +597,9 @@ def main():
             t0 = time.time()
             admix.preupload(path, rse=rse, did=dataset_did)
             preupload_time = time.time() - t0
-            print(f"=== Preuploading time for {this_dtype}: {preupload_time/60:0.2f} minutes === ")
+            print(
+                f"=== Preuploading time for {this_dtype}: {preupload_time / 60:0.2f} minutes === "
+            )
 
             print("--------------------------")
             print(f"Uploading {path} to rucio!")
@@ -605,7 +607,7 @@ def main():
             admix.upload(path, rse=rse, did=dataset_did)
             upload_time = time.time() - t0
             succeded_rucio_upload = True
-            print(f"=== Uploading time for {this_dtype}: {upload_time/60:0.2f} minutes === ")
+            print(f"=== Uploading time for {this_dtype}: {upload_time / 60:0.2f} minutes === ")
         except Exception:
             print(f"Upload of {dset_name} failed for some reason")
             raise

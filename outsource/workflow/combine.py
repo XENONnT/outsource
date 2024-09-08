@@ -242,7 +242,7 @@ def main():
             t0 = time.time()
             admix.preupload(path, rse=rse, did=dataset_did)
             preupload_time = time.time() - t0
-            print(f"=== Preuploading time for {keystring}: {preupload_time/60:0.2f} minutes === ")
+            print(f"=== Preuploading time for {keystring}: {preupload_time / 60:0.2f} minutes === ")
             print("--------------------------")
 
             print("Here are the contents to upload:")
@@ -251,7 +251,7 @@ def main():
             admix.upload(this_path, rse=rse, did=dataset_did, update_db=args.update_db)
             print(f"Uploaded {this_path} to {rse} with did {dataset_did}. ")
             upload_time = time.time() - t0
-            print(f"=== Uploading time for {keystring}: {upload_time/60:0.2f} minutes === ")
+            print(f"=== Uploading time for {keystring}: {upload_time / 60:0.2f} minutes === ")
         else:
             raise ValueError(
                 "Failed admix upload! The following files are inside %s: %s"
