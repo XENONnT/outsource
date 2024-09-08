@@ -103,7 +103,7 @@ echo "ls -lah $HOME/.dbtoken"
 ls -lah $HOME/.dbtoken
 echo "ls -lah $USERPROFILE/.dbtoken"
 la -lah $USERPROFILE/.dbtoken
-echo 
+echo
 #echo "nmap xenon-runsdb.grid.uchicago.edu"
 #nmap -p5000 xenon-runsdb.grid.uchicago.edu
 #echo
@@ -120,7 +120,7 @@ chmod +x runstrax.py
 ./runstrax.py ${run_id} --output ${output_dtype} --context ${context} ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];
-then 
+then
     echo "exiting with status 25"
     exit 25
 fi
@@ -148,4 +148,3 @@ echo
 
 echo "And here is what is in the data directory:"
 ls -lah data/*
-

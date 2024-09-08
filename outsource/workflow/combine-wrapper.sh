@@ -65,4 +65,3 @@ ls -l data
 
 # tar up the output
 tar czfv ${output} finished_data
-

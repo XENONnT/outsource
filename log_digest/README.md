@@ -1,14 +1,14 @@
 # log_digest
 
-written il perl, log_digest parsing input files returns in short any error message characterized by the word ERROR in it. 
+written il perl, log_digest parsing input files returns in short any error message characterized by the word ERROR in it.
 
-### usage 
+### usage
 
 if executable (remember to chmod 755 if not), just use the following command inside the exe directory
 
 ```./log_digest.pl file1 file2 --error_list commomn_error_patterns.txt```
 
-It can process multiple files at the same time. If commomn_error_patterns.txt is not provided, it searches for the key-word **ERROR**. 
+It can process multiple files at the same time. If commomn_error_patterns.txt is not provided, it searches for the key-word **ERROR**.
 The file commomn_error_patterns.txt has to provide for each line a patter to be searched such as:
 ```
 Stale file handle: ‘/tmp’
@@ -16,7 +16,7 @@ Cannot merge chunks with different number of items
 strax.storage.common.DataCorrupted
 ```
 
-### example 
+### example
 
 ```./log_digest.pl file* ```
 

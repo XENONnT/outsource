@@ -4,25 +4,24 @@ import os
 import shutil
 import sys
 import tempfile
-import numpy as np
-import strax
-import straxen
-straxen.Events.save_when = strax.SaveWhen.TARGET
-print("We have forced events to save always.")
+import glob
+import gc
+import json
 import time
-from pprint import pprint
 from shutil import rmtree, copyfile
 from ast import literal_eval
+import datetime
+
 from utilix import DB, uconfig
 import admix
 import rucio
-import datetime
+import numpy as np
+import strax
+import straxen
 import cutax
-import glob
-import json
-import gc
 
-from admix.clients import rucio_client
+straxen.Events.save_when = strax.SaveWhen.TARGET
+print("We have forced events to save always.")
 
 print("Initiing clients...")
 admix.clients._init_clients()
@@ -33,63 +32,81 @@ db = DB()
 print("DB initiated")
 
 # these dtypes we need to rechunk, so don't upload to rucio here!
-rechunk_dtypes = ['pulse_counts',
-                  'veto_regions',
-                  'peaklets',
-                  'lone_hits',
-                  'hitlets_nv',
-                  'afterpulses',
-                  'led_calibration',
-                  ]
+rechunk_dtypes = [
+    "pulse_counts",
+    "veto_regions",
+    "peaklets",
+    "lone_hits",
+    "hitlets_nv",
+    "afterpulses",
+    "led_calibration",
+]
 
 # these dtypes will not be uploaded to rucio, and will be removed after processing
-ignore_dtypes = ['records',
-                 'records_nv',
-                 'lone_raw_records_nv',
-                 'raw_records_coin_nv',
-                 'lone_raw_record_statistics_nv',
-                 'records_he',
-                 'records_mv',
-                 'peaks',
-                 'peaklets',  # added to avoid duplicating upload/staging
-                 'lone_hites' # added to avoid duplicating upload/staging
-                 ]
+ignore_dtypes = [
+    "records",
+    "records_nv",
+    "lone_raw_records_nv",
+    "raw_records_coin_nv",
+    "lone_raw_record_statistics_nv",
+    "records_he",
+    "records_mv",
+    "peaks",
+    "peaklets",  # added to avoid duplicating upload/staging
+    "lone_hites",  # added to avoid duplicating upload/staging
+]
 
 # these dtypes should always be made at the same time:
-buddy_dtypes = [('veto_regions_nv', 'event_positions_nv'),
-                ('event_info_double', 'event_pattern_fit', 'event_area_per_channel', 
-                 'event_top_bottom_params', 'event_ms_naive', 'peak_s1_positions_cnn',
-                 'event_ambience', 'event_shadow', 'cuts_basic'),
-                ('event_shadow', 'event_ambience'),
-                ('events_nv', 'ref_mon_nv')
-                ]
+buddy_dtypes = [
+    ("veto_regions_nv", "event_positions_nv"),
+    (
+        "event_info_double",
+        "event_pattern_fit",
+        "event_area_per_channel",
+        "event_top_bottom_params",
+        "event_ms_naive",
+        "peak_s1_positions_cnn",
+        "event_ambience",
+        "event_shadow",
+        "cuts_basic",
+    ),
+    ("event_shadow", "event_ambience"),
+    ("events_nv", "ref_mon_nv"),
+]
 
 # These are the dtypes we want to make first if any of them is in to-process list
-priority_rank = ['peaklet_classification', 'merged_s2s', 'peaks', 'peak_basics',
-                 'peak_positions_mlp', 'peak_positions_gcn', 'peak_positions_cnn',
-                 'peak_positions', 'peak_proximity', 'events', 'event_basics' ]
+priority_rank = [
+    "peaklet_classification",
+    "merged_s2s",
+    "peaks",
+    "peak_basics",
+    "peak_positions_mlp",
+    "peak_positions_gcn",
+    "peak_positions_cnn",
+    "peak_positions",
+    "peak_proximity",
+    "events",
+    "event_basics",
+]
+
 
 def get_bottom_dtypes(dtype):
-    """
-    Get the lowest level dependencies for a given dtype.
-    """
-    if dtype in ['hitlets_nv', 'events_nv', 'veto_regions_nv', 'ref_mon_nv']:
-        return ('raw_records_nv',)
-    elif dtype in ['peak_basics_he']:
-        return ('raw_records_he',)
-    elif dtype in ['records', 'peaklets']:
-        return ('raw_records',)
-    elif dtype == 'veto_regions_mv':
-        return ('raw_records_mv', )
+    """Get the lowest level dependencies for a given dtype."""
+    if dtype in ["hitlets_nv", "events_nv", "veto_regions_nv", "ref_mon_nv"]:
+        return ("raw_records_nv",)
+    elif dtype in ["peak_basics_he"]:
+        return ("raw_records_he",)
+    elif dtype in ["records", "peaklets"]:
+        return ("raw_records",)
+    elif dtype == "veto_regions_mv":
+        return ("raw_records_mv",)
     else:
-        return ('peaklets', 'lone_hits')
+        return ("peaklets", "lone_hits")
 
 
 def get_hashes(st):
-    """
-    Get the hashes for all the datatypes in this context.
-    """
-    return {dt: item['hash'] for dt, item in st.provided_dtypes().items()}
+    """Get the hashes for all the datatypes in this context."""
+    return {dt: item["hash"] for dt, item in st.provided_dtypes().items()}
 
 
 def find_data_to_download(runid, target, st):
@@ -106,13 +123,14 @@ def find_data_to_download(runid, target, st):
     to_download = []
 
     # all data entries from the runDB for certain runid
-    data = db.get_data(runid, host='rucio-catalogue')
+    data = db.get_data(runid, host="rucio-catalogue")
 
     def find_data(_target):
-        """
-        Recursively find all the data needed to make the target dtype.
-        This function will consult RunDB to know where the data you want to download is.
-        Returns a list of tuples (dtype, hash) that need to be downloaded.
+        """Recursively find all the data needed to make the target dtype.
+
+        This function will consult RunDB to know where the data you want
+        to download is. Returns a list of tuples (dtype, hash) that need
+        to be downloaded.
         """
         # check if we have the data already
         if all([(d, h) in to_download for d, h in zip(bottoms, bottom_hashes)]):
@@ -126,13 +144,10 @@ def find_data_to_download(runid, target, st):
         for in_dtype in _plugin.depends_on:
             # get hash for this dtype
             hash = hashes.get(in_dtype)
-            rses = [d['location'] for d in data if (d['type'] == in_dtype and
-                                               hash in d['did']
-                                               )
-                    ]
+            rses = [d["location"] for d in data if (d["type"] == in_dtype and hash in d["did"])]
             # for checking if local path exists
             # here st.storage[0] is the local storage like ./data
-            local_path = os.path.join(st.storage[0].path, f'{runid:06d}-{in_dtype}-{hash}')
+            local_path = os.path.join(st.storage[0].path, f"{runid:06d}-{in_dtype}-{hash}")
 
             if len(rses) == 0 and not os.path.exists(local_path):
                 # need to download data to make ths one
@@ -147,13 +162,7 @@ def find_data_to_download(runid, target, st):
     return to_download
 
 
-def process(runid,
-            out_dtype,
-            st,
-            chunks,
-            close_savers=False,
-            tmp_path='.tmp_for_strax'
-            ):
+def process(runid, out_dtype, st, chunks, close_savers=False, tmp_path=".tmp_for_strax"):
     runid_str = "%06d" % runid
     t0 = time.time()
 
@@ -163,38 +172,41 @@ def process(runid,
     plugin.setup()
 
     # now move on to processing
-    # if we didn't pass any chunks, we process the whole thing -- otherwise just do the chunks we listed
+    # if we didn't pass any chunks, we process the whole thing --
+    # otherwise just do the chunks we listed
     if chunks is None:
         # check if we need to save anything， if not, skip this plugin
         if plugin.save_when[out_dtype] == strax.SaveWhen.NEVER:
             print("This plugin is not saving anything. Skipping.")
             return
-            
+
         print("Chunks is none -- processing whole thing!")
         # then we just process the whole thing
         for keystring in plugin.provides:
             print(f"Making {keystring}")
             # We want to be more tolerant on cuts_basic, because sometimes it is ill-defined
-            if keystring == 'cuts_basic':
+            if keystring == "cuts_basic":
                 try:
-                    st.make(runid_str, keystring,
-                            save=keystring, processor='single_thread'
-                            )
+                    st.make(runid_str, keystring, save=keystring, processor="single_thread")
                 except Exception as e:
-                    print(f"Failed to make {keystring}, but it might be due to that the cuts are not ready yet. Skipping")
+                    print(
+                        f"Failed to make {keystring}, but it might be "
+                        "due to that the cuts are not ready yet. Skipping"
+                    )
                     print("Below is the error:")
                     print(e)
             else:
-                st.make(runid_str, keystring,
-                            save=keystring, processor='single_thread'
-                        )
+                st.make(runid_str, keystring, save=keystring, processor="single_thread")
             print(f"DONE processing {keystring}")
-                    
+
             # Test if the data is complete
             try:
-                print("Try loading data in %s to see if it is complete."%(runid_str+'-'+keystring))
-                st.get_array(runid_str, keystring, keep_columns='time', progress_bar=False)
-                print("Successfully loaded %s! It is complete."%(runid_str+'-'+keystring))
+                print(
+                    "Try loading data in %s to see if it is complete."
+                    % (runid_str + "-" + keystring)
+                )
+                st.get_array(runid_str, keystring, keep_columns="time", progress_bar=False)
+                print("Successfully loaded %s! It is complete." % (runid_str + "-" + keystring))
             except Exception as e:
                 print(f"Data is not complete for {runid_str+'-'+keystring}. Skipping")
                 print("Below is the error message we get when trying to load the data:")
@@ -215,7 +227,7 @@ def process(runid,
         # setup a few more variables
         in_dtype = plugin.depends_on[0]
         input_metadata = st.get_metadata(runid_str, in_dtype)
-        input_key = strax.DataKey(runid_str, in_dtype, input_metadata['lineage'])
+        input_key = strax.DataKey(runid_str, in_dtype, input_metadata["lineage"])
         backend = None
         backend_key = None
 
@@ -229,26 +241,29 @@ def process(runid,
         if backend is None:
             raise strax.DataNotAvailable("We could not find data for ", input_key)
 
-        dtype = literal_eval(input_metadata['dtype'])
-        chunk_kwargs = dict(data_type=input_metadata['data_type'],
-                            data_kind=input_metadata['data_kind'],
-                            dtype=dtype)
+        dtype = literal_eval(input_metadata["dtype"])
+        chunk_kwargs = dict(
+            data_type=input_metadata["data_type"],
+            data_kind=input_metadata["data_kind"],
+            dtype=dtype,
+        )
 
         for chunk in chunks:
             # read in the input data for this chunk
             chunk_info = None
-            for chunk_md in input_metadata['chunks']:
-                if chunk_md['chunk_i'] == int(chunk):
+            for chunk_md in input_metadata["chunks"]:
+                if chunk_md["chunk_i"] == int(chunk):
                     chunk_info = chunk_md
                     break
             assert chunk_info is not None, f"Could not find chunk_id: {chunk}"
-            in_data = backend._read_and_format_chunk(backend_key=backend_key,
-                                                     metadata=input_metadata,
-                                                     chunk_info=chunk_info,
-                                                     dtype=dtype,
-                                                     time_range=None,
-                                                     chunk_construction_kwargs=chunk_kwargs
-                                                    )
+            in_data = backend._read_and_format_chunk(
+                backend_key=backend_key,
+                metadata=input_metadata,
+                chunk_info=chunk_info,
+                dtype=dtype,
+                time_range=None,
+                chunk_construction_kwargs=chunk_kwargs,
+            )
             # process this chunk
             output_data = plugin.do_compute(chunk_i=chunk, **{in_dtype: in_data})
 
@@ -260,7 +275,7 @@ def process(runid,
                 # save the output -- you have to loop because there could be > 1 output dtypes
                 savers[keystring].save(output_data, chunk_i=int(chunk))
             else:
-                raise TypeError("Unknown datatype %s for output"%(type(output_data)))
+                raise TypeError("Unknown datatype %s for output" % (type(output_data)))
 
         if close_savers:
             for dtype, saver in savers.items():
@@ -268,7 +283,7 @@ def process(runid,
                 tmpdir = os.path.join(tmp_path, os.path.split(saver.tempdirname)[1])
                 os.makedirs(tmpdir, exist_ok=True)
                 for file in os.listdir(saver.tempdirname):
-                    if file.endswith('json'):
+                    if file.endswith("json"):
                         src = os.path.join(saver.tempdirname, file)
                         dest = os.path.join(tmpdir, file)
                         copyfile(src, dest)
@@ -278,59 +293,70 @@ def process(runid,
 
 
 def check_chunk_n(directory):
-    """
-    Check that the chunk length and number of chunk is agreed with promise in metadata.
-    """
-    if directory[-1] != '/':
-        directory += '/'
-    files = sorted(glob.glob(directory+'*'))
+    """Check that the chunk length and number of chunk is agreed with promise
+    in metadata."""
+    if directory[-1] != "/":
+        directory += "/"
+    files = sorted(glob.glob(directory + "*"))
     n_chunks = len(files) - 1
-    metadata = json.loads(open(files[-1], 'r').read())
+    metadata = json.loads(open(files[-1], "r").read())
 
     if n_chunks != 0:
-        n_metadata_chunks = len(metadata['chunks'])
-        # check that the number of chunks in storage is less than or equal to the number of chunks in metadata
-        assert n_chunks == n_metadata_chunks or n_chunks == n_metadata_chunks-1, "For directory %s, \
-                                               there are %s chunks in storage, \
-                                               but metadata says %s. Chunks in storage must be \
-                                               less than chunks in metadata!"%(
-                                                        directory, n_chunks, n_metadata_chunks)
-        
-        compressor = metadata['compressor']
-        dtype = eval(metadata['dtype'])
-        
+        n_metadata_chunks = len(metadata["chunks"])
+        # check that the number of chunks in storage
+        # is less than or equal to the number of chunks in metadata
+        assert n_chunks == n_metadata_chunks or n_chunks == n_metadata_chunks - 1, (
+            "For directory %s, \
+            there are %s chunks in storage, \
+            but metadata says %s. Chunks in storage must be \
+            less than chunks in metadata!"
+            % (directory, n_chunks, n_metadata_chunks)
+        )
+
+        compressor = metadata["compressor"]
+        dtype = eval(metadata["dtype"])
+
         # check that the chunk length is agreed with promise in metadata
         for i in range(n_chunks):
             chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
-            if metadata['chunks'][i]['n'] != len(chunk):
+            if metadata["chunks"][i]["n"] != len(chunk):
                 raise strax.DataCorrupted(
                     f"Chunk {files[i]} of {metadata['run_id']} has {len(chunk)} items, "
-                    f"but metadata says {metadata['chunks'][i]['n']}")
+                    f"but metadata says {metadata['chunks'][i]['n']}"
+                )
 
         # check that the last chunk is empty
-        if n_chunks == n_metadata_chunks-1:
-            assert metadata['chunks'][n_chunks]['n'] == 0, "Empty chunk has non-zero length in metadata!"
+        if n_chunks == n_metadata_chunks - 1:
+            assert (
+                metadata["chunks"][n_chunks]["n"] == 0
+            ), "Empty chunk has non-zero length in metadata!"
 
     else:
         # check that the number of chunks in metadata is 1
-        assert len(metadata['chunks']) == 1, "There are %s chunks in storage, but metadata says %s"%(n_chunks, len(metadata['chunks']))
-        assert metadata['chunks'][0]['n'] == 0, "Empty chunk has non-zero length in metadata!"
-    
+        assert (
+            len(metadata["chunks"]) == 1
+        ), "There are %s chunks in storage, but metadata says %s" % (
+            n_chunks,
+            len(metadata["chunks"]),
+        )
+        assert metadata["chunks"][0]["n"] == 0, "Empty chunk has non-zero length in metadata!"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
-    parser.add_argument('dataset', help='Run number', type=int)
-    parser.add_argument('--output', help='desired strax(en) output')
-    parser.add_argument('--context', help='name of context')
-    parser.add_argument('--chunks', nargs='*', help='chunk ids to download', type=int)
-    parser.add_argument('--upload-to-rucio', action='store_true', dest='upload_to_rucio')
-    parser.add_argument('--update-db', action='store_true', dest='update_db')
-    parser.add_argument('--download-only', action='store_true', dest='download_only')
-    parser.add_argument('--no-download', action='store_true', dest='no_download')
+    parser.add_argument("dataset", help="Run number", type=int)
+    parser.add_argument("--output", help="desired strax(en) output")
+    parser.add_argument("--context", help="name of context")
+    parser.add_argument("--chunks", nargs="*", help="chunk ids to download", type=int)
+    parser.add_argument("--upload-to-rucio", action="store_true", dest="upload_to_rucio")
+    parser.add_argument("--update-db", action="store_true", dest="update_db")
+    parser.add_argument("--download-only", action="store_true", dest="download_only")
+    parser.add_argument("--no-download", action="store_true", dest="no_download")
 
     args = parser.parse_args()
 
     # directory where we will be putting everything
-    data_dir = './data'
+    data_dir = "./data"
 
     # make sure this is empty
     # if os.path.exists(data_dir):
@@ -338,13 +364,16 @@ def main():
 
     # get context
     st = getattr(cutax.contexts, args.context)()
-    # st.storage = [strax.DataDirectory(data_dir),
-    #               straxen.rucio.RucioFrontend(include_remote=True, download_heavy=True,
-    #                                           staging_dir=os.path.join(data_dir, 'rucio'))
-    #              ]
-    st.storage = [strax.DataDirectory(data_dir),
-                  straxen.storage.RucioRemoteFrontend(download_heavy=True)
-                  ]
+    # st.storage = [
+    #     strax.DataDirectory(data_dir),
+    #     straxen.rucio.RucioFrontend(
+    #         include_remote=True, download_heavy=True, staging_dir=os.path.join(data_dir, "rucio")
+    #     ),
+    # ]
+    st.storage = [
+        strax.DataDirectory(data_dir),
+        straxen.storage.RucioRemoteFrontend(download_heavy=True),
+    ]
 
     # add local frontend if we can
     # this is a temporary hack
@@ -357,7 +386,7 @@ def main():
 
     runid = args.dataset
     runid_str = "%06d" % runid
-    out_dtype = args.output # eg. ypically for tpc: peaklets/event_info
+    out_dtype = args.output  # eg. ypically for tpc: peaklets/event_info
 
     print("Getting to-download list...")
     to_download = find_data_to_download(runid, out_dtype, st)
@@ -365,7 +394,6 @@ def main():
 
     # see if we have rucio local frontend
     # if we do, it's probably more efficient to download data through the rucio frontend
-
 
     for buddies in buddy_dtypes:
         if out_dtype in buddies:
@@ -414,7 +442,7 @@ def main():
     to_process = [dtype for dtype in to_process if dtype not in admix.utils.RAW_DTYPES]
 
     missing = [d for d in to_process if d != args.output]
-    missing_str = ', '.join(missing)
+    missing_str = ", ".join(missing)
     print(f"Need to create intermediate data: {missing_str}")
 
     print("--Available data--")
@@ -439,13 +467,7 @@ def main():
     _tmp_path = tempfile.mkdtemp()
     for dtype in to_process:
         close_savers = dtype != args.output
-        process(runid,
-                dtype,
-                st,
-                args.chunks,
-                close_savers=close_savers,
-                tmp_path=_tmp_path
-                )
+        process(runid, dtype, st, args.chunks, close_savers=close_savers, tmp_path=_tmp_path)
         gc.collect()
 
     print("Done processing. Now check if we should upload to rucio")
@@ -455,13 +477,12 @@ def main():
     if os.path.exists(_tmp_path):
         for dtype_path_thing in os.listdir(_tmp_path):
             tmp_path = os.path.join(_tmp_path, dtype_path_thing)
-            merged_dir = os.path.join(data_dir, dtype_path_thing.split('_temp')[0])
+            merged_dir = os.path.join(data_dir, dtype_path_thing.split("_temp")[0])
 
             for file in os.listdir(tmp_path):
                 copyfile(os.path.join(tmp_path, file), os.path.join(merged_dir, file))
 
             os.rename(merged_dir, os.path.join(data_dir, dtype_path_thing))
-
 
     # if we processed the entire run, we upload everything including metadata
     # otherwise, we just upload the chunks
@@ -471,7 +492,7 @@ def main():
     rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
 
     # now loop over datatypes we just made and upload the data
-    processed_data = [d for d in os.listdir(data_dir) if '_temp' not in d]
+    processed_data = [d for d in os.listdir(data_dir) if "_temp" not in d]
     print("---- Processed data ----")
     for d in processed_data:
         print(d)
@@ -479,7 +500,7 @@ def main():
 
     for dirname in processed_data:
         # get rucio dataset
-        this_run, this_dtype, this_hash = dirname.split('-')
+        this_run, this_dtype, this_hash = dirname.split("-")
 
         # remove data we do not want to upload
         if this_dtype in ignore_dtypes:
@@ -492,13 +513,12 @@ def main():
             continue
 
         # based on the dtype and the utilix config, where should this data go?
-        if this_dtype in ['records', 'pulse_counts', 'veto_regions', 'records_nv',
-                          'records_he']:
-            rse = uconfig.get('Outsource', 'records_rse')
-        elif this_dtype in ['peaklets', 'lone_hits', 'merged_s2s', 'hitlets_nv']:
-            rse = uconfig.get('Outsource', 'peaklets_rse')
+        if this_dtype in ["records", "pulse_counts", "veto_regions", "records_nv", "records_he"]:
+            rse = uconfig.get("Outsource", "records_rse")
+        elif this_dtype in ["peaklets", "lone_hits", "merged_s2s", "hitlets_nv"]:
+            rse = uconfig.get("Outsource", "peaklets_rse")
         else:
-            rse = uconfig.get('Outsource', 'events_rse')
+            rse = uconfig.get("Outsource", "events_rse")
 
         if this_dtype in rechunk_dtypes:
             print(f"Skipping upload of {this_dtype} since we need to rechunk it")
@@ -506,26 +526,26 @@ def main():
 
         # remove the _temp if we are processing chunks in parallel
         if args.chunks is not None:
-            this_hash = this_hash.replace('_temp', '')
+            this_hash = this_hash.replace("_temp", "")
         dataset_did = admix.utils.make_did(int(this_run), this_dtype, this_hash)
 
-        scope, dset_name = dataset_did.split(':')
+        scope, dset_name = dataset_did.split(":")
 
         files = [f for f in os.listdir(os.path.join(data_dir, dirname))]
 
         if not upload_meta:
-            files = [f for f in files if not f.endswith('.json')]
+            files = [f for f in files if not f.endswith(".json")]
 
             # check that the output number of files is what we expect
             if len(files) != len(args.chunks):
-                processed_chunks = set([int(f.split('-')[-1]) for f in files])
+                processed_chunks = set([int(f.split("-")[-1]) for f in files])
                 expected_chunks = set(args.chunks)
                 missing_chunks = expected_chunks - processed_chunks
-                missing_chunks = ' '.join(missing_chunks)
-                raise RuntimeError("File mismatch! We are missing output data for the following chunks: "
-                                   f"{missing_chunks}"
-                                   )
-
+                missing_chunks = " ".join(missing_chunks)
+                raise RuntimeError(
+                    "File mismatch! We are missing output data for the following chunks: "
+                    f"{missing_chunks}"
+                )
 
         # if there are no files, we can't upload them
         if len(files) == 0:
@@ -535,7 +555,9 @@ def main():
         # get list of files that have already been uploaded
         # this is to allow us re-run workflow for some chunks
         try:
-            existing_files = [f for f in admix.clients.rucio_client.list_dids(scope, {'type': 'file'})]
+            existing_files = [
+                f for f in admix.clients.rucio_client.list_dids(scope, {"type": "file"})
+            ]
             existing_files = [f for f in existing_files if dset_name in f]
 
             existing_files_in_dataset = admix.rucio.list_files(dataset_did)
@@ -545,10 +567,12 @@ def main():
 
             # only consider the chunks here
             if args.chunks:
-                need_attached = [f for f in need_attached if str(int(f.split('-')[-1])) in args.chunks]
+                need_attached = [
+                    f for f in need_attached if str(int(f.split("-")[-1])) in args.chunks
+                ]
 
             if len(need_attached) > 0:
-                dids_to_attach = [scope+':'+name for name in need_attached]
+                dids_to_attach = [scope + ":" + name for name in need_attached]
                 print("---------")
                 print("Need to attach the following in rucio:")
                 print(dids_to_attach)
@@ -582,7 +606,7 @@ def main():
             upload_time = time.time() - t0
             succeded_rucio_upload = True
             print(f"=== Uploading time for {this_dtype}: {upload_time/60:0.2f} minutes === ")
-        except:
+        except Exception:
             print(f"Upload of {dset_name} failed for some reason")
             raise
 
@@ -594,23 +618,24 @@ def main():
             # skip if update_db flag is false, or if the rucio upload failed
             if args.update_db and succeded_rucio_upload:
                 md = st.get_meta(runid_str, this_dtype)
-                chunk_mb = [chunk['nbytes'] / (1e6) for chunk in md['chunks']]
+                chunk_mb = [chunk["nbytes"] / (1e6) for chunk in md["chunks"]]
                 data_size_mb = np.sum(chunk_mb)
 
                 # update runDB
                 new_data_dict = dict()
-                new_data_dict['location'] = rse
-                new_data_dict['did'] = dataset_did
-                new_data_dict['status'] = 'transferred'
-                new_data_dict['host'] = "rucio-catalogue"
-                new_data_dict['type'] = this_dtype
-                new_data_dict['protocol'] = 'rucio'
-                new_data_dict['creation_time'] = datetime.datetime.utcnow().isoformat()
-                new_data_dict['creation_place'] = "OSG"
-                new_data_dict['meta'] = dict(lineage_hash=md.get('lineage_hash'),
-                                             file_count=len(files),
-                                             size_mb=data_size_mb,
-                                             )
+                new_data_dict["location"] = rse
+                new_data_dict["did"] = dataset_did
+                new_data_dict["status"] = "transferred"
+                new_data_dict["host"] = "rucio-catalogue"
+                new_data_dict["type"] = this_dtype
+                new_data_dict["protocol"] = "rucio"
+                new_data_dict["creation_time"] = datetime.datetime.utcnow().isoformat()
+                new_data_dict["creation_place"] = "OSG"
+                new_data_dict["meta"] = dict(
+                    lineage_hash=md.get("lineage_hash"),
+                    file_count=len(files),
+                    size_mb=data_size_mb,
+                )
 
                 db.update_data(runid, new_data_dict)
                 print(f"Database updated for {this_dtype} at {rse}")
