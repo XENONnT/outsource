@@ -105,5 +105,3 @@ print "\n";
 my $end_time = [gettimeofday];
 my $execution_time = tv_interval($start_time, $end_time);
 print "Execution time: $execution_time s\n";
-
-

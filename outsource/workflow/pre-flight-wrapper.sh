@@ -33,4 +33,3 @@ export RUCIO_ACCOUNT=production
 sleep $[ ( $RANDOM % 100 )  + 1 ]s
 
 # ./pre-flight.py $RUNID --dtype $DTYPE --context $CONTEXT --cmt $CMT ${combine_extra_args}
-
