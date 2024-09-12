@@ -155,6 +155,8 @@ class Outsource:
         ),
     }
 
+    _x509_proxy = os.getenv("X509_USER_PROXY")
+
     def __init__(
         self,
         runlist,
@@ -224,6 +226,11 @@ class Outsource:
         )
 
         self.dtype_valid_cache = {}
+
+    @property
+    def x509_proxy(self):
+        assert self._x509_proxy, "Please provide a valid X509_USER_PROXY environment variable."
+        return self._x509_proxy
 
     def submit_workflow(self, force=False):
         """Main interface to submitting a new workflow."""
@@ -676,10 +683,10 @@ class Outsource:
         return os.path.join(self.wf_dir, self._wf_id)
 
     def _validate_x509_proxy(self):
-        """Ensure $HOME/user_cert exists and has enough time left."""
-        logger.debug("Verifying that the ~/user_cert proxy has enough lifetime")
+        """Ensure X509_USER_PROXY exists and has enough time left."""
+        logger.debug("Verifying that the X509_USER_PROXY proxy has enough lifetime")
         min_valid_hours = 20
-        shell = Shell("grid-proxy-info -timeleft -file ~/user_cert")
+        shell = Shell(f"grid-proxy-info -timeleft -file {self._x509_proxy}")
         shell.run()
         valid_hours = int(shell.get_outerr()) / 60 / 60
         if valid_hours < min_valid_hours:
@@ -802,7 +809,7 @@ class Outsource:
             LD_LIBRARY_PATH="/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib64:/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib",  # noqa
         )
         local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
-        local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["HOME"] + "/user_cert")
+        local.add_profiles(Namespace.ENV, X509_USER_PROXY=self.x509_proxy)
         # local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")  # noqa
         if not self.debug:
             local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
@@ -858,9 +865,7 @@ class Outsource:
         condorpool.add_profiles(Namespace.PEGASUS, style="condor")
         condorpool.add_profiles(Namespace.CONDOR, universe="vanilla")
         # we need the x509 proxy for Rucio transfers
-        condorpool.add_profiles(
-            Namespace.CONDOR, key="x509userproxy", value=os.environ["HOME"] + "/user_cert"
-        )
+        condorpool.add_profiles(Namespace.CONDOR, key="x509userproxy", value=self.x509_proxy)
         condorpool.add_profiles(
             Namespace.CONDOR, key="+SingularityImage", value=f'"{self.singularity_image}"'
         )

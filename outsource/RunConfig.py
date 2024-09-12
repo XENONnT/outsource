@@ -97,7 +97,7 @@ class RunConfigBase:
 
     _force_rerun = False
     _standalone_download = False
-    _x509_proxy = os.path.join(os.environ["HOME"], "user_cert")
+    _x509_proxy = os.getenv("X509_USER_PROXY")
     _workdir = work_dir
     _workflow_id = re.sub("\..*", "", str(time.time()))
     _chunks_per_job = config.getint("Outsource", "chunks_per_job")
@@ -144,6 +144,7 @@ class RunConfig(RunConfigBase):
 
     @property
     def x509_proxy(self):
+        assert self._x509_proxy, "Please provide a valid X509_USER_PROXY environment variable."
         return self._x509_proxy
 
     @property
