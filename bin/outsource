@@ -2,16 +2,16 @@
 
 import argparse
 import os
+import pymongo
+import numpy as np
 from utilix.io import load_runlist
 from utilix import xent_collection
 from utilix.rundb import cmt_local_valid_range
-import cutax
 import straxen
-import pymongo
-import numpy as np
+import cutax
 
-from outsource.Outsource import Outsource, DEFAULT_IMAGE
-from outsource.Config import config
+from outsource.outsource import Outsource, DEFAULT_IMAGE
+from outsource.config import config
 
 
 # do a query to see if these data types are present
@@ -352,13 +352,13 @@ def main():
     # This object contains all the information needed to submit the workflow
     outsource = Outsource(
         runlist,
-        args.context,
-        debug=args.debug,
+        context_name=args.context,
         image=image,
-        wf_id=args.name,
+        workflow_id=args.name,
         upload_to_rucio=upload_to_rucio,
         update_db=update_db,
         force_rerun=args.force,
+        debug=args.debug,
     )
 
     # Finally submit the workflow

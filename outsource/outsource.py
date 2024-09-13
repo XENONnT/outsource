@@ -15,20 +15,40 @@ from straxen import __version__ as straxen_version
 import cutax
 from utilix.rundb import DB, cmt_local_valid_range
 
-from outsource.Config import config, pegasus_path, base_dir, work_dir, runs_dir
-from outsource.Shell import Shell
-from outsource.RunConfig import DEPENDS_ON, DBConfig
+from outsource.config import config, pegasus_path, base_dir, work_dir, runs_dir
+from outsource.config import DEPENDS_ON, DBConfig
+from outsource.shell import Shell
 
 
 # Pegasus environment
-# sys.path.insert(0, os.path.join(pegasus_path, 'lib64/python3.6/site-packages'))
-# os.environ['PATH'] = os.path.join(pegasus_path, '../bin') + ':' + os.environ['PATH']
-from Pegasus.api import *
+from Pegasus.api import (
+    EventType,
+    Operation,
+    Namespace,
+    Workflow,
+    File,
+    Directory,
+    FileServer,
+    Job,
+    Site,
+    SiteCatalog,
+    Transformation,
+    TransformationCatalog,
+    ReplicaCatalog,
+)
 
 # logging.basicConfig(level=config.logging_level)
 logger = logging.getLogger()
 
 DEFAULT_IMAGE = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:development"
+COMBINE_WRAPPER = "combine-wrapper.sh"
+STRAX_WRAPPER = "strax-wrapper.sh"
+COMBINE_MEMORY = config.getint("Outsource", "combine_memory")
+COMBINE_DISK = config.getint("Outsource", "combine_disk")
+PEAKLETS_MEMORY = config.getint("Outsource", "peaklets_memory")
+PEAKLETS_DISK = config.getint("Outsource", "peaklets_disk")
+EVENTS_MEMORY = config.getint("Outsource", "events_memory")
+EVENTS_DISK = config.getint("Outsource", "events_disk")
 
 db = DB()
 
@@ -65,94 +85,38 @@ class Outsource:
 
     # transformation map (high level name -> script)
     _transformations_map = {
-        "combine": "combine-wrapper.sh",
-        "download": "strax-wrapper.sh",
-        "records": "strax-wrapper.sh",
-        "peaklets": "strax-wrapper.sh",
-        "peak_basics": "strax-wrapper.sh",
-        "events": "strax-wrapper.sh",
-        "shadow": "strax-wrapper.sh",
-        "peaksHE": "strax-wrapper.sh",
-        "nv_hitlets": "strax-wrapper.sh",
-        "nv_events": "strax-wrapper.sh",
-        "mv": "strax-wrapper.sh",
-        "afterpulses": "strax-wrapper.sh",
-        "led": "strax-wrapper.sh",
+        "combine": COMBINE_WRAPPER,
+        "download": STRAX_WRAPPER,
+        "records": STRAX_WRAPPER,
+        "peaklets": STRAX_WRAPPER,
+        "peak_basics": STRAX_WRAPPER,
+        "events": STRAX_WRAPPER,
+        "shadow": STRAX_WRAPPER,
+        "peaksHE": STRAX_WRAPPER,
+        "nv_hitlets": STRAX_WRAPPER,
+        "nv_events": STRAX_WRAPPER,
+        "mv": STRAX_WRAPPER,
+        "afterpulses": STRAX_WRAPPER,
+        "led": STRAX_WRAPPER,
     }
 
     # jobs details for a given datatype
     # disk is in KB, memory in MB
     job_kwargs = {
-        "combine": dict(
-            name="combine",
-            memory=config.getint("Outsource", "combine_memory"),
-            disk=config.getint("Outsource", "combine_disk"),
-        ),
-        "download": dict(
-            name="download",
-            memory=config.getint("Outsource", "peaklets_memory"),
-            disk=config.getint("Outsource", "peaklets_disk"),
-        ),
-        "records": dict(
-            name="records",
-            memory=config.getint("Outsource", "peaklets_memory"),
-            disk=config.getint("Outsource", "peaklets_disk"),
-        ),
-        "peaklets": dict(
-            name="peaklets",
-            memory=config.getint("Outsource", "peaklets_memory"),
-            disk=config.getint("Outsource", "peaklets_disk"),
-        ),
-        "peak_basics": dict(
-            name="peak_basics",
-            memory=config.getint("Outsource", "events_memory"),
-            disk=config.getint("Outsource", "events_disk"),
-        ),
-        "event_info_double": dict(
-            name="events",
-            memory=config.getint("Outsource", "events_memory"),
-            disk=config.getint("Outsource", "events_disk"),
-        ),
-        "event_shadow": dict(
-            name="shadow",
-            memory=config.getint("Outsource", "events_memory"),
-            disk=config.getint("Outsource", "events_disk"),
-        ),
-        "peak_basics_he": dict(
-            name="peaksHE",
-            memory=config.getint("Outsource", "events_memory"),
-            disk=config.getint("Outsource", "events_disk"),
-        ),
-        "hitlets_nv": dict(
-            name="nv_hitlets",
-            memory=config.getint("Outsource", "peaklets_memory"),
-            disk=config.getint("Outsource", "peaklets_disk"),
-        ),
-        "events_nv": dict(
-            name="nv_events",
-            memory=config.getint("Outsource", "events_memory"),
-            disk=config.getint("Outsource", "events_disk"),
-        ),
-        "ref_mon_nv": dict(
-            name="ref_mon_nv",
-            memory=config.getint("Outsource", "events_memory"),
-            disk=config.getint("Outsource", "events_disk"),
-        ),
-        "events_mv": dict(
-            name="mv",
-            memory=config.getint("Outsource", "events_memory"),
-            disk=config.getint("Outsource", "events_disk"),
-        ),
-        "afterpulses": dict(
-            name="afterpulses",
-            memory=config.getint("Outsource", "peaklets_memory"),
-            disk=config.getint("Outsource", "peaklets_disk"),
-        ),
-        "led_calibration": dict(
-            name="led",
-            memory=config.getint("Outsource", "peaklets_memory"),
-            disk=config.getint("Outsource", "peaklets_disk"),
-        ),
+        "combine": dict(name="combine", memory=COMBINE_MEMORY, disk=COMBINE_DISK),
+        "download": dict(name="download", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
+        "records": dict(name="records", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
+        "peaklets": dict(name="peaklets", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
+        "peak_basics": dict(name="peak_basics", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
+        "event_info_double": dict(name="events", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
+        "event_shadow": dict(name="shadow", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
+        "peak_basics_he": dict(name="peaksHE", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
+        "hitlets_nv": dict(name="nv_hitlets", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
+        "events_nv": dict(name="nv_events", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
+        "ref_mon_nv": dict(name="ref_mon_nv", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
+        "events_mv": dict(name="mv", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
+        "afterpulses": dict(name="afterpulses", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
+        "led_calibration": dict(name="led", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
     }
 
     _x509_proxy = os.getenv("X509_USER_PROXY")
@@ -161,13 +125,12 @@ class Outsource:
         self,
         runlist,
         context_name,
-        # cmt_version='global_v5',
-        wf_id=None,
-        force_rerun=False,
+        image=DEFAULT_IMAGE,
+        workflow_id=None,
         upload_to_rucio=True,
         update_db=True,
+        force_rerun=False,
         debug=True,
-        image=DEFAULT_IMAGE,
     ):
         """Creates a new Outsource object.
 
@@ -192,15 +155,37 @@ class Outsource:
         self.upload_to_rucio = upload_to_rucio
         self.update_db = update_db
 
-        # logger
+        self.set_logger()
+
+        # Determine a unique id for the workflow. If none passed, looks at the dbconfig.
+        # If only one dbconfig is provided, use the workflow id of that object.
+        # If more than one is provided, make one up.
+        if workflow_id:
+            self._workflow_id = workflow_id
+        else:
+            if len(self._runlist) == 1:
+                self._workflow_id = f"{self._runlist[0]:06d}"
+            else:
+                self._workflow_id = datetime.now().strftime("%Y%m%d%H%M")
+
+        self.workflow_dir = os.path.join(
+            runs_dir, f"straxen_v{straxen_version}", context_name, self._workflow_id
+        )
+
+        self.dtype_valid_cache = {}
+
+        self.generated_dir = os.path.join(work_dir, "generated", self._workflow_id)
+
+    def set_logger(self):
         console = logging.StreamHandler()
         # default log level - make logger/console match
-        logger.setLevel(logging.WARNING)
-        console.setLevel(logging.WARNING)
         # debug - where to get this from?
-        if debug:
+        if self.debug:
             logger.setLevel(logging.DEBUG)
             console.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.WARNING)
+            console.setLevel(logging.WARNING)
         # formatter
         formatter = logging.Formatter(
             "%(asctime)s %(levelname)7s:  %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -209,23 +194,6 @@ class Outsource:
         if logger.hasHandlers():
             logger.handlers.clear()
         logger.addHandler(console)
-
-        # Determine a unique id for the workflow. If none passed, looks at the dbconfig.
-        # If only one dbconfig is provided, use the workflow id of that object.
-        # If more than one is provided, make one up.
-        if wf_id:
-            self._wf_id = wf_id
-        else:
-            if len(self._runlist) == 1:
-                self._wf_id = f"{self._runlist[0]:06d}"
-            else:
-                self._wf_id = datetime.now().strftime("%Y-%m-%d")
-
-        self.wf_dir = os.path.join(
-            runs_dir, f"straxen_v{straxen_version}", context_name, self._wf_id
-        )
-
-        self.dtype_valid_cache = {}
 
     @property
     def x509_proxy(self):
@@ -236,27 +204,18 @@ class Outsource:
         """Main interface to submitting a new workflow."""
 
         # does workflow already exist?
-        workflow_path = self.wf_dir
-        if os.path.exists(workflow_path):
+        if os.path.exists(self.workflow_dir):
             if force:
-                logger.warning(f"Overwriting workflow at {workflow_path}. CTRL C now to stop.")
+                logger.warning(f"Overwriting workflow at {self.workflow_dir}. CTRL+C now to stop.")
                 time.sleep(10)
-                shutil.rmtree(workflow_path)
+                shutil.rmtree(self.workflow_dir)
             else:
-                logger.error(f"Workflow already exists at {workflow_path} . Exiting.")
+                logger.error(f"Workflow already exists at {self.workflow_dir} . Exiting.")
                 return
 
         # work dirs
-        try:
-            os.makedirs(self._generated_dir(), 0o755)
-        except OSError:
-            pass
-        try:
-            os.makedirs(
-                runs_dir, 0o755
-            )  # 0o755 means read/write/execute for owner, read/execute for everyone else
-        except OSError:
-            pass
+        os.makedirs(self.generated_dir, 0o755, exist_ok=True)
+        os.makedirs(runs_dir, 0o755, exist_ok=True)
 
         # ensure we have a proxy with enough time left
         self._validate_x509_proxy()
@@ -276,44 +235,41 @@ class Outsource:
         # Create a abstract dag
         wf = Workflow("xenonnt")
         # Initialize the catalogs
-        tc = TransformationCatalog()
-        rc = ReplicaCatalog()
         sc = self._generate_sc()
+        tc = self._generate_tc()
+        rc = self._generate_rc()
 
         # event callouts: currently not working?
-        notification_email = ""
         if config.has_option("Outsource", "notification_email"):
             notification_email = config.get("Outsource", "notification_email")
-        wf.add_shell_hook(
-            EventType.START,
-            pegasus_path + "/share/pegasus/notification/email -t " + notification_email,
-        )
-        wf.add_shell_hook(
-            EventType.END,
-            pegasus_path + "/share/pegasus/notification/email -t " + notification_email,
-        )
+            wf.add_shell_hook(
+                EventType.START,
+                f"{pegasus_path}/share/pegasus/notification/email -t {notification_email}",
+            )
+            wf.add_shell_hook(
+                EventType.END,
+                f"{pegasus_path}/share/pegasus/notification/email -t {notification_email}",
+            )
 
         # add executables to the wf-level transformation catalog
         for job_type, script in self._transformations_map.items():
             t = Transformation(
                 job_type,
                 site="local",
-                pfn="file://" + base_dir + "/workflow/" + script,
+                pfn=f"file://{base_dir}/workflow/{script}",
                 is_stageable=True,
             )
             tc.add_transformations(t)
 
         # scripts some exectuables might need
-
         straxify = File("runstrax.py")
-        rc.add_replica("local", "runstrax.py", "file://" + base_dir + "/workflow/runstrax.py")
-
+        rc.add_replica("local", "runstrax.py", f"file://{base_dir}/workflow/runstrax.py")
         combinepy = File("combine.py")
-        rc.add_replica("local", "combine.py", "file://" + base_dir + "/workflow/combine.py")
+        rc.add_replica("local", "combine.py", f"file://{base_dir}/workflow/combine.py")
 
         # add common data files to the replica catalog
         xenon_config = File(".xenon_config")
-        rc.add_replica("local", ".xenon_config", "file://" + config.config_path)
+        rc.add_replica("local", ".xenon_config", f"file://{config.config_path}")
 
         token = File(".dbtoken")
         rc.add_replica(
@@ -338,7 +294,6 @@ class Outsource:
         runlist = []
 
         for run in iterator:
-
             dbcfg = DBConfig(run, self.context, force_rerun=self.force_rerun)
 
             # check if this run needs to be processed
@@ -496,7 +451,7 @@ class Outsource:
                         scope = "xnt_%06d" % dbcfg.number
                         dataset = "raw_records-%s" % dbcfg.hashes["raw_records"]
                         did = "%s:%s" % (scope, dataset)
-                        chunk_list = self._data_find_chunks(did)
+                        chunk_list = self._data_find_chunks(rc, did)
                         n_chunks = len(chunk_list)
 
                     chunk_list = np.arange(n_chunks)
@@ -551,7 +506,7 @@ class Outsource:
                         )
                         # do we already have a local copy?
                         job_output_tar_local_path = os.path.join(
-                            work_dir, "outputs", self._wf_id, str(job_output_tar)
+                            work_dir, "outputs", self._workflow_id, str(job_output_tar)
                         )
                         if os.path.isfile(job_output_tar_local_path):
                             logger.info(" ... local copy found at: " + job_output_tar_local_path)
@@ -607,7 +562,6 @@ class Outsource:
 
                         if len(parent_combines):
                             wf.add_dependency(job, parents=parent_combines)
-
                 else:
                     # high level data.. we do it all on one job
                     # output files
@@ -647,7 +601,7 @@ class Outsource:
                             job.add_inputs(cj_output)
 
         # Write the wf to stdout
-        os.chdir(self._generated_dir())
+        os.chdir(self.generated_dir)
         wf.add_replica_catalog(rc)
         wf.add_transformation_catalog(tc)
         wf.add_site_catalog(sc)
@@ -661,38 +615,37 @@ class Outsource:
     def _plan_and_submit(self, wf):
         """Submit the workflow."""
 
-        os.chdir(self._generated_dir())
+        os.chdir(self.generated_dir)
         wf.plan(
-            conf=base_dir + "/workflow/pegasus.conf",
+            conf=f"{base_dir}/workflow/pegasus.conf",
             submit=not self.debug,
             sites=["condorpool"],
             staging_sites={"condorpool": "staging-davs"},
             output_sites=["staging-davs"],
-            dir=os.path.dirname(self.wf_dir),
-            relative_dir=self._wf_id,
+            dir=os.path.dirname(self.workflow_dir),
+            relative_dir=os.path.basename(self.workflow_dir),
         )
         # copy the runlist file
-        shutil.copy("runlist.txt", self.wf_dir)
+        shutil.copy("runlist.txt", self.workflow_dir)
 
-        print(f"Worfklow written to \n\n\t{self.wf_dir}\n\n")
+        print(f"Worfklow written to \n\n\t{self.workflow_dir}\n\n")
 
-    def _generated_dir(self):
-        return os.path.join(work_dir, "generated", self._wf_id)
+    def _validate_x509_proxy(self, min_valid_hours=20):
+        """Ensure $X509_USER_PROXY exists and has enough time left.
 
-    def _workflow_dir(self):
-        return os.path.join(self.wf_dir, self._wf_id)
+        This is necessary only if you are going to use Rucio.
+        """
+        x509_user_proxy = os.getenv("X509_USER_PROXY")
+        assert x509_user_proxy, "Please provide a valid X509_USER_PROXY environment variable."
 
-    def _validate_x509_proxy(self):
-        """Ensure X509_USER_PROXY exists and has enough time left."""
         logger.debug("Verifying that the X509_USER_PROXY proxy has enough lifetime")
-        min_valid_hours = 20
-        shell = Shell(f"grid-proxy-info -timeleft -file {self._x509_proxy}")
+        shell = Shell(f"grid-proxy-info -timeleft -file {x509_user_proxy}")
         shell.run()
         valid_hours = int(shell.get_outerr()) / 60 / 60
         if valid_hours < min_valid_hours:
             raise RuntimeError(
-                "User proxy is only valid for %d hours. Minimum required is %d hours."
-                % (valid_hours, min_valid_hours)
+                f"User proxy is only valid for {valid_hours} hours. "
+                f"Minimum required is {min_valid_hours} hours."
             )
 
     def _job(self, name, run_on_submit_node=False, cores=1, memory=1_700, disk=1_000_000):
@@ -725,7 +678,7 @@ class Outsource:
 
         return job
 
-    def _data_find_chunks(self, rucio_dataset):
+    def _data_find_chunks(self, rc, rucio_dataset):
         """
         Look up which chunk files are in the dataset - return a dict where the keys are the
         chunks, and the values a dict of locations
@@ -779,22 +732,21 @@ class Outsource:
         return " && ".join(exprs)
 
     def _generate_sc(self):
-
         sc = SiteCatalog()
 
         # local site - this is the submit host
         local = Site("local")
         scratch_dir = Directory(
-            Directory.SHARED_SCRATCH, path="{}/scratch/{}".format(work_dir, self._wf_id)
+            Directory.SHARED_SCRATCH, path=f"{work_dir}/scratch/{self._workflow_id}"
         )
         scratch_dir.add_file_servers(
-            FileServer("file:///{}/scratch/{}".format(work_dir, self._wf_id), Operation.ALL)
+            FileServer(f"file:///{work_dir}/scratch/{self._workflow_id}", Operation.ALL)
         )
         storage_dir = Directory(
-            Directory.LOCAL_STORAGE, path="{}/outputs/{}".format(work_dir, self._wf_id)
+            Directory.LOCAL_STORAGE, path=f"{work_dir}/outputs/{self._workflow_id}"
         )
         storage_dir.add_file_servers(
-            FileServer("file:///{}/outputs/{}".format(work_dir, self._wf_id), Operation.ALL)
+            FileServer(f"file:///{work_dir}/outputs/{self._workflow_id}", Operation.ALL)
         )
         local.add_directories(scratch_dir, storage_dir)
 
@@ -896,8 +848,13 @@ class Outsource:
             # output,
             condorpool,
         )
-
         return sc
+
+    def _generate_tc(self):
+        return TransformationCatalog()
+
+    def _generate_rc(self):
+        return ReplicaCatalog()
 
     def dtype_validity(self, dtype):
         """Return the correction validity time range of a dtype :param dtype:

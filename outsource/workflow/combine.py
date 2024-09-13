@@ -29,7 +29,6 @@ def merge(
     st,  # strax context
     path,  # path where the data is stored
 ):
-
     # get the storage path, since will need to reset later
     _storage_paths = [storage.path for storage in st.storage]
 

@@ -35,7 +35,7 @@ fi
 . /opt/XENONnT/setup.sh
 
 # sleep random amount of time to spread out e.g. API calls and downloads
-sleep $[ ( $RANDOM % 20 )  + 1 ]s
+sleep $(( RANDOM % 20 + 1 ))s
 
 
 if [ -e /image-build-info.txt ]; then

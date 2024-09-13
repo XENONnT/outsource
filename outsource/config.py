@@ -1,13 +1,20 @@
 import os
 import re
 import time
-
 import numpy as np
-from utilix import DB, xent_collection
-import strax
-import admix
 
-from .Config import config, work_dir
+from utilix.config import Config
+from utilix import DB, xent_collection
+import admix
+import strax
+
+
+config = Config()
+
+base_dir = os.path.abspath(os.path.dirname(__file__))
+work_dir = config.get("Outsource", "work_dir")
+runs_dir = os.path.join(work_dir, "runs")
+pegasus_path = config.get("Outsource", "pegasus_path")
 
 # HARDCODE alert
 # we could also import strax(en), but this makes outsource submission not dependent on strax
