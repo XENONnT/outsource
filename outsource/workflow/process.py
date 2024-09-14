@@ -105,12 +105,12 @@ def get_bottom_dtypes(dtype):
 
 
 def get_hashes(st):
-    """Get the hashes for all the datatypes in this context."""
+    """Get the hashes for all the data_type in this context."""
     return {dt: item["hash"] for dt, item in st.provided_dtypes().items()}
 
 
 def find_data_to_download(runid, target, st):
-    runid_str = str(runid).zfill(6)
+    runid_str = f"{runid:06d}"
     hashes = get_hashes(st)
     bottoms = get_bottom_dtypes(target)
 
@@ -122,7 +122,7 @@ def find_data_to_download(runid, target, st):
 
     to_download = []
 
-    # all data entries from the runDB for certain runid
+    # all data entries from the RunDB for certain runid
     data = db.get_data(runid, host="rucio-catalogue")
 
     def find_data(_target):
@@ -140,7 +140,7 @@ def find_data_to_download(runid, target, st):
         _plugin = st._get_plugins((_target,), runid_str)[_target]
         st._set_plugin_config(_plugin, runid_str, tolerant=False)
 
-        # download all the required datatypes to produce this output file
+        # download all the required data_type to produce this output file
         for in_dtype in _plugin.depends_on:
             # get hash for this dtype
             hash = hashes.get(in_dtype)
@@ -163,7 +163,7 @@ def find_data_to_download(runid, target, st):
 
 
 def process(runid, out_dtype, st, chunks, close_savers=False, tmp_path=".tmp_for_strax"):
-    runid_str = "%06d" % runid
+    runid_str = f"{runid:06d}"
     t0 = time.time()
 
     # initialize plugin needed for processing this output type
@@ -343,10 +343,11 @@ def check_chunk_n(directory):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
+    parser = argparse.ArgumentParser(description="(Re)Processing With Outsource")
     parser.add_argument("dataset", help="Run number", type=int)
     parser.add_argument("--output", help="desired strax(en) output")
     parser.add_argument("--context", help="name of context")
+    parser.add_argument("--xedocs_version", help="xedocs global version")
     parser.add_argument("--chunks", nargs="*", help="chunk ids to download", type=int)
     parser.add_argument("--upload-to-rucio", action="store_true", dest="upload_to_rucio")
     parser.add_argument("--update-db", action="store_true", dest="update_db")
@@ -363,7 +364,7 @@ def main():
     #     rmtree(data_dir)
 
     # get context
-    st = getattr(cutax.contexts, args.context)()
+    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     # st.storage = [
     #     strax.DataDirectory(data_dir),
     #     straxen.rucio.RucioFrontend(
@@ -385,7 +386,7 @@ def main():
     print("Context is set up!")
 
     runid = args.dataset
-    runid_str = "%06d" % runid
+    runid_str = f"{runid:06d}"
     out_dtype = args.output  # eg. ypically for tpc: peaklets/event_info
 
     print("Getting to-download list...")
@@ -457,7 +458,7 @@ def main():
     if len(set(priority_rank) & set(to_process)) > 0:
         # remove any prioritized dtypes that are not in to_process
         filtered_priority_rank = [dtype for dtype in priority_rank if dtype in to_process]
-        # remove the priority_rank dtypes from to_process, as low priority datatypes which we don't
+        # remove the priority_rank dtypes from to_process, as low priority data_type which we don't
         # rigorously care their order
         to_process_low_priority = [dt for dt in to_process if dt not in filtered_priority_rank]
         # sort the priority by their dependencies
@@ -491,7 +492,7 @@ def main():
     # remove rucio directory
     rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
 
-    # now loop over datatypes we just made and upload the data
+    # now loop over data_type we just made and upload the data
     processed_data = [d for d in os.listdir(data_dir) if "_temp" not in d]
     print("---- Processed data ----")
     for d in processed_data:
@@ -612,10 +613,10 @@ def main():
             print(f"Upload of {dset_name} failed for some reason")
             raise
 
-        # TODO check rucio that the files are there?
+        # TODO: check rucio that the files are there?
         print(f"Upload of {len(files)} files in {dirname} finished successfully")
 
-        # if we processed the whole thing, add a rule at DALI update the runDB here
+        # if we processed the whole thing, add a rule at DALI update the RunDB here
         if args.chunks is None:
             # skip if update_db flag is false, or if the rucio upload failed
             if args.update_db and succeded_rucio_upload:
@@ -623,7 +624,7 @@ def main():
                 chunk_mb = [chunk["nbytes"] / (1e6) for chunk in md["chunks"]]
                 data_size_mb = np.sum(chunk_mb)
 
-                # update runDB
+                # update RunDB
                 new_data_dict = dict()
                 new_data_dict["location"] = rse
                 new_data_dict["did"] = dataset_did

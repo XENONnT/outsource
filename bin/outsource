@@ -2,43 +2,17 @@
 
 import argparse
 import os
+import pymongo
+import numpy as np
 from utilix.io import load_runlist
 from utilix import xent_collection
 from utilix.rundb import cmt_local_valid_range
-import cutax
 import straxen
-import pymongo
-import numpy as np
+import cutax
 
-from outsource.Outsource import Outsource, DEFAULT_IMAGE
-from outsource.Config import config
+from outsource.outsource import Outsource
+from outsource.config import uconfig, DETECTOR_DTYPES
 
-
-# do a query to see if these data types are present
-DETECTOR_DTYPES = {
-    "tpc": {
-        "raw": "raw_records",
-        "to_process": [
-            "peaklets",
-            "event_info",
-            "peak_basics",
-            "peak_basics_he",
-            "event_pattern_fit",
-            "event_area_per_channel",
-            "event_top_bottom_params",
-            "event_ms_naive",
-            "event_shadow",
-            "event_ambience",
-            "peak_s1_positions_cnn",
-            "afterpulses",
-        ],
-    },
-    "neutron_veto": {
-        "raw": "raw_records_nv",
-        "to_process": ["hitlets_nv", "events_nv", "ref_mon_nv"],
-    },
-    "muon_veto": {"raw": "raw_records_mv", "to_process": ["events_mv"]},
-}
 
 coll = xent_collection()
 
@@ -63,8 +37,8 @@ def data_find(
     :return: list of run numbers
     """
     exclude_tags = ["bad", "abandon"]
-    exclude_modes = config.get_list("Outsource", "exclude_modes")
-    min_run_number = config.getint("Outsource", "min_run_number")
+    exclude_modes = uconfig.get_list("Outsource", "exclude_modes")
+    min_run_number = uconfig.getint("Outsource", "min_run_number")
     max_run_number = 999999
     if number_from is not None:
         min_run_number = max(number_from, min_run_number)
@@ -96,15 +70,15 @@ def data_find(
         else:
             raise NotImplementedError
 
-        # FIXME this feature actually should be retired
+        # FIXME: this feature actually should be retired
         local_gain_version = st.config.get(straxen_opt)
         gain_range = cmt_local_valid_range(gain_model, local_gain_version)
 
-        # We will check if the data type in the following list is already present in the runDB
+        # We will check if the data type in the following list is already present in the RunDB
         dtype_to_check_avail_list = det_info["to_process"]
 
         # Check if the data type is in the list of data types to outsource
-        outsource_dtypes_str = config.get("Outsource", "dtypes")
+        outsource_dtypes_str = uconfig.get("Outsource", "dtypes")
         dtype_to_check_avail_list = [
             d for d in dtype_to_check_avail_list if d in outsource_dtypes_str
         ]
@@ -118,7 +92,7 @@ def data_find(
 
         raw_dtype = det_info["raw"]
 
-        # Check if the data type (peaklets, event_info, etc) is already present in the runDB, added by ruciocatalogue
+        # Check if the data type (peaklets, event_info, etc) is already present in the RunDB, added by ruciocatalogue
         to_process_dtype_query = [
             {
                 "data": {
@@ -135,13 +109,12 @@ def data_find(
             for dtype in dtype_to_check_avail_list
         ]
 
-        # FIXME: we want the raw data location to be flexible, as specified in xenon_config for raw_records_rse
         has_raw_dtype_query = {
             "$elemMatch": {
                 "type": raw_dtype,
                 "host": "rucio-catalogue",
                 "status": "transferred",
-                "location": {"$in": config.get("Outsource", "raw_records_rse").split(",")},
+                "location": {"$in": uconfig.get("Outsource", "raw_records_rse").split(",")},
             }
         }
 
@@ -184,19 +157,19 @@ def data_find(
     cursor_basic = coll.find(
         full_query_basic,
         {"number": 1, "_id": 0, "mode": 1},
-        limit=config.getint("Outsource", "max_daily", fallback=None),
+        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
     cursor_basic_w_raw = coll.find(
         full_query_basic_w_raw,
         {"number": 1, "_id": 0, "mode": 1},
-        limit=config.getint("Outsource", "max_daily", fallback=None),
+        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
     cursor_basic_wo_to_process = coll.find(
         full_query_basic_wo_to_process,
         {"number": 1, "_id": 0, "mode": 1},
-        limit=config.getint("Outsource", "max_daily", fallback=None),
+        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
 
@@ -254,6 +227,9 @@ def main():
         "--context", required=True, help="[REQUIRED] Name of context, imported from cutax."
     )
     parser.add_argument(
+        "--xedocs_version", required=True, help="[REQUIRED] global version, an argument for context"
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Debug mode. Does not automatically submit the workflow, "
@@ -265,7 +241,7 @@ def main():
     )
     parser.add_argument(
         "--image",
-        default=DEFAULT_IMAGE,
+        default="development",
         help="Singularity image. Accepts either a full path or a single name "
         "and assumes a format like this: "
         "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}",
@@ -307,7 +283,7 @@ def main():
     if args.debug:
         upload_to_rucio = update_db = False
 
-    st = getattr(cutax.contexts, args.context)()
+    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
 
     if args.run and args.runlist:
         raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
@@ -344,25 +320,21 @@ def main():
         )
         return
 
-    image = args.image
-    # Assume that if the image is not a full path, it is a name
-    if not os.path.exists(image):
-        image = f"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}"
-
     # This object contains all the information needed to submit the workflow
     outsource = Outsource(
         runlist,
-        args.context,
-        debug=args.debug,
-        image=image,
-        wf_id=args.name,
+        context_name=args.context,
+        xedocs_version=args.xedocs_version,
+        image=args.image,
+        workflow_id=args.name,
         upload_to_rucio=upload_to_rucio,
         update_db=update_db,
-        force_rerun=args.force,
+        force=args.force,
+        debug=args.debug,
     )
 
     # Finally submit the workflow
-    outsource.submit_workflow()
+    outsource.submit()
 
 
 if __name__ == "__main__":

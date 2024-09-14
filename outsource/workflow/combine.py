@@ -29,7 +29,6 @@ def merge(
     st,  # strax context
     path,  # path where the data is stored
 ):
-
     # get the storage path, since will need to reset later
     _storage_paths = [storage.path for storage in st.storage]
 
@@ -75,8 +74,8 @@ def merge(
         else:
             print(f"Not rechunking {keystring}. Just copy to the staging directory.")
             key = st.key_for(runid_str, keystring)
-            src = os.path.join(st.storage[0].path, str(key))
-            dest = os.path.join(st.storage[1].path, str(key))
+            src = os.path.join(st.storage[0].path, f"{key}")
+            dest = os.path.join(st.storage[1].path, f"{key}")
             shutil.copytree(src, dest)
 
     # reset in case we need to merge more data
@@ -137,7 +136,8 @@ def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
     parser.add_argument("dataset", help="Run number", type=int)
     parser.add_argument("dtype", help="dtype to combine")
-    parser.add_argument("--context", help="Strax context")
+    parser.add_argument("--context", help="name of context")
+    parser.add_argument("--xedocs_version", help="xedocs global version")
     parser.add_argument("--input", help="path where the temp directory is")
     parser.add_argument(
         "--update-db", help="flag to update runsDB", dest="update_db", action="store_true"
@@ -152,13 +152,13 @@ def main():
     args = parser.parse_args()
 
     runid = args.dataset
-    runid_str = "%06d" % runid
+    runid_str = f"{runid:06d}"
     path = args.input
 
     final_path = "finished_data"
 
     # get context
-    st = getattr(cutax.contexts, args.context)()
+    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     st.storage = [
         strax.DataDirectory("./"),
         strax.DataDirectory(final_path),  # where we are copying data to

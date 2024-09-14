@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 
-# === arguments - make sure these match Pegasus job definition ===
+set -e
+
+run_id=$1
+context=$2
+xedocs_version=$3
+output_dtype=$4
+output_tar=$5
+standalone_download=$6
+upload_to_rucio=$7
+update_db=$8
 args=( "$@" )
-export run_id=$1
-export context=$2
-export output_dtype=$3
-export output_tar=$4
-export standalone_download=$5
-export upload_to_rucio=$6
-export update_db=$7
-export chunks=${args[@]:7}
+chunks=${args[@]:8}
 
 echo $@
 
@@ -35,7 +37,7 @@ fi
 . /opt/XENONnT/setup.sh
 
 # sleep random amount of time to spread out e.g. API calls and downloads
-sleep $[ ( $RANDOM % 20 )  + 1 ]s
+sleep $(( RANDOM % 20 + 1 ))s
 
 
 if [ -e /image-build-info.txt ]; then
@@ -69,8 +71,8 @@ echo
 
 if [ "X${standalone_download}" = "Xno-download" ]; then
     # we are given a tarball from the previous download job
-    echo 'Untaring input data...'
-    tar xzf *-data-*.tar.gz
+    echo "Untaring input data..."
+    tar -xzf *-data*.tar.gz
 fi
 
 
@@ -85,12 +87,12 @@ python -c "import cutax; print(cutax.__file__)"
 echo "--- Checking if we have any input tarballs ---"
 runid_pad=`printf %06d $run_id`
 if [ -f ./$runid_pad*.tar.gz ]; then
-  mkdir data
-  for tarball in $(ls $runid_pad*.tar.gz)
-  do
-    echo "Untarring input: $tarball"
-    tar xzf $tarball -C data --strip-components=1
-  done
+    mkdir data
+    for tarball in $(ls $runid_pad*.tar.gz)
+    do
+        echo "Untarring input: $tarball"
+        tar -xzf $tarball -C data --strip-components=1
+    done
 fi
 echo
 
@@ -104,20 +106,20 @@ ls -lah $HOME/.dbtoken
 echo "ls -lah $USERPROFILE/.dbtoken"
 la -lah $USERPROFILE/.dbtoken
 echo
-#echo "nmap xenon-runsdb.grid.uchicago.edu"
-#nmap -p5000 xenon-runsdb.grid.uchicago.edu
-#echo
+# echo "nmap xenon-runsdb.grid.uchicago.edu"
+# map -p5000 xenon-runsdb.grid.uchicago.edu
+# echo
 
-echo 'Processing now...'
+echo "Processing now..."
 
 chunkarg=""
 if [ -n "${chunks}" ]
 then
-  chunkarg="--chunks ${chunks}"
+    chunkarg="--chunks ${chunks}"
 fi
 
-chmod +x runstrax.py
-./runstrax.py ${run_id} --output ${output_dtype} --context ${context} ${extraflags} ${chunkarg}
+chmod +x process.py
+./process.py ${run_id} --output ${output_dtype} --context ${context} --xedocs_version ${xedocs_version} ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then
@@ -132,13 +134,13 @@ find data -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -
 
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
     echo "We are tarballing the data directory for download-only job."
-    tar czfv ${output_tar} data
+    tar -czfv ${output_tar} data
 elif [ "X${output_dtype}" = "Xevent_info_double" ] || [ "X${output_dtype}" = "Xevents_mv" ] || [ "X${output_dtype}" = "Xevents_nv" ]; then
     echo "We are tarballing the data directory for ${output_dtype} job."
-    tar czfv ${output_tar} data
+    tar -czfv ${output_tar} data
 else
     echo "We are tarballing the data directory, but only for those with _temp."
-    tar czfv ${output_tar} data/*_temp
+    tar -czfv ${output_tar} data/*_temp
 fi
 
 echo

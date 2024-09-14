@@ -9,7 +9,6 @@ from utilix import rundb
 
 
 def update_status(run_id, dtype, status):
-
     db = rundb.DB()
     data = db.get_data(run_id)
     for data_set in data:
@@ -23,7 +22,6 @@ def update_status(run_id, dtype, status):
 
 
 def main():
-
     # top-level parser
     parser = argparse.ArgumentParser(prog="update_run_db")
     subparsers = parser.add_subparsers(
