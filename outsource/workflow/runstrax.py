@@ -105,12 +105,12 @@ def get_bottom_dtypes(dtype):
 
 
 def get_hashes(st):
-    """Get the hashes for all the datatypes in this context."""
+    """Get the hashes for all the data_type in this context."""
     return {dt: item["hash"] for dt, item in st.provided_dtypes().items()}
 
 
 def find_data_to_download(runid, target, st):
-    runid_str = str(runid).zfill(6)
+    runid_str = f"{runid:06d}"
     hashes = get_hashes(st)
     bottoms = get_bottom_dtypes(target)
 
@@ -122,7 +122,7 @@ def find_data_to_download(runid, target, st):
 
     to_download = []
 
-    # all data entries from the runDB for certain runid
+    # all data entries from the RunDB for certain runid
     data = db.get_data(runid, host="rucio-catalogue")
 
     def find_data(_target):
@@ -140,7 +140,7 @@ def find_data_to_download(runid, target, st):
         _plugin = st._get_plugins((_target,), runid_str)[_target]
         st._set_plugin_config(_plugin, runid_str, tolerant=False)
 
-        # download all the required datatypes to produce this output file
+        # download all the required data_type to produce this output file
         for in_dtype in _plugin.depends_on:
             # get hash for this dtype
             hash = hashes.get(in_dtype)
@@ -457,7 +457,7 @@ def main():
     if len(set(priority_rank) & set(to_process)) > 0:
         # remove any prioritized dtypes that are not in to_process
         filtered_priority_rank = [dtype for dtype in priority_rank if dtype in to_process]
-        # remove the priority_rank dtypes from to_process, as low priority datatypes which we don't
+        # remove the priority_rank dtypes from to_process, as low priority data_type which we don't
         # rigorously care their order
         to_process_low_priority = [dt for dt in to_process if dt not in filtered_priority_rank]
         # sort the priority by their dependencies
@@ -491,7 +491,7 @@ def main():
     # remove rucio directory
     rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
 
-    # now loop over datatypes we just made and upload the data
+    # now loop over data_type we just made and upload the data
     processed_data = [d for d in os.listdir(data_dir) if "_temp" not in d]
     print("---- Processed data ----")
     for d in processed_data:
@@ -615,7 +615,7 @@ def main():
         # TODO check rucio that the files are there?
         print(f"Upload of {len(files)} files in {dirname} finished successfully")
 
-        # if we processed the whole thing, add a rule at DALI update the runDB here
+        # if we processed the whole thing, add a rule at DALI update the RunDB here
         if args.chunks is None:
             # skip if update_db flag is false, or if the rucio upload failed
             if args.update_db and succeded_rucio_upload:
@@ -623,7 +623,7 @@ def main():
                 chunk_mb = [chunk["nbytes"] / (1e6) for chunk in md["chunks"]]
                 data_size_mb = np.sum(chunk_mb)
 
-                # update runDB
+                # update RunDB
                 new_data_dict = dict()
                 new_data_dict["location"] = rse
                 new_data_dict["did"] = dataset_did

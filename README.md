@@ -112,7 +112,6 @@ records_rse = UC_MIDWAY_USERDISK
 peaklets_rse = UC_OSG_USERDISK
 events_rse = UC_MIDWAY_USERDISK
 exclude_modes = tpc_noise, tpc_rn_8pmts, tpc_commissioning_pmtgain, tpc_rn_6pmts, tpc_rn_12_pmts, nVeto_LED_calibration,tpc_rn_12pmts, nVeto_LED_calibration_2
-use_xsede = False
 notification_email =
 min_run_number = 666
 max_daily = 2000

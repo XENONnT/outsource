@@ -74,8 +74,8 @@ def merge(
         else:
             print(f"Not rechunking {keystring}. Just copy to the staging directory.")
             key = st.key_for(runid_str, keystring)
-            src = os.path.join(st.storage[0].path, str(key))
-            dest = os.path.join(st.storage[1].path, str(key))
+            src = os.path.join(st.storage[0].path, f"{key}")
+            dest = os.path.join(st.storage[1].path, f"{key}")
             shutil.copytree(src, dest)
 
     # reset in case we need to merge more data

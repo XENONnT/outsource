@@ -10,35 +10,9 @@ from utilix.rundb import cmt_local_valid_range
 import straxen
 import cutax
 
-from outsource.outsource import Outsource, DEFAULT_IMAGE
-from outsource.config import config
+from outsource.outsource import Outsource
+from outsource.config import config, DETECTOR_DTYPES
 
-
-# do a query to see if these data types are present
-DETECTOR_DTYPES = {
-    "tpc": {
-        "raw": "raw_records",
-        "to_process": [
-            "peaklets",
-            "event_info",
-            "peak_basics",
-            "peak_basics_he",
-            "event_pattern_fit",
-            "event_area_per_channel",
-            "event_top_bottom_params",
-            "event_ms_naive",
-            "event_shadow",
-            "event_ambience",
-            "peak_s1_positions_cnn",
-            "afterpulses",
-        ],
-    },
-    "neutron_veto": {
-        "raw": "raw_records_nv",
-        "to_process": ["hitlets_nv", "events_nv", "ref_mon_nv"],
-    },
-    "muon_veto": {"raw": "raw_records_mv", "to_process": ["events_mv"]},
-}
 
 coll = xent_collection()
 
@@ -96,11 +70,11 @@ def data_find(
         else:
             raise NotImplementedError
 
-        # FIXME this feature actually should be retired
+        # FIXME: this feature actually should be retired
         local_gain_version = st.config.get(straxen_opt)
         gain_range = cmt_local_valid_range(gain_model, local_gain_version)
 
-        # We will check if the data type in the following list is already present in the runDB
+        # We will check if the data type in the following list is already present in the RunDB
         dtype_to_check_avail_list = det_info["to_process"]
 
         # Check if the data type is in the list of data types to outsource
@@ -118,7 +92,7 @@ def data_find(
 
         raw_dtype = det_info["raw"]
 
-        # Check if the data type (peaklets, event_info, etc) is already present in the runDB, added by ruciocatalogue
+        # Check if the data type (peaklets, event_info, etc) is already present in the RunDB, added by ruciocatalogue
         to_process_dtype_query = [
             {
                 "data": {
@@ -135,7 +109,6 @@ def data_find(
             for dtype in dtype_to_check_avail_list
         ]
 
-        # FIXME: we want the raw data location to be flexible, as specified in xenon_config for raw_records_rse
         has_raw_dtype_query = {
             "$elemMatch": {
                 "type": raw_dtype,
@@ -254,6 +227,9 @@ def main():
         "--context", required=True, help="[REQUIRED] Name of context, imported from cutax."
     )
     parser.add_argument(
+        "--xedocs_version", required=True, help="[REQUIRED] global version, an argument for context"
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Debug mode. Does not automatically submit the workflow, "
@@ -265,7 +241,7 @@ def main():
     )
     parser.add_argument(
         "--image",
-        default=DEFAULT_IMAGE,
+        default="development",
         help="Singularity image. Accepts either a full path or a single name "
         "and assumes a format like this: "
         "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}",
@@ -307,7 +283,7 @@ def main():
     if args.debug:
         upload_to_rucio = update_db = False
 
-    st = getattr(cutax.contexts, args.context)()
+    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
 
     if args.run and args.runlist:
         raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
@@ -344,16 +320,12 @@ def main():
         )
         return
 
-    image = args.image
-    # Assume that if the image is not a full path, it is a name
-    if not os.path.exists(image):
-        image = f"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}"
-
     # This object contains all the information needed to submit the workflow
     outsource = Outsource(
         runlist,
         context_name=args.context,
-        image=image,
+        xedocs_version=args.xedocs_version,
+        image=args.image,
         workflow_id=args.name,
         upload_to_rucio=upload_to_rucio,
         update_db=update_db,
@@ -362,7 +334,7 @@ def main():
     )
 
     # Finally submit the workflow
-    outsource.submit_workflow()
+    outsource.submit(force=True)
 
 
 if __name__ == "__main__":
