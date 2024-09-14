@@ -33,7 +33,7 @@ def main():
     args = parser.parse_args()
 
     runid = args.dataset
-    runid_str = "%06d" % runid
+    runid_str = f"{runid:06d}"
     dtype = args.dtype
     rse = args.rse
 

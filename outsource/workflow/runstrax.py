@@ -163,7 +163,7 @@ def find_data_to_download(runid, target, st):
 
 
 def process(runid, out_dtype, st, chunks, close_savers=False, tmp_path=".tmp_for_strax"):
-    runid_str = "%06d" % runid
+    runid_str = f"{runid:06d}"
     t0 = time.time()
 
     # initialize plugin needed for processing this output type
@@ -385,7 +385,7 @@ def main():
     print("Context is set up!")
 
     runid = args.dataset
-    runid_str = "%06d" % runid
+    runid_str = f"{runid:06d}"
     out_dtype = args.output  # eg. ypically for tpc: peaklets/event_info
 
     print("Getting to-download list...")

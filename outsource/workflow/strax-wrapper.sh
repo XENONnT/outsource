@@ -85,12 +85,12 @@ python -c "import cutax; print(cutax.__file__)"
 echo "--- Checking if we have any input tarballs ---"
 runid_pad=`printf %06d $run_id`
 if [ -f ./$runid_pad*.tar.gz ]; then
-  mkdir data
-  for tarball in $(ls $runid_pad*.tar.gz)
-  do
-    echo "Untarring input: $tarball"
-    tar xzf $tarball -C data --strip-components=1
-  done
+    mkdir data
+    for tarball in $(ls $runid_pad*.tar.gz)
+    do
+        echo "Untarring input: $tarball"
+        tar xzf $tarball -C data --strip-components=1
+    done
 fi
 echo
 
@@ -113,7 +113,7 @@ echo 'Processing now...'
 chunkarg=""
 if [ -n "${chunks}" ]
 then
-  chunkarg="--chunks ${chunks}"
+    chunkarg="--chunks ${chunks}"
 fi
 
 chmod +x runstrax.py
