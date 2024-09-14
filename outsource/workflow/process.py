@@ -343,10 +343,11 @@ def check_chunk_n(directory):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Strax Processing With Outsource")
+    parser = argparse.ArgumentParser(description="(Re)Processing With Outsource")
     parser.add_argument("dataset", help="Run number", type=int)
     parser.add_argument("--output", help="desired strax(en) output")
     parser.add_argument("--context", help="name of context")
+    parser.add_argument("--xedocs_version", help="xedocs global version")
     parser.add_argument("--chunks", nargs="*", help="chunk ids to download", type=int)
     parser.add_argument("--upload-to-rucio", action="store_true", dest="upload_to_rucio")
     parser.add_argument("--update-db", action="store_true", dest="update_db")
@@ -363,7 +364,7 @@ def main():
     #     rmtree(data_dir)
 
     # get context
-    st = getattr(cutax.contexts, args.context)()
+    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     # st.storage = [
     #     strax.DataDirectory(data_dir),
     #     straxen.rucio.RucioFrontend(
@@ -612,7 +613,7 @@ def main():
             print(f"Upload of {dset_name} failed for some reason")
             raise
 
-        # TODO check rucio that the files are there?
+        # TODO: check rucio that the files are there?
         print(f"Upload of {len(files)} files in {dirname} finished successfully")
 
         # if we processed the whole thing, add a rule at DALI update the RunDB here

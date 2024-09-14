@@ -136,7 +136,8 @@ def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
     parser.add_argument("dataset", help="Run number", type=int)
     parser.add_argument("dtype", help="dtype to combine")
-    parser.add_argument("--context", help="Strax context")
+    parser.add_argument("--context", help="name of context")
+    parser.add_argument("--xedocs_version", help="xedocs global version")
     parser.add_argument("--input", help="path where the temp directory is")
     parser.add_argument(
         "--update-db", help="flag to update runsDB", dest="update_db", action="store_true"
@@ -157,7 +158,7 @@ def main():
     final_path = "finished_data"
 
     # get context
-    st = getattr(cutax.contexts, args.context)()
+    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     st.storage = [
         strax.DataDirectory("./"),
         strax.DataDirectory(final_path),  # where we are copying data to

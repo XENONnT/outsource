@@ -5,9 +5,10 @@ set -e
 runid=$1
 dtype=$2
 context=$3
-output=$4
+xedocs_version=$4
+output=$5
 update_db=$5
-upload_to_rucio=$6
+upload_to_rucio=$7
 
 export HOME=$PWD
 
@@ -25,7 +26,7 @@ fi
 # the rest of the arguments are the inputs
 START=$(date +%s)
 for TAR in `ls *.tar.gz`; do
-    tar xzf $TAR
+    tar -xzf $TAR
 done
 END=$(date +%s)
 DIFF=$(( $END - $START ))
@@ -57,11 +58,11 @@ python -c "import cutax; print(cutax.__file__)"
 chmod +x combine.py
 
 # combine the data
-time ./combine.py ${runid} ${dtype} --input data --context ${context} ${combine_extra_args}
+time ./combine.py ${runid} ${dtype} --input data --context ${context} --xedocs_version ${xedocs_version} ${combine_extra_args}
 
 # check data dir again
 echo "data dir:"
 ls -l data
 
 # tar up the output
-tar czfv ${output} finished_data
+tar -czfv ${output} finished_data

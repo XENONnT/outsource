@@ -1,14 +1,12 @@
 import os
 import time
-import numpy as np
 
 from utilix.config import Config
 from utilix import DB, xent_collection
 import admix
-import strax
 
 
-config = Config()
+uconfig = Config()
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 
@@ -121,9 +119,9 @@ class RunConfig:
     as input
     """
 
-    _force_rerun = False
+    _force = False
     _standalone_download = False
-    _chunks_per_job = config.getint("Outsource", "chunks_per_job")
+    _chunks_per_job = uconfig.getint("Outsource", "chunks_per_job")
 
     def __init__(self, **kwargs):
         # default job priority - workflows will be given priority
@@ -143,8 +141,8 @@ class RunConfig:
         return self._chunks_per_job
 
     @property
-    def force_rerun(self):
-        return self._force_rerun
+    def force(self):
+        return self._force
 
     @property
     def standalone_download(self):
@@ -185,13 +183,15 @@ class DBConfig(RunConfig):
         self.needs_processed = self.get_needs_processed()
 
         # determine which rse the input data is on
-        self.rses = self.get_rses()
-        self.raw_data_exists = self._raw_data_exists()
+        self.rses = self.get_dependencies_rses()
+
+    def depends_on(self, dtype):
+        return DEPENDS_ON[dtype]
 
     def get_needs_processed(self):
         """Returns the list of data_type we need to process."""
         # do we need to process? read from xenon_config
-        requested_dtypes = config.get_list("Outsource", "dtypes")
+        requested_dtypes = uconfig.get_list("Outsource", "dtypes")
 
         if self.mode in LED_MODES:
             # if we are using LED data, only process those dtypes
@@ -219,14 +219,14 @@ class DBConfig(RunConfig):
                 rses = db.get_rses(self.number, dtype, hash)
                 # if this data is not on any rse, reprocess it, or we are asking for a rerun
                 dtypes_already_processed.append(len(rses) > 0)
-            if not all(dtypes_already_processed) or self._force_rerun:
+            if not all(dtypes_already_processed) or self.force:
                 ret.append(category)
 
-        ret.sort(key=lambda x: len(get_dependencies(self.context, x)))
+        ret.sort(key=lambda x: len(self.context.get_dependencies(x)))
 
         return ret
 
-    def get_rses(self):
+    def get_dependencies_rses(self):
         """Get Rucio Storage Elements of data_type."""
         rses = dict()
         for dtype in self.needs_processed:
@@ -237,9 +237,6 @@ class DBConfig(RunConfig):
                 _rses_tmp.extend(db.get_rses(self.number, input_dtype, hash))
             rses[dtype] = list(set(_rses_tmp))
         return rses
-
-    def depends_on(self, dtype):
-        return DEPENDS_ON[dtype]
 
     def nchunks(self, dtype):
         # get the dtype this one depends on
@@ -265,19 +262,3 @@ class DBConfig(RunConfig):
             ):
                 return True
         return False
-
-
-def get_dependencies(st, target):
-    ret = []
-
-    def _get_dependencies(target):
-        plugin = st._plugin_class_registry[target]()
-        dependencies = list(strax.to_str_tuple(plugin.depends_on))
-        ret.extend(dependencies)
-        if len(dependencies):
-            for dep in dependencies:
-                _get_dependencies(dep)
-
-    _get_dependencies(target)
-    ret = np.unique(ret).tolist()
-    return ret

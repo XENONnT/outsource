@@ -11,7 +11,7 @@ import straxen
 import cutax
 
 from outsource.outsource import Outsource
-from outsource.config import config, DETECTOR_DTYPES
+from outsource.config import uconfig, DETECTOR_DTYPES
 
 
 coll = xent_collection()
@@ -37,8 +37,8 @@ def data_find(
     :return: list of run numbers
     """
     exclude_tags = ["bad", "abandon"]
-    exclude_modes = config.get_list("Outsource", "exclude_modes")
-    min_run_number = config.getint("Outsource", "min_run_number")
+    exclude_modes = uconfig.get_list("Outsource", "exclude_modes")
+    min_run_number = uconfig.getint("Outsource", "min_run_number")
     max_run_number = 999999
     if number_from is not None:
         min_run_number = max(number_from, min_run_number)
@@ -78,7 +78,7 @@ def data_find(
         dtype_to_check_avail_list = det_info["to_process"]
 
         # Check if the data type is in the list of data types to outsource
-        outsource_dtypes_str = config.get("Outsource", "dtypes")
+        outsource_dtypes_str = uconfig.get("Outsource", "dtypes")
         dtype_to_check_avail_list = [
             d for d in dtype_to_check_avail_list if d in outsource_dtypes_str
         ]
@@ -114,7 +114,7 @@ def data_find(
                 "type": raw_dtype,
                 "host": "rucio-catalogue",
                 "status": "transferred",
-                "location": {"$in": config.get("Outsource", "raw_records_rse").split(",")},
+                "location": {"$in": uconfig.get("Outsource", "raw_records_rse").split(",")},
             }
         }
 
@@ -157,19 +157,19 @@ def data_find(
     cursor_basic = coll.find(
         full_query_basic,
         {"number": 1, "_id": 0, "mode": 1},
-        limit=config.getint("Outsource", "max_daily", fallback=None),
+        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
     cursor_basic_w_raw = coll.find(
         full_query_basic_w_raw,
         {"number": 1, "_id": 0, "mode": 1},
-        limit=config.getint("Outsource", "max_daily", fallback=None),
+        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
     cursor_basic_wo_to_process = coll.find(
         full_query_basic_wo_to_process,
         {"number": 1, "_id": 0, "mode": 1},
-        limit=config.getint("Outsource", "max_daily", fallback=None),
+        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
 
@@ -329,12 +329,12 @@ def main():
         workflow_id=args.name,
         upload_to_rucio=upload_to_rucio,
         update_db=update_db,
-        force_rerun=args.force,
+        force=args.force,
         debug=args.debug,
     )
 
     # Finally submit the workflow
-    outsource.submit(force=True)
+    outsource.submit()
 
 
 if __name__ == "__main__":

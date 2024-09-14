@@ -2,17 +2,16 @@
 
 import os
 import getpass
-import logging
 import time
 import shutil
 from datetime import datetime
-
 import numpy as np
 from tqdm import tqdm
-import cutax
 from utilix.rundb import DB
+from utilix.config import setup_logger, set_logging_level
+import cutax
 
-from outsource.config import config, base_dir, DEPENDS_ON, DBConfig
+from outsource.config import uconfig, base_dir, DBConfig
 from outsource.shell import Shell
 
 
@@ -32,18 +31,15 @@ from Pegasus.api import (
     ReplicaCatalog,
 )
 
-# logging.basicConfig(level=config.logging_level)
-logger = logging.getLogger()
-
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
 COMBINE_WRAPPER = "combine-wrapper.sh"
-STRAX_WRAPPER = "strax-wrapper.sh"
-COMBINE_MEMORY = config.getint("Outsource", "combine_memory")
-COMBINE_DISK = config.getint("Outsource", "combine_disk")
-PEAKLETS_MEMORY = config.getint("Outsource", "peaklets_memory")
-PEAKLETS_DISK = config.getint("Outsource", "peaklets_disk")
-EVENTS_MEMORY = config.getint("Outsource", "events_memory")
-EVENTS_DISK = config.getint("Outsource", "events_disk")
+PROCESS_WRAPPER = "process-wrapper.sh"
+COMBINE_MEMORY = uconfig.getint("Outsource", "combine_memory")
+COMBINE_DISK = uconfig.getint("Outsource", "combine_disk")
+PEAKLETS_MEMORY = uconfig.getint("Outsource", "peaklets_memory")
+PEAKLETS_DISK = uconfig.getint("Outsource", "peaklets_disk")
+EVENTS_MEMORY = uconfig.getint("Outsource", "events_memory")
+EVENTS_DISK = uconfig.getint("Outsource", "events_disk")
 
 PER_CHUNK_DTYPES = ["records", "peaklets", "hitlets_nv", "afterpulses", "led_calibration"]
 NEED_RAW_DATA_DTYPES = [
@@ -80,18 +76,18 @@ class Outsource:
     # transformation map (high level name -> script)
     _transformations_map = {
         "combine": COMBINE_WRAPPER,
-        "download": STRAX_WRAPPER,
-        "records": STRAX_WRAPPER,
-        "peaklets": STRAX_WRAPPER,
-        "peak_basics": STRAX_WRAPPER,
-        "events": STRAX_WRAPPER,
-        "event_shadow": STRAX_WRAPPER,
-        "peaks_he": STRAX_WRAPPER,
-        "nv_hitlets": STRAX_WRAPPER,
-        "nv_events": STRAX_WRAPPER,
-        "mv": STRAX_WRAPPER,
-        "afterpulses": STRAX_WRAPPER,
-        "led": STRAX_WRAPPER,
+        "download": PROCESS_WRAPPER,
+        "records": PROCESS_WRAPPER,
+        "peaklets": PROCESS_WRAPPER,
+        "peak_basics": PROCESS_WRAPPER,
+        "events": PROCESS_WRAPPER,
+        "event_shadow": PROCESS_WRAPPER,
+        "peaks_he": PROCESS_WRAPPER,
+        "nv_hitlets": PROCESS_WRAPPER,
+        "nv_events": PROCESS_WRAPPER,
+        "mv": PROCESS_WRAPPER,
+        "afterpulses": PROCESS_WRAPPER,
+        "led": PROCESS_WRAPPER,
     }
 
     # jobs details for a given datatype
@@ -124,7 +120,7 @@ class Outsource:
         workflow_id=None,
         upload_to_rucio=True,
         update_db=True,
-        force_rerun=False,
+        force=False,
         debug=True,
     ):
         """Creates a new Outsource object.
@@ -151,13 +147,19 @@ class Outsource:
         else:
             self.image_tag = image.split(":")[-1]
             self.singularity_image = image
-        self.force_rerun = force_rerun
+        self.force = force
         self.upload_to_rucio = upload_to_rucio
         self.update_db = update_db
 
-        self.set_logger()
+        self.logger = setup_logger(
+            "outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING")
+        )
+        # Reduce the logging of request and urllib3
+        set_logging_level(
+            "urllib3", uconfig.get("Outsource", "db_logging_level", fallback="WARNING")
+        )
 
-        self.work_dir = config.get("Outsource", "work_dir")
+        self.work_dir = uconfig.get("Outsource", "work_dir")
 
         # User can provide a name for the workflow, otherwise it will be the current time
         self._setup_workflow_id(workflow_id)
@@ -167,25 +169,6 @@ class Outsource:
         self.runs_dir = os.path.join(self.workflow_dir, "runs")
         self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
-
-    def set_logger(self):
-        console = logging.StreamHandler()
-        # default log level - make logger/console match
-        # debug - where to get this from?
-        if self.debug:
-            logger.setLevel(logging.DEBUG)
-            console.setLevel(logging.DEBUG)
-        else:
-            logger.setLevel(logging.WARNING)
-            console.setLevel(logging.WARNING)
-        # formatter
-        # formatter = logging.Formatter(
-        #     "%(asctime)s %(levelname)7s:  %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        # )
-        # console.setFormatter(formatter)
-        if logger.hasHandlers():
-            logger.handlers.clear()
-        logger.addHandler(console)
 
     def _setup_workflow_id(self, workflow_id):
         """Set up the workflow ID."""
@@ -230,7 +213,9 @@ class Outsource:
         # does workflow already exist?
         if os.path.exists(self.workflow_dir):
             if force:
-                logger.warning(f"Overwriting workflow at {self.workflow_dir}. CTRL+C now to stop.")
+                self.logger.warning(
+                    f"Overwriting workflow at {self.workflow_dir}. CTRL+C now to stop."
+                )
                 time.sleep(10)
                 shutil.rmtree(self.workflow_dir)
             else:
@@ -247,8 +232,17 @@ class Outsource:
         # generate the workflow
         wf = self._generate_workflow()
 
-        # submit the workflow
-        self._plan_and_submit(wf)
+        if len(wf.jobs):
+            # submit the workflow
+            self._plan_and_submit(wf)
+
+        if self.debug:
+            wf.graph(
+                output=os.path.join(self.generated_dir, "workflow_graph.dot"), label="xform-id"
+            )
+            wf.graph(
+                output=os.path.join(self.generated_dir, "workflow_graph.svg"), label="xform-id"
+            )
 
     def _generate_workflow(self):
         """Use the Pegasus API to build an abstract graph of the workflow."""
@@ -271,14 +265,14 @@ class Outsource:
             tc.add_transformations(t)
 
         # scripts some exectuables might need
-        straxify = File("runstrax.py")
-        rc.add_replica("local", "runstrax.py", f"file://{base_dir}/workflow/runstrax.py")
+        processpy = File("process.py")
+        rc.add_replica("local", "process.py", f"file://{base_dir}/workflow/process.py")
         combinepy = File("combine.py")
         rc.add_replica("local", "combine.py", f"file://{base_dir}/workflow/combine.py")
 
         # add common data files to the replica catalog
         xenon_config = File(".xenon_config")
-        rc.add_replica("local", ".xenon_config", f"file://{config.config_path}")
+        rc.add_replica("local", ".xenon_config", f"file://{uconfig.config_path}")
 
         # token needed for DB connection
         token = File(".dbtoken")
@@ -289,11 +283,13 @@ class Outsource:
         # cutax tarball
         cutax_tarball = File("cutax.tar.gz")
         if "CUTAX_LOCATION" not in os.environ:
-            logger.warning("No CUTAX_LOCATION env variable found. Using the latest by default!")
+            self.logger.warning(
+                "No CUTAX_LOCATION env variable found. Using the latest by default!"
+            )
             tarball_path = "/ospool/uc-shared/project/xenon/xenonnt/software/cutax/latest.tar.gz"
         else:
             tarball_path = os.environ["CUTAX_LOCATION"].replace(".", "-") + ".tar.gz"
-            logger.warning(f"Using cutax: {tarball_path}")
+            self.logger.warning(f"Using cutax: {tarball_path}")
         rc.add_replica("local", "cutax.tar.gz", tarball_path)
 
         # runs
@@ -302,13 +298,13 @@ class Outsource:
         # keep track of what runs we submit, useful for bookkeeping
         runlist = []
         for run in iterator:
-            dbcfg = DBConfig(run, self.context, force_rerun=self.force_rerun)
+            dbcfg = DBConfig(run, self.context, force=self.force)
 
             # check if this run needs to be processed
             if len(dbcfg.needs_processed) > 0:
-                logger.debug(f"Adding run {dbcfg.number:06d} to the workflow")
+                self.logger.debug(f"Adding run {dbcfg.number:06d} to the workflow")
             else:
-                logger.debug(
+                self.logger.debug(
                     f"Run {dbcfg.number:06d} is already processed with context {self.context_name}"
                 )
                 continue
@@ -317,17 +313,17 @@ class Outsource:
             requirements_base += " && PORT_2880 && PORT_8000 && PORT_27017"
             requirements_base += ' && (Microarch >= "x86_64-v3")'
             requirements_base_us = requirements_base + ' && GLIDEIN_Country == "US"'
-            if config.getboolean("Outsource", "us_only", fallback=False):
+            if uconfig.getboolean("Outsource", "us_only", fallback=False):
                 requirements_base = requirements_base_us
 
             # hs06_test_run limits the run to a set of compute nodes
             # at UChicago with a known HS06 factor
-            if config.getboolean("Outsource", "hs06_test_run", fallback=False):
+            if uconfig.getboolean("Outsource", "hs06_test_run", fallback=False):
                 requirements_base += (
                     ' && GLIDEIN_ResourceName == "MWT2" && regexp("uct2-c4[1-7]", Machine)'
                 )
             # this_site_only limits the run to a set of compute nodes at UChicago for testing
-            this_site_only = config.get("Outsource", "this_site_only", fallback="")
+            this_site_only = uconfig.get("Outsource", "this_site_only", fallback="")
             if this_site_only:
                 requirements_base += f' && GLIDEIN_ResourceName == "{this_site_only}"'
 
@@ -339,11 +335,15 @@ class Outsource:
                 # these dtypes need raw data
                 if dtype in NEED_RAW_DATA_DTYPES:
                     # check that raw data exist for this run
-                    if not all([dbcfg._raw_data_exists(raw_type=d) for d in DEPENDS_ON[dtype]]):
-                        logger.info(f"Doesn't have raw data for {dtype} of run {run}, skipping")
+                    if not all(
+                        [dbcfg._raw_data_exists(raw_type=d) for d in dbcfg.depends_on(dtype)]
+                    ):
+                        self.logger.warning(
+                            f"Doesn't have raw data for {dtype} of run {run}, skipping"
+                        )
                         continue
 
-                logger.debug(f"|-----> adding {dtype}")
+                self.logger.debug(f"Adding {dbcfg.number:06d}-{dtype}")
                 if dbcfg.number not in runlist:
                     runlist.append(dbcfg.number)
                 rses = dbcfg.rses[dtype]
@@ -353,13 +353,13 @@ class Outsource:
                             f"Unable to find a raw records location for {dbcfg.number:06d}"
                         )
                     else:
-                        logger.debug(
+                        self.logger.warning(
                             f"No data found for {dbcfg.number:06d}-{dtype}... "
                             f"hopefully those will be created by the workflow"
                         )
 
                 # determine the job requirements based on the data locations
-                rses_specified = config.get("Outsource", "raw_records_rse").split(",")
+                rses_specified = uconfig.get("Outsource", "raw_records_rse").split(",")
                 # for standalone downloads, only target us
                 if dbcfg.standalone_download:
                     rses = rses_specified
@@ -404,9 +404,10 @@ class Outsource:
                         combine_output_tar, stage_out=(not self.upload_to_rucio)
                     )
                     combine_job.add_args(
-                        f"{dbcfg.number}",
+                        f"{dbcfg.number:06d}",
                         dtype,
                         self.context_name,
+                        self.xedocs_version,
                         combine_output_tar_name,
                         f"{self.upload_to_rucio}".lower(),
                         f"{self.update_db}".lower(),
@@ -428,7 +429,7 @@ class Outsource:
                         ]
                         chunk_str = " ".join([f"{c}" for c in chunks])
 
-                        logger.debug(f" ... adding job for chunk files: {chunk_str}")
+                        self.logger.debug(f" ... adding job for chunk files: {chunk_str}")
 
                         # standalone download is a special case where we download data
                         # from rucio first, which is useful for testing and when using
@@ -445,8 +446,9 @@ class Outsource:
                                 Namespace.CONDOR, "priority", f"{dbcfg.priority}"
                             )
                             download_job.add_args(
-                                f"{dbcfg.number}",
+                                f"{dbcfg.number:06d}",
                                 self.context_name,
+                                self.xedocs_version,
                                 dtype,
                                 data_tar,
                                 "download-only",
@@ -454,7 +456,7 @@ class Outsource:
                                 f"{self.update_db}".lower(),
                                 chunk_str,
                             )
-                            download_job.add_inputs(straxify, xenon_config, token, cutax_tarball)
+                            download_job.add_inputs(processpy, xenon_config, token, cutax_tarball)
                             download_job.add_outputs(data_tar, stage_out=False)
                             wf.add_jobs(download_job)
 
@@ -467,7 +469,9 @@ class Outsource:
                             self.outputs_dir, f"{job_output_tar}"
                         )
                         if os.path.isfile(job_output_tar_local_path):
-                            logger.info(f" ... local copy found at: {job_output_tar_local_path}")
+                            self.logger.info(
+                                f" ... local copy found at: {job_output_tar_local_path}"
+                            )
                             rc.add_replica(
                                 "local", job_output_tar, f"file://{job_output_tar_local_path}"
                             )
@@ -485,8 +489,9 @@ class Outsource:
                         # job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
 
                         job.add_args(
-                            f"{dbcfg.number}",
+                            f"{dbcfg.number:06d}",
                             self.context_name,
+                            self.xedocs_version,
                             dtype,
                             job_output_tar,
                             "false",  # if not dbcfg.standalone_download else 'no-download',
@@ -495,7 +500,7 @@ class Outsource:
                             chunk_str,
                         )
 
-                        job.add_inputs(straxify, xenon_config, token, cutax_tarball)
+                        job.add_inputs(processpy, xenon_config, token, cutax_tarball)
                         job.add_outputs(job_output_tar, stage_out=(not self.upload_to_rucio))
                         wf.add_jobs(job)
 
@@ -510,7 +515,7 @@ class Outsource:
                         wf.add_dependency(job, children=[combine_job])
 
                         parent_combines = []
-                        for d in DEPENDS_ON[dtype]:
+                        for d in dbcfg.depends_on(dtype):
                             if d in combine_jobs:
                                 parent_combines.append(combine_jobs.get(d))
 
@@ -528,10 +533,11 @@ class Outsource:
                     job.add_profiles(Namespace.CONDOR, "priority", f"{dbcfg.priority}")
 
                     # Note that any changes to this argument list,
-                    # also means strax-wrapper.sh has to be updated
+                    # also means process-wrapper.sh has to be updated
                     job.add_args(
-                        f"{dbcfg.number}",
+                        f"{dbcfg.number:06d}",
                         self.context_name,
+                        self.xedocs_version,
                         dtype,
                         job_output_tar,
                         "false",  # if not dbcfg.standalone_download else 'no-download',
@@ -539,16 +545,16 @@ class Outsource:
                         f"{self.update_db}".lower(),
                     )
 
-                    job.add_inputs(straxify, xenon_config, token, cutax_tarball)
+                    job.add_inputs(processpy, xenon_config, token, cutax_tarball)
                     job.add_outputs(
                         job_output_tar, stage_out=True
                     )  # as long as we are giving outputs
                     wf.add_jobs(job)
 
                     # if there are multiple levels to the workflow,
-                    # need to have current strax-wrapper depend on previous combine
+                    # need to have current process-wrapper.sh depend on previous combine-wrapper.sh
 
-                    for d in DEPENDS_ON[dtype]:
+                    for d in dbcfg.depends_on(dtype):
                         if d in combine_jobs:
                             cj, cj_output = combine_jobs[d]
                             wf.add_dependency(job, parents=[cj])
@@ -577,10 +583,8 @@ class Outsource:
             dir=os.path.dirname(self.runs_dir),
             relative_dir=os.path.basename(self.runs_dir),
         )
-        # copy the runlist file
-        shutil.copy(self.runlist, self.runs_dir)
 
-        logger.info(f"Worfklow written to \n\n\t{self.runs_dir}\n\n")
+        self.logger.info(f"Worfklow written to \n\n\t{self.runs_dir}\n\n")
 
     def _validate_x509_proxy(self, min_valid_hours=20):
         """Ensure $X509_USER_PROXY exists and has enough time left.
@@ -590,7 +594,7 @@ class Outsource:
         x509_user_proxy = os.getenv("X509_USER_PROXY")
         assert x509_user_proxy, "Please provide a valid X509_USER_PROXY environment variable."
 
-        logger.debug("Verifying that the X509_USER_PROXY proxy has enough lifetime")
+        self.logger.debug("Verifying that the X509_USER_PROXY proxy has enough lifetime")
         shell = Shell(f"grid-proxy-info -timeleft -file {x509_user_proxy}")
         shell.run()
         valid_hours = int(shell.get_outerr()) / 60 / 60
@@ -612,7 +616,7 @@ class Outsource:
             # no other attributes on a local job
             return job
 
-        job.add_profiles(Namespace.CONDOR, "request_cpus", f"{cores}")
+        job.add_profiles(Namespace.CONDOR, "request_cpus", cores)
 
         # increase memory/disk if the first attempt fails
         memory = (
@@ -634,7 +638,7 @@ class Outsource:
         chunks, and the values a dict of locations
         """
 
-        logger.debug("Querying Rucio for files in the data set " + rucio_dataset)
+        self.logger.debug("Querying Rucio for files in the data set " + rucio_dataset)
         result = rc.ListFiles(rucio_dataset)
         chunks_files = [f["name"] for f in result if "json" not in f["name"]]
         return chunks_files
@@ -658,9 +662,9 @@ class Outsource:
 
         final_expr = " || ".join(exprs)
         desired_sites = ",".join(sites)
-        logger.debug("Site expression from RSEs list: " + final_expr)
-        logger.debug(
-            "XENON_DESIRED_Sites from RSEs list (mostly used for European sites): " + desired_sites
+        self.logger.debug(f"Site expression from RSEs list: {final_expr}")
+        self.logger.debug(
+            f"XENON_DESIRED_Sites from RSEs list (mostly used for European sites): {desired_sites}"
         )
         return final_expr, desired_sites
 
@@ -668,10 +672,10 @@ class Outsource:
     def _exclude_sites(self):
         """Exclude sites from the user _dbcfgs file."""
 
-        if not config.has_option("Outsource", "exclude_sites"):
+        if not uconfig.has_option("Outsource", "exclude_sites"):
             return ""
 
-        sites = config.get_list("Outsource", "exclude_sites")
+        sites = uconfig.get_list("Outsource", "exclude_sites")
         exprs = []
         for site in sites:
             exprs.append(f'GLIDEIN_Site =!= "{site}"')

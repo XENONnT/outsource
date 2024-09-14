@@ -24,8 +24,8 @@ def main():
     parser = argparse.ArgumentParser(description="Upload combined output to rucio")
     parser.add_argument("dataset", help="Run number", type=int)
     parser.add_argument("dtype", help="dtype to upload")
-    parser.add_argument("rse", help="Target RSE")
-    parser.add_argument("--context", help="Strax context")
+    parser.add_argument("rse", help="Targeted RSE")
+    parser.add_argument("--context", help="name of context")
     parser.add_argument(
         "--ignore-db", help="flag to not update runsDB", dest="ignore_rundb", action="store_true"
     )
@@ -48,7 +48,7 @@ def main():
     for keystring in plugin.provides:
         key = strax.DataKey(runid_str, keystring, plugin.lineage)
         hash = key.lineage_hash
-        # TODO check with utilix DB call that the hashes match?
+        # TODO: check with utilix DB call that the hashes match?
 
         dirname = f"{runid_str}-{keystring}-{hash}"
         upload_path = os.path.join("data", dirname)
@@ -63,7 +63,7 @@ def main():
         rucio_rule = rc.GetRule(upload_structure=did)
 
         file_count = len(os.listdir(upload_path))
-        # TODO check number of files is consistent with what we expect
+        # TODO: check number of files is consistent with what we expect
 
         md = st.get_meta(runid_str, keystring)
 
