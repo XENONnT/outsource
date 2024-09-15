@@ -75,11 +75,8 @@ if [ "X${standalone_download}" = "Xno-download" ]; then
 fi
 
 
-echo "Installing cutax:"
-mkdir cutax
-tar -xzf cutax.tar.gz -C cutax --strip-components=1
-pip install ./cutax --user --no-deps -qq
-python -c "import cutax; print(cutax.__file__)"
+# Installing customized packages
+. install.sh
 
 
 # See if we have any input tarballs
