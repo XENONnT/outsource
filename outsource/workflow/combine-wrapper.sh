@@ -2,7 +2,7 @@
 
 set -e
 
-runid=$1
+run_id=$1
 dtype=$2
 context=$3
 xedocs_version=$4
@@ -23,7 +23,7 @@ if [ "X$upload_to_rucio" = "Xtrue" ]; then
     combine_extra_args="$combine_extra_args --upload-to-rucio"
 fi
 
-# the rest of the arguments are the inputs
+# The rest of the arguments are the inputs
 START=$(date +%s)
 for TAR in `ls *.tar.gz`; do
     tar -xzf $TAR
@@ -38,7 +38,7 @@ ls -l data
 
 echo
 echo
-#echo "Total amount of data before combine: "`du -s --si .`
+echo "Total amount of data before combine: "`du -s --si . | cut -f1`
 echo
 echo
 
@@ -49,18 +49,17 @@ if [ "X$upload_to_rucio" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
 
-echo "--- Installing cutax ---"
+echo "Installing cutax:"
 mkdir cutax
 tar -xzf cutax.tar.gz -C cutax --strip-components=1
-pip install ./cutax --user --no-deps -qq
+# Install in a very quiet mode by -qq
+pip install ./cutax --user --no-deps --qq
 python -c "import cutax; print(cutax.__file__)"
 
-chmod +x combine.py
+# Combine the data
+time python combine.py ${run_id} ${dtype} --context ${context} --xedocs_version ${xedocs_version} --input data ${combine_extra_args}
 
-# combine the data
-time ./combine.py ${runid} ${dtype} --input data --context ${context} --xedocs_version ${xedocs_version} ${combine_extra_args}
-
-# check data dir again
+# Check data dir again
 echo "data dir:"
 ls -l data
 

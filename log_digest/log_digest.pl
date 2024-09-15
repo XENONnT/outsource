@@ -10,7 +10,7 @@ use Getopt::Long;
 my @known_error_patterns = (
     qr/(\bERROR\b.+)/,
 );
-# help message
+# Help message
 sub display_help {
     print "Usage: $0 [options] <filename>\n";
     print "Options:\n";
@@ -30,11 +30,11 @@ my $start_time = [gettimeofday];
 my $args_string = join(" ", @ARGV);
 print "\nDigesting: $args_string\n\n";
 
-# initalization of hashes
+# Initalization of hashes
 my %errors = ();
 my %headers = ();
 my %known_error_stats = ();
-# nuisance variables
+# Nuisance variables
 my $first_line = 1;
 my $current_file = "0";
 

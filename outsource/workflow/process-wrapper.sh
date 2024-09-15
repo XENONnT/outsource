@@ -15,8 +15,7 @@ chunks=${args[@]:8}
 
 echo $@
 
-echo "Chunks: $chunks"
-start_dir=$PWD
+echo "Processing chunks: $chunks"
 
 extraflags=""
 
@@ -36,7 +35,7 @@ fi
 
 . /opt/XENONnT/setup.sh
 
-# sleep random amount of time to spread out e.g. API calls and downloads
+# Sleep random amount of time to spread out e.g. API calls and downloads
 sleep $(( RANDOM % 20 + 1 ))s
 
 
@@ -51,17 +50,17 @@ if [ "X$upload_to_rucio" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
 
-echo "Start dir is $start_dir. Here's whats inside:"
+echo "Current dir is $PWD. Here's whats inside:"
 ls -lah
 
 unset http_proxy
 export HOME=$PWD
 export XENON_CONFIG=$PWD/.xenon_config
-# do we still neeed these?
-export XDG_CACHE_HOME=${start_dir}/.cache
-export XDG_CONFIG_HOME=${start_dir}/.config
+# Do we still neeed these?
+export XDG_CACHE_HOME=$PWD/.cache
+export XDG_CONFIG_HOME=$PWD/.config
 
-echo "--- RUCIO/X509 Stuff ---"
+echo "RUCIO/X509 Stuff:"
 env | grep X509
 env | grep RUCIO
 
@@ -70,21 +69,21 @@ rucio whoami
 echo
 
 if [ "X${standalone_download}" = "Xno-download" ]; then
-    # we are given a tarball from the previous download job
+    # We are given a tarball from the previous download job
     echo "Untaring input data..."
     tar -xzf *-data*.tar.gz
 fi
 
 
-echo "--- Installing cutax ---"
+echo "Installing cutax:"
 mkdir cutax
 tar -xzf cutax.tar.gz -C cutax --strip-components=1
 pip install ./cutax --user --no-deps -qq
 python -c "import cutax; print(cutax.__file__)"
 
 
-# see if we have any input tarballs
-echo "--- Checking if we have any input tarballs ---"
+# See if we have any input tarballs
+echo "Checking if we have any input tarballs:"
 runid_pad=`printf %06d $run_id`
 if [ -f ./$runid_pad*.tar.gz ]; then
     mkdir data
@@ -96,7 +95,7 @@ if [ -f ./$runid_pad*.tar.gz ]; then
 fi
 echo
 
-echo "--- Check RunDB API ---"
+echo "Check RunDB API:"
 echo "Pinging xenon-runsdb.grid.uchicago.edu"
 ping -c 5 xenon-runsdb.grid.uchicago.edu
 echo
@@ -118,12 +117,11 @@ then
     chunkarg="--chunks ${chunks}"
 fi
 
-chmod +x process.py
-./process.py ${run_id} --output ${output_dtype} --context ${context} --xedocs_version ${xedocs_version} ${extraflags} ${chunkarg}
+time python process.py ${run_id} --context ${context} --xedocs_version ${xedocs_version} --output ${output_dtype} ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then
-    echo "exiting with status 25"
+    echo "Exiting with status 25"
     exit 25
 fi
 
