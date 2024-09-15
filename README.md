@@ -84,7 +84,7 @@ Particularly it uses information in the field of the config with header 'Outsour
 
 ```
 [basic]
-# usually helpful for debugging but it's a lot of msg
+; usually helpful for debugging but it's a lot of msg
 logging_level=DEBUG
 
 [RunDB]
@@ -101,30 +101,28 @@ xe1t_database = run
 
 [Outsource]
 work_dir = /scratch/$USER/workflows
-pegasus_path = /usr
-# sites to exclude (GLIDEIN_Site), comma seprated list
+; sites to exclude (GLIDEIN_Site), comma seprated list
 exclude_sites = SU-ITS, NotreDame, UConn-HPC, Purdue Geddes, Chameleon, WSU-GRID, SIUE-CC-production, Lancium
-# data type to process
+; data type to process
 dtypes = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpulses, led_calibration
-# below are specific dtype options
+; below are specific dtype options
+us_only = False
+hs06_test_run = False
+this_site_only = False
 raw_records_rse = UC_OSG_USERDISK
 records_rse = UC_MIDWAY_USERDISK
 peaklets_rse = UC_OSG_USERDISK
 events_rse = UC_MIDWAY_USERDISK
 exclude_modes = tpc_noise, tpc_rn_8pmts, tpc_commissioning_pmtgain, tpc_rn_6pmts, tpc_rn_12_pmts, nVeto_LED_calibration,tpc_rn_12pmts, nVeto_LED_calibration_2
-notification_email =
 min_run_number = 666
 max_daily = 2000
-hs06_test_run = False
-this_site_only =
 chunks_per_job = 10
-combine_memory = 60000   # MB
-combine_disk = 120000000 # KB
-peaklets_memory = 14500  # MB
-peaklets_disk = 50000000 # KB
-events_memory = 60000    # MB
-events_disk = 120000000  # KB
-us_only = False
+combine_memory = 60000
+combine_disk = 120000
+peaklets_memory = 14500
+peaklets_disk = 50000
+events_memory = 60000
+events_disk = 120000
 ```
 
 ## Add a setup script
