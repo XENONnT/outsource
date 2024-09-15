@@ -19,20 +19,16 @@ print("We have forced events to save always.")
 admix.clients._init_clients()
 
 
-def get_hashes(st):
-    return {dt: item["hash"] for dt, item in st.provided_dtypes().items()}
-
-
 def merge(
     runid_str,  # run number padded with 0s
     dtype,  # data type 'level' e.g. records, peaklets
     st,  # strax context
     path,  # path where the data is stored
 ):
-    # get the storage path, since will need to reset later
+    # Get the storage path, since will need to reset later
     _storage_paths = [storage.path for storage in st.storage]
 
-    # initialize plugin needed for processing
+    # Initialize plugin needed for processing
     plugin = st._get_plugins((dtype,), runid_str)[dtype]
     st._set_plugin_config(plugin, runid_str, tolerant=False)
     plugin.setup()
@@ -44,19 +40,19 @@ def merge(
             continue
         key = strax.DataKey(runid_str, keystring, plugin.lineage)
         saver = st.storage[0].saver(key, plugin.metadata(runid_str, keystring))
-        # monkey patch the saver
+        # Monkey patch the saver
         tmpname = os.path.split(saver.tempdirname)[1]
         dirname = os.path.split(saver.dirname)[1]
         saver.tempdirname = os.path.join(path, tmpname)
         saver.dirname = os.path.join(path, dirname)
         saver.is_forked = True
-        # merge the jsons
+        # Merge the jsons
         saver.close()
 
-    # change the storage frontend to use the merged data
+    # Change the storage frontend to use the merged data
     st.storage[0] = strax.DataDirectory(path)
 
-    # rechunk the data if we can
+    # Rechunk the data if we can
     for keystring in plugin.provides:
         if keystring not in to_merge:
             continue
@@ -78,7 +74,7 @@ def merge(
             dest = os.path.join(st.storage[1].path, f"{key}")
             shutil.copytree(src, dest)
 
-    # reset in case we need to merge more data
+    # Reset in case we need to merge more data
     st.storage = [strax.DataDirectory(path) for path in _storage_paths]
 
 
@@ -93,7 +89,7 @@ def check_chunk_n(directory):
 
     if n_chunks != 0:
         n_metadata_chunks = len(metadata["chunks"])
-        # check that the number of chunks in storage
+        # Check that the number of chunks in storage
         # is less than or equal to the number of chunks in metadata
         assert n_chunks == n_metadata_chunks or n_chunks == n_metadata_chunks - 1, (
             "For directory %s, \
@@ -106,7 +102,7 @@ def check_chunk_n(directory):
         compressor = metadata["compressor"]
         dtype = eval(metadata["dtype"])
 
-        # check that the chunk length is agreed with promise in metadata
+        # Check that the chunk length is agreed with promise in metadata
         for i in range(n_chunks):
             chunk = strax.load_file(files[i], compressor=compressor, dtype=dtype)
             if metadata["chunks"][i]["n"] != len(chunk):
@@ -115,14 +111,14 @@ def check_chunk_n(directory):
                     f"but metadata says {metadata['chunks'][i]['n']}"
                 )
 
-        # check that the last chunk is empty
+        # Check that the last chunk is empty
         if n_chunks == n_metadata_chunks - 1:
             assert (
                 metadata["chunks"][n_chunks]["n"] == 0
             ), "Empty chunk has non-zero length in metadata!"
 
     else:
-        # check that the number of chunks in metadata is 1
+        # Check that the number of chunks in metadata is 1
         assert (
             len(metadata["chunks"]) == 1
         ), "There are %s chunks in storage, but metadata says %s" % (
@@ -157,14 +153,14 @@ def main():
 
     final_path = "finished_data"
 
-    # get context
+    # Get context
     st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     st.storage = [
         strax.DataDirectory("./"),
         strax.DataDirectory(final_path),  # where we are copying data to
     ]
 
-    # check what data is in the output folder
+    # Check what data is in the output folder
     dtypes = [d.split("-")[1] for d in os.listdir(path)]
 
     if any([d in dtypes for d in ["lone_hits", "pulse_counts", "veto_regions"]]):
@@ -178,7 +174,7 @@ def main():
     else:
         plugin_levels = ["peaklets"]
 
-    # merge
+    # Merge
     for dtype in plugin_levels:
         print(f"Merging {dtype} level")
         merge(runid_str, dtype, st, path)
@@ -186,17 +182,17 @@ def main():
     # print(f"Current contents of {final_path}:")
     # print(os.listdir(final_path))
 
-    # now upload the merged metadata
-    # setup the rucio client(s)
+    # Now upload the merged metadata
+    # Setup the rucio client(s)
     if not args.upload_to_rucio:
         print("Ignoring rucio upload. Exiting")
         return
 
-    # need to patch the storage one last time
+    # Need to patch the storage one last time
     st.storage = [strax.DataDirectory(final_path)]
 
     for this_dir in os.listdir(final_path):
-        # prepare list of dicts to be uploaded
+        # Prepare list of dicts to be uploaded
         _run, keystring, straxhash = this_dir.split("-")
 
         # We don't want to upload records to rucio
@@ -207,7 +203,7 @@ def main():
         dataset_did = admix.utils.make_did(runid, keystring, straxhash)
         scope, dset_name = dataset_did.split(":")
 
-        # based on the dtype and the utilix config, where should this data go?
+        # Based on the dtype and the utilix config, where should this data go?
         if keystring in ["records", "pulse_counts", "veto_regions"]:
             rse = uconfig.get("Outsource", "records_rse")
         elif keystring in ["peaklets", "lone_hits", "merged_s2s", "hitlets_nv"]:

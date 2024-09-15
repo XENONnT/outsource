@@ -5,7 +5,7 @@ import os
 import argparse
 import datetime
 
-# make sure we don't use any custom paths from e.g. pth files
+# Make sure we don't use any custom paths from e.g. pth files
 for p in list(sys.path):
     if os.environ.get("HOME", " 0123456789 ") in p:
         sys.path.remove(p)
@@ -37,7 +37,7 @@ def main():
     dtype = args.dtype
     rse = args.rse
 
-    # get context
+    # Get context
     st = eval(f"straxen.contexts.{args.context}()")
     st.storage = [strax.DataDirectory("data")]
 
@@ -56,10 +56,10 @@ def main():
         nfiles = len(os.listdir(upload_path))
         print(f"Uploading {dirname}, which has {nfiles} files")
 
-        # make a rucio DID
+        # Make a rucio DID
         did = make_did(runid, keystring, hash)
 
-        # check if a rule already exists for this DID
+        # Check if a rule already exists for this DID
         rucio_rule = rc.GetRule(upload_structure=did)
 
         file_count = len(os.listdir(upload_path))
@@ -91,7 +91,7 @@ def main():
             straxen_version=straxen.__version__,
         )
 
-        # if not in rucio already and no rule exists, upload into rucio
+        # If not in rucio already and no rule exists, upload into rucio
         if not rucio_rule["exists"]:
             t0 = time.time()
             if not args.ignore_rundb:
@@ -102,7 +102,7 @@ def main():
             tf = time.time()
             upload_time = (tf - t0) / 60
             print(f"=== Upload of {did} took {upload_time} minutes")
-            # check that upload was successful
+            # Check that upload was successful
             new_rule = rc.GetRule(upload_structure=did, rse=rse)
 
             if new_rule["state"] == "OK" and not args.ignore_rundb:

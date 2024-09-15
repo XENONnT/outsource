@@ -4,14 +4,14 @@ import argparse
 import os
 import pymongo
 import numpy as np
+from utilix import uconfig, xent_collection
 from utilix.io import load_runlist
-from utilix import xent_collection
 from utilix.rundb import cmt_local_valid_range
 import straxen
 import cutax
 
 from outsource.outsource import Outsource
-from outsource.config import uconfig, DETECTOR_DTYPES
+from outsource.config import DETECTOR_DTYPES
 
 
 coll = xent_collection()
@@ -45,9 +45,7 @@ def data_find(
     if number_to is not None:
         max_run_number = min(number_to, max_run_number)
 
-    hashes = {key: val["hash"] for key, val in st.provided_dtypes().items()}
-
-    # setup queries for different detectors
+    # Setup queries for different detectors
     basic_queries = []
     basic_queries_w_raw = []
     basic_queries_wo_to_process = []
@@ -57,7 +55,7 @@ def data_find(
             print(f"Skipping {det} data")
             continue
 
-        # check if gain model is valid
+        # Check if gain model is valid
         if det == "tpc":
             gain_model = "pmt_000_gain_xenonnt"
             straxen_opt = "gain_model"
@@ -101,7 +99,7 @@ def data_find(
                             "host": "rucio-catalogue",
                             "type": dtype,
                             "status": "transferred",
-                            "did": {"$regex": hashes[dtype]},
+                            "did": {"$regex": st.key_for("0", dtype).lineage_hash},
                         }
                     }
                 }
@@ -288,7 +286,7 @@ def main():
     if args.run and args.runlist:
         raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
 
-    # subset of runs to consider during data find
+    # Subset of runs to consider during data find
     _runlist = None
 
     if args.run:
