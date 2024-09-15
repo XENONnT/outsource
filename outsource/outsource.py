@@ -62,7 +62,6 @@ class Outsource:
     }
 
     # Jobs details for a given datatype
-    # disk is in KB, memory in MB
     job_kwargs = {
         "combine": dict(name="combine", memory=COMBINE_MEMORY, disk=COMBINE_DISK),
         "download": dict(name="download", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
@@ -118,7 +117,7 @@ class Outsource:
             )
 
         if not isinstance(runlist, list):
-            raise RuntimeError("Outsource expects a list of DBConfigs to run")
+            raise RuntimeError("Outsource expects a list of run_id")
         self._runlist = runlist
 
         # Setup context
@@ -151,10 +150,10 @@ class Outsource:
     def runlist(self):
         return os.path.join(self.generated_dir, "runlist.txt")
 
-    def _job(self, name, run_on_submit_node=False, cores=1, memory=1_700, disk=1_000_000):
+    def _job(self, name, run_on_submit_node=False, cores=1, memory=1_700, disk=1_000):
         """Wrapper for a Pegasus job, also sets resource requirement profiles.
 
-        Memory in unit of MB, and disk in unit of MB.
+        Memory and disk in unit of MB.
         """
         job = Job(name)
 
@@ -172,7 +171,7 @@ class Outsource:
         )
         disk_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry == 0, {disk}, (DAGNodeRetry + 1)*{disk})"
+            f"DAGNodeRetry == 0, {disk * 1_000}, (DAGNodeRetry + 1)*{disk * 1_000})"
         )
         job.add_profiles(Namespace.CONDOR, "request_disk", disk_str)
         job.add_profiles(Namespace.CONDOR, "request_memory", memory)
@@ -406,11 +405,11 @@ class Outsource:
                     else:
                         self.logger.warning(
                             f"No data found as the dependency of {dbcfg.key_for(dtype)}. "
-                            f"Hopefully those will be created by the workflow"
+                            f"Hopefully those will be created by the workflow."
                         )
 
                 rses_specified = uconfig.get("Outsource", "raw_records_rse").split(",")
-                # For standalone downloads, only target us
+                # For standalone downloads, only target US
                 if dbcfg.standalone_download:
                     rses = rses_specified
 

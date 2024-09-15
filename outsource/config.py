@@ -115,8 +115,7 @@ coll = xent_collection()
 class RunConfig:
     """The configuration of how a run will be processed.
 
-    The class will focus on the RSE and instruction to the outsource
-    submitter.
+    The class will focus on the RSE and instruction to the submitter.
     """
 
     # Data availability to site selection map.
@@ -210,7 +209,7 @@ class RunConfig:
         requirements = self.requirements_base if len(rses) > 0 else self.requirements_base_us
         if sites_expression:
             requirements += f" && ({sites_expression})"
-        # us nodes
+        # US nodes
         requirements_us = self.requirements_base_us
         # Add excluded nodes
         if self._exclude_sites:
