@@ -376,7 +376,7 @@ class Outsource:
         rc.add_replica("local", "combine.py", f"file://{base_dir}/workflow/combine.py")
 
         # script to install packages
-        combinepy = File("install.sh")
+        installsh = File("install.sh")
         rc.add_replica("local", "install.sh", f"file://{base_dir}/workflow/install.sh")
 
         # Add common data files to the replica catalog
@@ -476,7 +476,7 @@ class Outsource:
                     combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
                     # priority is given in the order they were submitted
                     combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
-                    combine_job.add_inputs(combinepy, xenon_config, token, *tarballs)
+                    combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
                     combine_output_tar_name = f"{dbcfg.key_for(dtype)}-combined.tar.gz"
                     combine_output_tar = File(combine_output_tar_name)
                     combine_job.add_outputs(
@@ -533,7 +533,9 @@ class Outsource:
                                 f"{self.update_db}".lower(),
                                 chunk_str,
                             )
-                            download_job.add_inputs(processpy, xenon_config, token, *tarballs)
+                            download_job.add_inputs(
+                                installsh, processpy, xenon_config, token, *tarballs
+                            )
                             download_job.add_outputs(data_tar, stage_out=False)
                             wf.add_jobs(download_job)
 
@@ -583,7 +585,7 @@ class Outsource:
                             chunk_str,
                         )
 
-                        job.add_inputs(processpy, xenon_config, token, *tarballs)
+                        job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                         job.add_outputs(job_output_tar, stage_out=(not self.upload_to_rucio))
                         wf.add_jobs(job)
 
@@ -628,7 +630,7 @@ class Outsource:
                         f"{self.update_db}".lower(),
                     )
 
-                    job.add_inputs(processpy, xenon_config, token, *tarballs)
+                    job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                     # As long as we are giving outputs
                     job.add_outputs(job_output_tar, stage_out=True)
                     wf.add_jobs(job)
