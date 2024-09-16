@@ -276,7 +276,9 @@ class Outsource:
         condorpool.add_profiles(Namespace.CONDOR, universe="vanilla")
         # We need the x509 proxy for Rucio transfers
         condorpool.add_profiles(Namespace.CONDOR, "x509userproxy", os.environ["X509_USER_PROXY"])
-        condorpool.add_profiles(Namespace.CONDOR, "+SingularityImage", self.singularity_image)
+        condorpool.add_profiles(
+            Namespace.CONDOR, "+SingularityImage", f'"{self.singularity_image}"'
+        )
 
         # Ignore the site settings - the container will set all this up inside
         condorpool.add_profiles(Namespace.ENV, OSG_LOCATION="")
@@ -552,10 +554,19 @@ class Outsource:
                         # Add job
                         job = self._job(**self.job_kwargs[dtype])
                         if desired_sites:
-                            # Give a hint to glideinWMS for the sites
-                            # we want(mostly useful for XENONVO in Europe)
+                            # Give a hint to glideinWMS for the sites we want
+                            # (mostly useful for XENON VO in Europe).
+                            # Glideinwms is the provisioning system.
+                            # It starts pilot jobs (glideins) at sites when you
+                            # have idle jobs in the queue.
+                            # Most of the jobs you run to the OSPool (Open Science Pool),
+                            # but you do have a few sites where you have allocations at,
+                            # and those are labeled XENON VO (Virtual Organization).
+                            # The "+" has to be used by non-standard HTCondor attributes.
+                            # The attribute has to have double quotes,
+                            # otherwise HTCondor will try to evaluate it as an expression.
                             job.add_profiles(
-                                Namespace.CONDOR, "+XENON_DESIRED_Sites", desired_sites
+                                Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"'
                             )
                         job.add_profiles(Namespace.CONDOR, "requirements", requirements)
                         job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
