@@ -3,7 +3,7 @@
 set -e
 
 # List of packages
-packages=("cutax" "straxen" "strax")
+packages=("strax" "straxen" "cutax")
 
 # Loop through each package
 for package in "${packages[@]}"
@@ -32,3 +32,5 @@ do
     echo "$package installation complete."
     echo
 done
+
+straxen_print_versions
