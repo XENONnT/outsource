@@ -10,6 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from utilix import DB, uconfig
 from utilix.x509 import _validate_x509_proxy
+from utilix.tarball import Tarball
 from utilix.config import setup_logger, set_logging_level
 import cutax
 
@@ -274,11 +275,9 @@ class Outsource:
         condorpool.add_profiles(Namespace.PEGASUS, style="condor")
         condorpool.add_profiles(Namespace.CONDOR, universe="vanilla")
         # We need the x509 proxy for Rucio transfers
+        condorpool.add_profiles(Namespace.CONDOR, "x509userproxy", os.environ["X509_USER_PROXY"])
         condorpool.add_profiles(
-            Namespace.CONDOR, key="x509userproxy", value=os.environ["X509_USER_PROXY"]
-        )
-        condorpool.add_profiles(
-            Namespace.CONDOR, key="+SingularityImage", value=f'"{self.singularity_image}"'
+            Namespace.CONDOR, "+SingularityImage", f'"{self.singularity_image}"'
         )
 
         # Ignore the site settings - the container will set all this up inside
@@ -312,6 +311,44 @@ class Outsource:
     def _generate_rc(self):
         return ReplicaCatalog()
 
+    def make_tarballs(self):
+        """Make tarballs of Ax-based packages if they are in editable user-
+        installed mode."""
+        tarballs = []
+        tarball_paths = []
+        for package_name in ["strax", "straxen", "cutax"]:
+            _tarball = Tarball(self.generated_dir, package_name)
+            if not Tarball.get_installed_git_repo(package_name):
+                # Packages should not be non-editable user-installed
+                if Tarball.is_user_installed(package_name):
+                    raise RuntimeError(
+                        f"You should install {package_name} in non-editable user-installed mode."
+                    )
+                # cutax is special because it is not installed in site-pacakges of the environment
+                if package_name == "cutax":
+                    if "CUTAX_LOCATION" not in os.environ:
+                        raise RuntimeError(
+                            "cutax should either be editable user-installed from a git repo "
+                            "or patched by the software environment by CUTAX_LOCATION."
+                        )
+                    tarball = File(_tarball.tarball_name)
+                    tarball_path = (
+                        "/ospool/uc-shared/project/xenon/xenonnt/software"
+                        f"/cutax/v{cutax.__version__}.tar.gz"
+                    )
+                else:
+                    continue
+            else:
+                _tarball.create_tarball()
+                tarball = File(_tarball.tarball_name)
+                tarball_path = _tarball.tarball_path
+                self.logger.warning(
+                    f"Using tarball of user installed package {package_name} at {tarball_path}."
+                )
+            tarballs.append(tarball)
+            tarball_paths.append(tarball_path)
+        return tarballs, tarball_paths
+
     def _generate_workflow(self):
         """Use the Pegasus API to build an abstract graph of the workflow."""
 
@@ -338,6 +375,10 @@ class Outsource:
         combinepy = File("combine.py")
         rc.add_replica("local", "combine.py", f"file://{base_dir}/workflow/combine.py")
 
+        # script to install packages
+        installsh = File("install.sh")
+        rc.add_replica("local", "install.sh", f"file://{base_dir}/workflow/install.sh")
+
         # Add common data files to the replica catalog
         xenon_config = File(".xenon_config")
         rc.add_replica("local", ".xenon_config", f"file://{uconfig.config_path}")
@@ -348,17 +389,9 @@ class Outsource:
             "local", ".dbtoken", "file://" + os.path.join(os.environ["HOME"], ".dbtoken")
         )
 
-        # cutax tarball
-        cutax_tarball = File("cutax.tar.gz")
-        if "CUTAX_LOCATION" not in os.environ:
-            self.logger.warning(
-                "No CUTAX_LOCATION env variable found. Using the latest by default!"
-            )
-            tarball_path = "/ospool/uc-shared/project/xenon/xenonnt/software/cutax/latest.tar.gz"
-        else:
-            tarball_path = os.environ["CUTAX_LOCATION"].replace(".", "-") + ".tar.gz"
-            self.logger.warning(f"Using cutax: {tarball_path}")
-        rc.add_replica("local", "cutax.tar.gz", tarball_path)
+        tarballs, tarball_paths = self.make_tarballs()
+        for tarball, tarball_path in zip(tarballs, tarball_paths):
+            rc.add_replica("local", tarball, tarball_path)
 
         # runs
         iterator = self._runlist if len(self._runlist) == 1 else tqdm(self._runlist)
@@ -388,7 +421,7 @@ class Outsource:
                     if not all(
                         [dbcfg._raw_data_exists(raw_type=d) for d in dbcfg.depends_on(dtype)]
                     ):
-                        self.logger.warning(
+                        self.logger.error(
                             f"Doesn't have raw data for {dtype} of run_id {run_id}, skipping"
                         )
                         continue
@@ -442,8 +475,8 @@ class Outsource:
                     # combine jobs must happen in the US
                     combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
                     # priority is given in the order they were submitted
-                    combine_job.add_profiles(Namespace.CONDOR, "priority", f"{dbcfg.priority}")
-                    combine_job.add_inputs(combinepy, xenon_config, cutax_tarball, token)
+                    combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
+                    combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
                     combine_output_tar_name = f"{dbcfg.key_for(dtype)}-combined.tar.gz"
                     combine_output_tar = File(combine_output_tar_name)
                     combine_job.add_outputs(
@@ -488,9 +521,7 @@ class Outsource:
                             download_job.add_profiles(
                                 Namespace.CONDOR, "requirements", requirements
                             )
-                            download_job.add_profiles(
-                                Namespace.CONDOR, "priority", f"{dbcfg.priority}"
-                            )
+                            download_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                             download_job.add_args(
                                 dbcfg.run_id,
                                 self.context_name,
@@ -502,7 +533,9 @@ class Outsource:
                                 f"{self.update_db}".lower(),
                                 chunk_str,
                             )
-                            download_job.add_inputs(processpy, xenon_config, token, cutax_tarball)
+                            download_job.add_inputs(
+                                installsh, processpy, xenon_config, token, *tarballs
+                            )
                             download_job.add_outputs(data_tar, stage_out=False)
                             wf.add_jobs(download_job)
 
@@ -523,14 +556,22 @@ class Outsource:
                         # Add job
                         job = self._job(**self.job_kwargs[dtype])
                         if desired_sites:
-                            # Give a hint to glideinWMS for the sites
-                            # we want(mostly useful for XENONVO in Europe)
+                            # Give a hint to glideinWMS for the sites we want
+                            # (mostly useful for XENON VO in Europe).
+                            # Glideinwms is the provisioning system.
+                            # It starts pilot jobs (glideins) at sites when you
+                            # have idle jobs in the queue.
+                            # Most of the jobs you run to the OSPool (Open Science Pool),
+                            # but you do have a few sites where you have allocations at,
+                            # and those are labeled XENON VO (Virtual Organization).
+                            # The "+" has to be used by non-standard HTCondor attributes.
+                            # The attribute has to have double quotes,
+                            # otherwise HTCondor will try to evaluate it as an expression.
                             job.add_profiles(
                                 Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"'
                             )
                         job.add_profiles(Namespace.CONDOR, "requirements", requirements)
-                        job.add_profiles(Namespace.CONDOR, "priority", f"{dbcfg.priority}")
-                        # job.add_profiles(Namespace.CONDOR, 'periodic_remove', periodic_remove)
+                        job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
 
                         job.add_args(
                             dbcfg.run_id,
@@ -544,7 +585,7 @@ class Outsource:
                             chunk_str,
                         )
 
-                        job.add_inputs(processpy, xenon_config, token, cutax_tarball)
+                        job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                         job.add_outputs(job_output_tar, stage_out=(not self.upload_to_rucio))
                         wf.add_jobs(job)
 
@@ -574,7 +615,7 @@ class Outsource:
                     job = self._job(**self.job_kwargs[dtype], cores=2)
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
                     job.add_profiles(Namespace.CONDOR, "requirements", requirements)
-                    job.add_profiles(Namespace.CONDOR, "priority", f"{dbcfg.priority}")
+                    job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
 
                     # Note that any changes to this argument list,
                     # also means process-wrapper.sh has to be updated
@@ -589,7 +630,7 @@ class Outsource:
                         f"{self.update_db}".lower(),
                     )
 
-                    job.add_inputs(processpy, xenon_config, token, cutax_tarball)
+                    job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                     # As long as we are giving outputs
                     job.add_outputs(job_output_tar, stage_out=True)
                     wf.add_jobs(job)
@@ -636,7 +677,7 @@ class Outsource:
         if os.path.exists(self.workflow_dir):
             if force:
                 self.logger.warning(
-                    f"Overwriting workflow at {self.workflow_dir}. CTRL+C now to stop."
+                    f"Overwriting workflow at {self.workflow_dir}. Press ctrl+C now to stop."
                 )
                 time.sleep(10)
                 shutil.rmtree(self.workflow_dir)

@@ -49,12 +49,8 @@ if [ "X$upload_to_rucio" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
 
-echo "Installing cutax:"
-mkdir cutax
-tar -xzf cutax.tar.gz -C cutax --strip-components=1
-# Install in a very quiet mode by -qq
-pip install ./cutax --user --no-deps --qq
-python -c "import cutax; print(cutax.__file__)"
+# Installing customized packages
+. install.sh
 
 # Combine the data
 time python combine.py ${run_id} ${dtype} --context ${context} --xedocs_version ${xedocs_version} --input data ${combine_extra_args}

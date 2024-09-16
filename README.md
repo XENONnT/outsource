@@ -108,7 +108,6 @@ dtypes = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpul
 ; below are specific dtype options
 us_only = False
 hs06_test_run = False
-this_site_only = False
 raw_records_rse = UC_OSG_USERDISK
 records_rse = UC_MIDWAY_USERDISK
 peaklets_rse = UC_OSG_USERDISK
