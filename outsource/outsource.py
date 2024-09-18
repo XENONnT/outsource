@@ -151,6 +151,34 @@ class Outsource:
     def runlist(self):
         return os.path.join(self.generated_dir, "runlist.txt")
 
+    @property
+    def pegasus_config(self):
+        """Pegasus configurations."""
+        pconfig = {}
+        pconfig["pegasus.metrics.app"] = "XENON"
+        pconfig["pegasus.data.configuration"] = "nonsharedfs"
+        # provide a full kickstart record, including the environment.
+        # Even for successful jobs.
+        pconfig["pegasus.gridstart.arguments"] = "-f"
+        pconfig["pegasus.mode"] = "development"
+        # give jobs a total of {retry} + 1 tries
+        pconfig["dagman.retry"] = 2
+        # make sure we do start too many jobs at the same time
+        pconfig["dagman.maxidle"] = 5_000
+        # total number of jobs cap
+        pconfig["dagman.maxjobs"] = 300
+        # transfer parallelism
+        pconfig["pegasus.transfer.threads"] = 1
+
+        # Help Pegasus developers by sharing performance data (optional)
+        pconfig["pegasus.monitord.encoding"] = "json"
+        pconfig["pegasus.catalog.workflow.amqp.url"] = (
+            "amqp://friend:donatedata@msgs.pegasus.isi.edu:5672/prod/workflows"
+        )
+        # Temporary bypassing integrity check in pegasus
+        pconfig["pegasus.integrity.checking"] = "none"
+        return pconfig
+
     def _job(self, name, run_on_submit_node=False, cores=1, memory=1_700, disk=1_000):
         """Wrapper for a Pegasus job, also sets resource requirement profiles.
 
@@ -218,11 +246,18 @@ class Outsource:
         local.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
         local.add_profiles(
             Namespace.ENV,
-            PATH="/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/bin:/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/condabin:/usr/bin:/bin",  # noqa
+            PATH=(
+                f"/cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/anaconda/envs/XENONnT_development/bin:"  # noqa
+                f"/cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/anaconda/condabin:"
+                "/usr/bin:/bin"
+            ),
         )
         local.add_profiles(
             Namespace.ENV,
-            LD_LIBRARY_PATH="/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib64:/cvmfs/xenon.opensciencegrid.org/releases/nT/development/anaconda/envs/XENONnT_development/lib",  # noqa
+            LD_LIBRARY_PATH=(
+                f"/cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/anaconda/envs/XENONnT_development/lib64:"  # noqa
+                f"/cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/anaconda/envs/XENONnT_development/lib"  # noqa
+            ),
         )
         local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
         local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
@@ -659,8 +694,8 @@ class Outsource:
         """Submit the workflow."""
 
         wf.plan(
-            conf=f"{base_dir}/workflow/pegasus.conf",
             submit=not self.debug,
+            cluster=["horizontal"],
             cleanup="none",
             sites=["condorpool"],
             verbose=3 if self.debug else 0,
@@ -668,6 +703,7 @@ class Outsource:
             output_sites=["staging-davs"],
             dir=os.path.dirname(self.runs_dir),
             relative_dir=os.path.basename(self.runs_dir),
+            **self.pegasus_config,
         )
 
     def submit(self, force=False):
