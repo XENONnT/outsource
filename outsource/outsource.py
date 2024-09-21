@@ -8,6 +8,7 @@ import shutil
 from datetime import datetime
 import numpy as np
 from tqdm import tqdm
+import utilix
 from utilix import DB, uconfig
 from utilix.x509 import _validate_x509_proxy
 from utilix.tarball import Tarball
@@ -162,11 +163,11 @@ class Outsource:
         pconfig["pegasus.gridstart.arguments"] = "-f"
         pconfig["pegasus.mode"] = "development"
         # give jobs a total of {retry} + 1 tries
-        pconfig["dagman.retry"] = 2
+        pconfig["dagman.retry"] = uconfig.getint("Outsource", "dagman_retry", fallback=2)
         # make sure we do start too many jobs at the same time
-        pconfig["dagman.maxidle"] = 5_000
+        pconfig["dagman.maxidle"] = uconfig.getint("Outsource", "dagman_maxidle", fallback=5_000)
         # total number of jobs cap
-        pconfig["dagman.maxjobs"] = 300
+        pconfig["dagman.maxjobs"] = uconfig.getint("Outsource", "dagman_maxjobs", fallback=300)
         # transfer parallelism
         pconfig["pegasus.transfer.threads"] = 1
 
@@ -412,7 +413,11 @@ class Outsource:
 
         # script to install packages
         installsh = File("install.sh")
-        rc.add_replica("local", "install.sh", f"file://{base_dir}/workflow/install.sh")
+        rc.add_replica(
+            "local",
+            "install.sh",
+            f"file://{os.path.join(os.path.dirname(utilix.__file__), 'install.sh')}",
+        )
 
         # Add common data files to the replica catalog
         xenon_config = File(".xenon_config")

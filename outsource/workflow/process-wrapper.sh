@@ -15,7 +15,8 @@ chunks=${args[@]:8}
 
 echo $@
 
-echo "Processing chunks: $chunks"
+echo "Processing chunks:"
+echo "$chunks"
 
 extraflags=""
 
@@ -70,13 +71,13 @@ echo
 
 if [ "X${standalone_download}" = "Xno-download" ]; then
     # We are given a tarball from the previous download job
-    echo "Untaring input data..."
+    echo "Untar input data:"
     tar -xzf *-data*.tar.gz
 fi
 
 
 # Installing customized packages
-. install.sh
+. install.sh strax straxen cutax
 
 
 # See if we have any input tarballs
@@ -86,27 +87,25 @@ if [ -f ./$runid_pad*.tar.gz ]; then
     mkdir data
     for tarball in $(ls $runid_pad*.tar.gz)
     do
-        echo "Untarring input: $tarball"
+        echo "Untarr input: $tarball:"
         tar -xzf $tarball -C data --strip-components=1
     done
 fi
 echo
 
-echo "Check RunDB API:"
-echo "Pinging xenon-runsdb.grid.uchicago.edu"
-ping -c 5 xenon-runsdb.grid.uchicago.edu
-echo
-echo "Checking if we have .dbtoken"
+# echo "Check network:"
+# echo "ping -c 5 xenon-runsdb.grid.uchicago.edu"
+# ping -c 5 xenon-runsdb.grid.uchicago.edu
+# echo
+echo "Checking if we have .dbtoken:"
 echo "ls -lah $HOME/.dbtoken"
 ls -lah $HOME/.dbtoken
-echo "ls -lah $USERPROFILE/.dbtoken"
-la -lah $USERPROFILE/.dbtoken
 echo
 # echo "nmap xenon-runsdb.grid.uchicago.edu"
 # map -p5000 xenon-runsdb.grid.uchicago.edu
 # echo
 
-echo "Processing now..."
+echo "Processing:"
 
 chunkarg=""
 if [ -n "${chunks}" ]
@@ -128,14 +127,14 @@ echo "We want to find and delete any records or records_nv if existing, to save 
 find data -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -rf {} +
 
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
-    echo "We are tarballing the data directory for download-only job."
-    tar -czfv ${output_tar} data
+    echo "We are tarballing the data directory for download-only job:"
+    tar czfv ${output_tar} data
 elif [ "X${output_dtype}" = "Xevent_info_double" ] || [ "X${output_dtype}" = "Xevents_mv" ] || [ "X${output_dtype}" = "Xevents_nv" ]; then
-    echo "We are tarballing the data directory for ${output_dtype} job."
-    tar -czfv ${output_tar} data
+    echo "We are tarballing the data directory for ${output_dtype} job:"
+    tar czfv ${output_tar} data
 else
-    echo "We are tarballing the data directory, but only for those with _temp."
-    tar -czfv ${output_tar} data/*_temp
+    echo "We are tarballing the data directory, but only for those with _temp:"
+    tar czfv ${output_tar} data/*_temp
 fi
 
 echo
