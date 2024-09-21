@@ -50,14 +50,14 @@ if [ "X$upload_to_rucio" = "Xtrue" ]; then
 fi
 
 # Installing customized packages
-. install.sh
+. install.sh strax straxen cutax
 
 # Combine the data
 time python combine.py ${run_id} ${dtype} --context ${context} --xedocs_version ${xedocs_version} --input data ${combine_extra_args}
 
 # Check data dir again
-echo "data dir:"
+echo "Here is what is in the data directory after combining:"
 ls -l data
 
 # tar up the output
-tar -czfv ${output} finished_data
+tar czfv ${output} finished_data
