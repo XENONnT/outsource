@@ -2,25 +2,25 @@
 import argparse
 import os
 import admix
+from utilix.config import setup_logger
 import strax
 import straxen
 import cutax
 
-from .upload import get_bottom_data_types, upload_to_rucio
+from outsource.config import get_bottom_data_types
+from outsource.upload import upload_to_rucio
 
+
+logger = setup_logger("outsource")
 straxen.Events.save_when = strax.SaveWhen.TARGET
-print("We have forced events to save always.")
-
 admix.clients._init_clients()
 
 
-def merge(
-    run_id_str,  # run number padded with 0s
-    data_type,  # data_type 'level' e.g. records, peaklets
-    st,  # strax context
-    path,  # path where the data is stored
-    chunk_number_group,  # list of chunk number to merge
-):
+def merge(st, run_id_str, data_type, path, chunk_number_group):
+    """Merge per-chunk storage for a given data_type :param st: straxen context
+    :param run_id_str: run number padded with 0s :param data_type: data_type
+    'level' e.g. records, peaklets :param path: path where the data is stored
+    :param chunk_number_group: list of chunk number to merge."""
     # Initialize plugin needed for processing
     plugin = st._plugin_class_registry[data_type]()
 
@@ -83,21 +83,18 @@ def main():
 
     # Merge
     for data_type in plugin_levels:
-        print(f"Merging {data_type} level")
-        merge(run_id_str, data_type, st, path, chunk_number_group)
+        logger.info(f"Merging {data_type} level")
+        merge(st, run_id_str, data_type, path, chunk_number_group)
 
     # Now upload the merged metadata
     # Setup the rucio client(s)
     if not args.rucio_upload:
-        print("Ignoring rucio upload")
+        logger.warning("Ignoring rucio upload")
         return
 
     # Now loop over data_type we just made and upload the data
     processed_data = [d for d in os.listdir(data_dir)]
-    print("---- Processed data ----")
-    for d in processed_data:
-        print(d)
-    print("------------------------\n")
+    logger.info(f"Combined data: {processed_data}")
 
     for dirname in processed_data:
         path = os.path.join(data_dir, dirname)
