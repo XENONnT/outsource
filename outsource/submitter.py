@@ -182,7 +182,6 @@ class Submitter:
         """Wrapper for a Pegasus job, also sets resource requirement profiles.
 
         Memory and disk in unit of MB.
-
         """
         job = Job(name)
 
@@ -347,7 +346,7 @@ class Submitter:
         return ReplicaCatalog()
 
     def make_tarballs(self):
-        """Make tarballs of Ax-based packages if they are in editable user- installed mode."""
+        """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
         tarballs = []
         tarball_paths = []
         for package_name in ["strax", "straxen", "cutax"]:
@@ -387,7 +386,7 @@ class Submitter:
         """Use the Pegasus API to build an abstract graph of the workflow."""
 
         # Create a abstract dag
-        wf = Workflow("xenonnt")
+        wf = Workflow("outsource_workflow")
         # Initialize the catalogs
         sc = self._generate_sc()
         tc = self._generate_tc()
