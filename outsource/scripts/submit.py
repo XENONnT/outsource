@@ -4,7 +4,7 @@ from utilix.io import load_runlist
 from utilix.config import setup_logger
 import cutax
 
-from outsource.utils import get_run_ids
+from outsource.utils import get_runlist
 from outsource.submitter import Submitter
 
 
@@ -59,7 +59,6 @@ def main():
     )
     parser.add_argument("--from", dest="number_from", type=int, help="Run number to start with")
     parser.add_argument("--to", dest="number_to", type=int, help="Run number to end with")
-    parser.add_argument("--mode", nargs="*", help="Space separated run mode(s) to consider")
     parser.add_argument(
         "--run", nargs="*", type=int, help="Space separated specific run number(s) to process"
     )
@@ -102,7 +101,7 @@ def main():
     else:
         _runlist = None
 
-    runlist = get_run_ids(
+    runlist = get_runlist(
         st,
         detector=args.detector,
         runlist=_runlist,

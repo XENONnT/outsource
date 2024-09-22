@@ -10,7 +10,7 @@ coll = xent_collection()
 logger = setup_logger("outsource")
 
 
-def get_run_ids(
+def get_runlist(
     st,
     detector,
     runlist=None,

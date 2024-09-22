@@ -29,20 +29,18 @@ Please use XENONnT environment. On the OSG submit hosts, this can be set up by s
 . /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
 export XENON_CONFIG=$HOME/.xenon_config
 export RUCIO_ACCOUNT=production
-export X509_USER_PROXY=$HOME/user_cert
-export PATH=/opt/pegasus/current/bin:$PATH
+export X509_USER_PROXY=$HOME/.xenon_service_proxy
 export PYTHONPATH=`pegasus-config --python`:$PYTHONPATH
-export PYTHONPATH="$HOME/.local/lib/python3.9/site-packages:$PYTHONPATH"
 ```
 
 #### Proxy
 Please make sure you create a 2048 bit long key. Example:
 
 ```
-voms-proxy-init -voms xenon.biggrid.nl -bits 2048 -hours 168 -out ~/user_cert
+voms-proxy-init -voms xenon.biggrid.nl -bits 2048 -hours 168 -out ~/.xenon_service_proxy
 ```
 
-At the moment, outsource assumes that your certificate proxy is located at `~/user_cert`.
+At the moment, outsource assumes that your certificate proxy is located at `X509_USER_PROXY`.
 
 ## Installation
 Since outsource is used by production users, it is currently not pip-installable (people often want to change the source code locally anyway). To install, first clone the repository from github into a directory of your preference in your home directory on the xenon OSG login node.
@@ -76,7 +74,7 @@ but note that the `outsource` executable might not pick up all your changes if y
 
 ## Configuration file
 
-Just like [utilix](https://github.com/XENONnT/utilix), this tool expects a configuration file named `$HOME/.xenon_config`. You will need to create your own config to look like below, but fill in the values.
+Just like [utilix](https://github.com/XENONnT/utilix), this tool expects a configuration file at environmental variable `XENON_CONFIG`. You will need to create your own config to look like below, but fill in the values.
 
 Particularly it uses information in the field of the config with header 'Outsource', see below.
 
@@ -84,7 +82,7 @@ Particularly it uses information in the field of the config with header 'Outsour
 
 ```
 [basic]
-; usually helpful for debugging but it's a lot of msg
+# usually helpful for debugging but it's a lot of msg
 logging_level=DEBUG
 
 [RunDB]
@@ -101,19 +99,19 @@ xe1t_database = run
 
 [Outsource]
 work_dir = /scratch/$USER/workflows
-; sites to exclude (GLIDEIN_Site), comma seprated list
+# sites to exclude (GLIDEIN_Site), comma seprated list
 exclude_sites = SU-ITS, NotreDame, UConn-HPC, Purdue Geddes, Chameleon, WSU-GRID, SIUE-CC-production, Lancium
-; data type to process
-dtypes = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpulses, led_calibration
-; below are specific dtype options
+# data type to process
+include_data_types = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpulses, led_calibration
+exclude_modes = tpc_noise, tpc_rn_8pmts, tpc_commissioning_pmtgain, tpc_rn_6pmts, tpc_rn_12_pmts, nVeto_LED_calibration,tpc_rn_12pmts, nVeto_LED_calibration_2
 us_only = False
 hs06_test_run = False
 raw_records_rse = UC_OSG_USERDISK
 records_rse = UC_MIDWAY_USERDISK
 peaklets_rse = UC_OSG_USERDISK
 events_rse = UC_MIDWAY_USERDISK
-exclude_modes = tpc_noise, tpc_rn_8pmts, tpc_commissioning_pmtgain, tpc_rn_6pmts, tpc_rn_12_pmts, nVeto_LED_calibration,tpc_rn_12pmts, nVeto_LED_calibration_2
-min_run_number = 666
+min_run_number = 1
+max_run_number = 999999
 max_daily = 2000
 chunks_per_job = 10
 combine_memory = 60000
@@ -122,6 +120,9 @@ peaklets_memory = 14500
 peaklets_disk = 50000
 events_memory = 60000
 events_disk = 120000
+dagman_retry = 0
+dagman_maxidle = 5000
+dagman_maxjobs = 300
 ```
 
 ## Add a setup script
@@ -130,9 +131,9 @@ For convenience, we recommend writing a simple bash script to make it easy to se
 ```
 #!/bin/bash
 
-. /cvmfs/xenon.opensciencegrid.org/releases/nT/2023.11.1/setup.sh
+. /cvmfs/xenon.opensciencegrid.org/releases/nT/development/setup.sh
 export RUCIO_ACCOUNT=production
-export X509_USER_PROXY=$HOME/user_cert
+export X509_USER_PROXY=$HOME/.xenon_service_proxy
 export PATH=/opt/pegasus/current/bin:$PATH
 export PYTHONPATH=`pegasus-config --python`:$PYTHONPATH
 ```
@@ -153,54 +154,55 @@ Then, everytime you want to submit jobs, you can setup your environment with
 After installation and setting up the environment, it is time to submit jobs. The easiest way to do this is using the `outsource` executable. You can see what this script takes as input via `outsource --help`, which returns
 
 ```
-(XENONnT_2022.06.2) [ershockley@login-el7 ~]$ outsource --help
-usage: Outsource [-h] --context CONTEXT [--debug] [--name NAME] [--image IMAGE]
-                 [--force] [--dry-run] [--detector DETECTOR] [--from NUMBER_FROM]
-                 [--to NUMBER_TO] [--mode [MODE [MODE ...]]] [--run [RUN [RUN ...]]]
-                 [--runlist RUNLIST] [--source [SOURCE [SOURCE ...]]]
+[whoami@ap23 ~]$ outsource --help
+usage: Outsource [-h] --context CONTEXT --xedocs_version XEDOCS_VERSION [--image IMAGE]
+                 [--detector {all,tpc,muon_veto,neutron_veto}] [--workflow_id WORKFLOW_ID] [--force] [--debug]
+                 [--from NUMBER_FROM] [--to NUMBER_TO] [--run [RUN ...]] [--runlist RUNLIST] [--ignore_processed]
+                 [--rucio_upload] [--rundb_update]
 
 optional arguments:
   -h, --help            show this help message and exit
   --context CONTEXT     Name of context, imported from cutax.
-  --debug
-  --name NAME           Custom name of workflow directory. If not passed, inferred from
-                        today's date
-  --image IMAGE         Singularity image. Accepts either a full path or a single name
-                        and assumes a format like this:
-                        /cvmfs/singularity.opensciencegrid.org/xenonnt/base-
-                        environment:{image}
-  --force
-  --dry-run
-  --detector DETECTOR
+  --xedocs_version XEDOCS_VERSION
+                        global version, an argument for context.
+  --image IMAGE         Singularity image. Accepts either a full path or a single name and assumes a format like this:
+                        /cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}
+  --detector {all,tpc,muon_veto,neutron_veto}
+                        Detector to focus on. If 'all' (default) will consider all three detectors. Otherwise pass a
+                        single one of 'tpc', 'neutron_veto', 'muon_veto'. Pairs of detectors not yet supported.
+  --workflow_id WORKFLOW_ID
+                        Custom workflow_id of workflow. If not passed, inferred from today's date.
+  --force               Force overwrites workflows and reprocesses data even if processed already. Will not re-upload to
+                        rucio though.
+  --debug               Debug mode. Does not automatically submit the workflow, and jobs do not update RunDB nor upload
+                        to rucio.
   --from NUMBER_FROM    Run number to start with
   --to NUMBER_TO        Run number to end with
-  --mode [MODE [MODE ...]]
-                        Space separated run mode(s) to consider.
-  --run [RUN [RUN ...]]
-                        space separated specific run number(s) to process
+  --run [RUN ...]       Space separated specific run number(s) to process
   --runlist RUNLIST     Path to a runlist file
-  --source [SOURCE [SOURCE ...]]
-                        Space separated source(s) to consider
+  --ignore_processed    Ignore runs that have already been processed
+  --rucio_upload        Upload data to rucio after processing
+  --rundb_update        Update RunDB after processing
 ```
 
-This script requires at minimum the name of context (which must reside in the cutax version installed in the environment you are in). If no other arguments are passed, this script will try to find all data that can be processed, and process it. Some inputs from the configuration file `~/.xenon_config` are also used, specifically:
+This script requires at minimum the name of context (which must reside in the cutax version installed in the environment you are in). If no other arguments are passed, this script will try to find all data that can be processed, and process it. Some inputs from the configuration file at environmental variable `XENON_CONFIG` are also used, specifically:
   - The minimum run number considered
   - The total number of runs to process at one time
   - What data types to process
   - The exclusion of different run modes
   - etc.
 
-As a first try, pass the `--dry-run` flag to see how many runs outsource would try to process. It might produce a lot of output as it also prints out the list of runs.
+As a first try, pass the `--debug` flag to see how many runs outsource would try to process. It might produce a lot of output as it also prints out the list of runs and the location of workflow.
 
 ```
-outsource --dry-run
+outsource --debug
 ```
 
 If you want to narrow down the list of runs to process, you can do one of several things:
   - Pass a run or small list of runs with `--run` flag
   - Pass a path to a text file containing a newline-separated runlist that you made in some other way with the `--runlist` flag
   - Use the `--from` and/or `--to` flags to consider a range of run numbers
-  - Specify things like `--mode`, `--detector`, `--source`
+  - Specify things like `--detector`, the source and run mode can be controlled in file indicated by `XENON_CONFIG`, like `include_modes` and `exclude_sources`
 
 **One super important thing to keep in mind: you also specify the singularity image to run the jobs in**. This adds a significant possibility for mistakes, as the environment you submit jobs from (and thus do this query to find what needs to be processed) might not always be the same as the one that actually tries to do the processing.
 So it's super important that the image you pass with the `--image` flag corresponds to the same base_environment flag as the CVMFS environment you are in. Otherwise, you might run into problems of datatype hashes not matching and/or context names not being installed in the cutax version you are using.
