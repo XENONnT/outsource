@@ -42,12 +42,10 @@ def main():
         help="Custom workflow_id of workflow. If not passed, inferred from today's date.",
     )
     parser.add_argument(
-        "--force",
+        "--ignore_processed",
+        dest="ignore_processed",
         action="store_true",
-        help=(
-            "Force overwrites workflows and reprocesses data even if processed already. "
-            "Will not re-upload to rucio though."
-        ),
+        help="Ignore runs that have already been processed",
     )
     parser.add_argument(
         "--debug",
@@ -63,12 +61,6 @@ def main():
         "--run", nargs="*", type=int, help="Space separated specific run number(s) to process"
     )
     parser.add_argument("--runlist", type=str, help="Path to a runlist file")
-    parser.add_argument(
-        "--ignore_processed",
-        dest="ignore_processed",
-        action="store_true",
-        help="Ignore runs that have already been processed",
-    )
     parser.add_argument(
         "--rucio_upload",
         dest="rucio_upload",
@@ -128,7 +120,7 @@ def main():
         workflow_id=args.workflow_id,
         rucio_upload=args.rucio_upload,
         rundb_update=args.rundb_update,
-        force=args.force,
+        ignore_processed=args.ignore_processed,
         debug=args.debug,
     )
 

@@ -88,7 +88,7 @@ class Submitter:
         workflow_id=None,
         rucio_upload=True,
         rundb_update=True,
-        force=False,
+        ignore_processed=False,
         debug=True,
     ):
         self.logger = setup_logger(
@@ -126,7 +126,7 @@ class Submitter:
         self.context = getattr(cutax.contexts, context_name)(xedocs_version=self.xedocs_version)
 
         self.debug = debug
-        self.force = force
+        self.ignore_processed = ignore_processed
         self.rucio_upload = rucio_upload
         self.rundb_update = rundb_update
 
@@ -437,7 +437,7 @@ class Submitter:
         # Keep track of what runs we submit, useful for bookkeeping
         runlist = []
         for run_id in iterator:
-            dbcfg = RunConfig(self.context, run_id, force=self.force)
+            dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
 
             # Check if this run_id needs to be processed
             if len(dbcfg.needs_processed) > 0:

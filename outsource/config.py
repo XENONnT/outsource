@@ -223,10 +223,10 @@ class RunConfig:
 
     chunks_per_job = uconfig.getint("Outsource", "chunks_per_job")
 
-    def __init__(self, context, run_id, force=False, standalone_download=False):
+    def __init__(self, context, run_id, ignore_processed=False, standalone_download=False):
         self.context = context
         self.run_id = run_id
-        self.force = force
+        self.ignore_processed = ignore_processed
         self.standalone_download = standalone_download
 
         # Default job priority - workflows will be given priority
@@ -341,7 +341,7 @@ class RunConfig:
                 rses = db.get_rses(self.run_id, data_type, hash)
                 # If this data is not on any rse, reprocess it, or we are asking for a rerun
                 data_types_already_processed.append(len(rses) > 0)
-            if not all(data_types_already_processed) or self.force:
+            if not all(data_types_already_processed) or self.ignore_processed:
                 ret.append(category)
 
         ret.sort(key=lambda x: len(self.context.get_dependencies(x)))
