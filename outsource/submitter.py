@@ -182,6 +182,7 @@ class Submitter:
         """Wrapper for a Pegasus job, also sets resource requirement profiles.
 
         Memory and disk in unit of MB.
+
         """
         job = Job(name)
 
