@@ -1,18 +1,11 @@
-#!/usr/bin/env python
-
 import argparse
-import os
-import pymongo
-import numpy as np
 from utilix import xent_collection
 from utilix.io import load_runlist
 from utilix.config import setup_logger
-import straxen
 import cutax
 
 from outsource.utils import get_run_ids
-from outsource.outsource import Outsource
-from outsource.config import DETECTOR_DATA_TYPES
+from outsource.submitter import Submitter
 
 
 coll = xent_collection()
@@ -128,7 +121,7 @@ def main():
         )
 
     # This object contains all the information needed to submit the workflow
-    outsource = Outsource(
+    submitter = Submitter(
         runlist,
         context_name=args.context,
         xedocs_version=args.xedocs_version,
@@ -141,7 +134,7 @@ def main():
     )
 
     # Finally submit the workflow
-    outsource.submit()
+    submitter.submit()
 
 
 if __name__ == "__main__":

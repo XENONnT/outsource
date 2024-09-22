@@ -1,0 +1,51 @@
+[tool]
+[tool.poetry]
+name = "outsource"
+version = "0.2.2"
+description = "Job submission of reprocessing"
+readme = "README.md"
+authors = [
+  "Outsource contributors, the XENON collaboration",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: BSD License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+repository = "https://github.com/XENONnT/outsource"
+packages = [
+    { include = "outsource" }
+]
+
+[tool.poetry.scripts]
+outsource = "outsource.scripts.submit:main"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.13"
+xe-admix = "*"
+numpy  = "*"
+tqdm = "*"
+utilix = ">=0.9.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.8", "setuptools>=61.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+preview = true
+
+[tool.docformatter]
+recursive = true
+in-place = true
+wrap-summaries = 100
+wrap-descriptions = 100
+blank = true
+
+[tool.doc8]
+max-line-length = 100

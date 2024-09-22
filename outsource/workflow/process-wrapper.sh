@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin bash
 
 set -e
 
@@ -6,10 +6,10 @@ run_id=$1
 context=$2
 xedocs_version=$3
 data_type=$4
-tar_filename=$5
-standalone_download=$6
-rucio_upload=$7
-rundb_update=$8
+standalone_download=$5
+rucio_upload=$6
+rundb_update=$7
+tar_filename=$8
 args=( "$@" )
 chunks=${args[@]:8}
 
@@ -87,7 +87,6 @@ if [ "X${standalone_download}" = "Xno-download" ]; then
 fi
 echo
 
-
 # See if we have any input tarballs
 echo "Checking if we have any input tarballs:"
 run_id_pad=`printf %06d $run_id`
@@ -120,7 +119,7 @@ then
     chunkarg="--chunks ${chunks}"
 fi
 
-time python process.py ${run_id} --context ${context} --xedocs_version ${xedocs_version} --output ${data_type} ${extraflags} ${chunkarg}
+time python process.py ${run_id} --context ${context} --xedocs_version ${xedocs_version} --data_type ${data_type} --output_path data ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then
@@ -130,8 +129,6 @@ fi
 
 echo "Here is what is in the data directory after processing:"
 ls -lah data/*
-echo "We want to find and delete any records or records_nv if existing, to save disk in combine jobs."
-find data -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -rf {} +
 
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
     echo "We are tarballing the data directory for download_only job:"

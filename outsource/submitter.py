@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os
 import sys
 import getpass
@@ -45,7 +43,7 @@ EVENTS_DISK = uconfig.getint("Outsource", "events_disk")
 db = DB()
 
 
-class Outsource:
+class Submitter:
     # Transformation map (high level name -> script)
     _transformations_map = {
         "combine": COMBINE_WRAPPER,
@@ -263,7 +261,7 @@ class Outsource:
         local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
         local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
         # local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")  # noqa
-        if not self.debug:
+        if not self.rucio_upload:
             local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
         # Improve python logging / suppress depreciation warnings (from gfal2 for example)
         local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
@@ -327,7 +325,7 @@ class Outsource:
         condorpool.add_profiles(
             Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s"
         )
-        if not self.debug:
+        if not self.rucio_upload:
             condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
 
         # Improve python logging / suppress depreciation warnings (from gfal2 for example)
@@ -532,33 +530,32 @@ class Outsource:
                     # priority is given in the order they were submitted
                     combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                     combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
-                    combine_output_tar_name = f"{dbcfg.key_for(data_type)}-combined.tar.gz"
-                    combine_output_tar = File(combine_output_tar_name)
-                    combine_job.add_outputs(combine_output_tar, stage_out=(not self.rucio_upload))
+                    combine_tar = File(f"{dbcfg.key_for(data_type)}-combined.tar.gz")
+                    combine_job.add_outputs(combine_tar, stage_out=(not self.rucio_upload))
                     combine_job.add_args(
                         dbcfg.run_id,
                         self.context_name,
                         self.xedocs_version,
-                        combine_output_tar_name,
                         f"{self.rucio_upload}".lower(),
                         f"{self.rundb_update}".lower(),
+                        combine_tar,
                         *(f'"{c}"' for c in chunk_str_list),
                     )
 
                     wf.add_jobs(combine_job)
-                    combine_jobs[data_type] = (combine_job, combine_output_tar)
+                    combine_jobs[data_type] = (combine_job, combine_tar)
 
                     # Loop over the chunks
                     for job_i in range(njobs):
                         chunk_str = chunk_str_list[job_i]
 
-                        self.logger.debug(f" ... adding job for chunk files: {chunk_str}")
+                        self.logger.debug(f"Adding job for chunk files: {chunk_str}")
 
                         # standalone_download is a special case where we download data
                         # from rucio first, which is useful for testing and when using
                         # dedicated clusters with storage
                         if dbcfg.standalone_download:
-                            tar_filename = File(
+                            download_tar = File(
                                 f"{dbcfg.key_for(data_type)}-data-{job_i:04d}.tar.gz"
                             )
                             download_job = self._job(
@@ -573,33 +570,25 @@ class Outsource:
                                 self.context_name,
                                 self.xedocs_version,
                                 data_type,
-                                tar_filename,
                                 "download_only",
                                 f"{self.rucio_upload}".lower(),
                                 f"{self.rundb_update}".lower(),
+                                download_tar,
                                 chunk_str,
                             )
                             download_job.add_inputs(
                                 installsh, processpy, xenon_config, token, *tarballs
                             )
-                            download_job.add_outputs(tar_filename, stage_out=False)
+                            download_job.add_outputs(download_tar, stage_out=False)
                             wf.add_jobs(download_job)
 
                         # output files
-                        job_output_tar = File(
-                            f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz"
-                        )
+                        job_tar = File(f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz")
                         # Do we already have a local copy?
-                        job_output_tar_local_path = os.path.join(
-                            self.outputs_dir, f"{job_output_tar}"
-                        )
+                        job_output_tar_local_path = os.path.join(self.outputs_dir, f"{job_tar}")
                         if os.path.isfile(job_output_tar_local_path):
-                            self.logger.info(
-                                f" ... local copy found at: {job_output_tar_local_path}"
-                            )
-                            rc.add_replica(
-                                "local", job_output_tar, f"file://{job_output_tar_local_path}"
-                            )
+                            self.logger.info(f"Local copy found at: {job_output_tar_local_path}")
+                            rc.add_replica("local", job_tar, f"file://{job_output_tar_local_path}")
 
                         # Add job
                         job = self._job(**self.job_kwargs[data_type])
@@ -626,25 +615,25 @@ class Outsource:
                             self.context_name,
                             self.xedocs_version,
                             data_type,
-                            job_output_tar,
                             "false" if not dbcfg.standalone_download else "no_download",
                             f"{self.rucio_upload}".lower(),
                             f"{self.rundb_update}".lower(),
+                            job_tar,
                             chunk_str,
                         )
 
                         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                        job.add_outputs(job_output_tar, stage_out=(not self.rucio_upload))
+                        job.add_outputs(job_tar, stage_out=(not self.rucio_upload))
                         wf.add_jobs(job)
 
                         # All strax jobs depend on the pre-flight or a download job,
                         # but pre-flight jobs have been outdated so it is not necessary.
                         if dbcfg.standalone_download:
-                            job.add_inputs(tar_filename)
+                            job.add_inputs(download_tar)
                             wf.add_dependency(job, parents=[download_job])
 
                         # Update combine job
-                        combine_job.add_inputs(job_output_tar)
+                        combine_job.add_inputs(job_tar)
                         wf.add_dependency(job, children=[combine_job])
 
                         parent_combines = []
@@ -657,7 +646,7 @@ class Outsource:
                 else:
                     # High level data.. we do it all on one job
                     # output files
-                    job_output_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
+                    job_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
 
                     # Add job
                     job = self._job(**self.job_kwargs[data_type], cores=2)
@@ -672,15 +661,15 @@ class Outsource:
                         self.context_name,
                         self.xedocs_version,
                         data_type,
-                        job_output_tar,
                         "false" if not dbcfg.standalone_download else "no_download",
                         f"{self.rucio_upload}".lower(),
                         f"{self.rundb_update}".lower(),
+                        job_tar,
                     )
 
                     job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                     # As long as we are giving outputs
-                    job.add_outputs(job_output_tar, stage_out=True)
+                    job.add_outputs(job_tar, stage_out=True)
                     wf.add_jobs(job)
 
                     # If there are multiple levels to the workflow,

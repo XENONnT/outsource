@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import argparse
 import os
 import sys
@@ -20,39 +19,39 @@ logger = setup_logger("outsource")
 straxen.Events.save_when = strax.SaveWhen.TARGET
 
 
-def process(run_id, out_data_type, st, chunks):
-    run_id_str = f"{run_id:06d}"
+def process(run_id, data_type, st, chunks):
     t0 = time.time()
 
     if chunks:
-        assert out_data_type in RECHUNK_DATA_TYPES
-        bottoms = get_bottom_data_types(out_data_type)
+        assert data_type in RECHUNK_DATA_TYPES
+        bottoms = get_bottom_data_types(data_type)
         assert len(bottoms) == 1
         st.make(
-            run_id_str,
-            out_data_type,
+            run_id,
+            data_type,
             chunk_number={bottoms[0]: chunks},
             processor="single_thread",
         )
     else:
-        assert out_data_type not in RECHUNK_DATA_TYPES
+        assert data_type not in RECHUNK_DATA_TYPES
         st.make(
-            run_id_str,
-            out_data_type,
+            run_id,
+            data_type,
             processor="single_thread",
         )
 
     process_time = time.time() - t0
-    logger.info(f"Processing time for {out_data_type}: {process_time / 60:0.2f} minutes")
+    logger.info(f"Processing time for {data_type}: {process_time / 60:0.2f} minutes")
 
 
 def main():
     parser = argparse.ArgumentParser(description="(Re)Processing With Outsource")
-    parser.add_argument("run_id", help="Run number", type=int)
-    parser.add_argument("--context", help="name of context")
-    parser.add_argument("--xedocs_version", help="xedocs global version")
-    parser.add_argument("--data_type", help="desired strax data_type")
-    parser.add_argument("--chunks", nargs="*", help="chunk numbers to download", type=int)
+    parser.add_argument("run_id", type=int)
+    parser.add_argument("--context")
+    parser.add_argument("--xedocs_version")
+    parser.add_argument("--data_type")
+    parser.add_argument("--output_path")
+    parser.add_argument("--chunks", nargs="*", type=int)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--download_only", action="store_true", dest="download_only")
@@ -61,12 +60,12 @@ def main():
     args = parser.parse_args()
 
     # Directory where we will be putting everything
-    data_dir = "./data"
+    output_path = args.output_path
 
     # Get context
     st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     st.storage = [
-        strax.DataDirectory(data_dir),
+        strax.DataDirectory(output_path),
         straxen.storage.RucioRemoteFrontend(download_heavy=True),
     ]
 
@@ -79,23 +78,22 @@ def main():
 
     logger.info("Context is set up!")
 
-    run_id = args.run_id
-    run_id_str = f"{run_id:06d}"
-    out_data_type = args.data_type  # eg. typically for tpc: peaklets/event_info
+    run_id = f"{args.run_id:06d}"
+    data_type = args.data_type  # eg. typically for tpc: peaklets/event_info
 
     # Initialize plugin needed for processing this output type
-    plugin = st._plugin_class_registry[out_data_type]()
+    plugin = st._plugin_class_registry[data_type]()
 
     # Figure out what plugins we need to process/initialize
-    to_process = [args.data_type]
+    to_process = [data_type]
     for buddies in BUDDY_DATA_TYPES:
-        if args.data_type in buddies:
+        if data_type in buddies:
             to_process = list(buddies)
     # Remove duplicates
     to_process = list(set(to_process))
 
     # Keep track of the data we can download now -- will be important for the upload step later
-    available_data_types = st.available_for_run(run_id_str)
+    available_data_types = st.available_for_run(run_id)
     available_data_types = available_data_types[
         available_data_types.is_stored
     ].target.values.tolist()
@@ -108,7 +106,7 @@ def main():
     while len(intermediates) > 0:
         new_intermediates = []
         for _data_type in intermediates:
-            _plugin = st._get_plugins((_data_type,), run_id_str)[_data_type]
+            _plugin = st._get_plugins((_data_type,), run_id)[_data_type]
             # Adding missing dependencies to to-process list
             for dependency in _plugin.depends_on:
                 if dependency not in available_data_types:
@@ -120,7 +118,7 @@ def main():
     # Remove any raw data
     to_process = [data_type for data_type in to_process if data_type not in admix.utils.RAW_DTYPES]
 
-    missing = [d for d in to_process if d != args.data_type]
+    missing = [d for d in to_process if d != data_type]
     (f"Need to create intermediate data: {', '.join(missing)}")
 
     logger.info(f"Available data: {available_data_types}")
@@ -151,7 +149,7 @@ def main():
     shutil.rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
 
     # Now loop over data_type we just made and upload the data
-    processed_data = [d for d in os.listdir(data_dir)]
+    processed_data = os.listdir(output_path)
     logger.info(f"Processed data: {processed_data}")
 
     if args.chunks:
@@ -159,7 +157,7 @@ def main():
         processed_data = []
 
     for dirname in processed_data:
-        path = os.path.join(data_dir, dirname)
+        path = os.path.join(output_path, dirname)
 
         # Get rucio dataset
         this_run, this_data_type, this_hash = dirname.split("-")

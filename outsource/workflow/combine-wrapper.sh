@@ -1,13 +1,13 @@
-#!/bin/bash
+#!/usr/bin bash
 
 set -e
 
 run_id=$1
 context=$2
 xedocs_version=$3
-output=$4
-rucio_upload=$5
-rundb_update=$6
+rucio_upload=$4
+rundb_update=$5
+tar_filename=$6
 args=( "$@" )
 chunks=${args[@]:6}
 
@@ -16,13 +16,13 @@ echo $*
 
 export HOME=$PWD
 
-combine_extra_args=""
+extraflags=""
 
 if [ "X$rundb_update" = "Xtrue" ]; then
-    combine_extra_args="$combine_extra_args --rundb_update"
+    extraflags="$extraflags --rundb_update"
 fi
 if [ "X$rucio_upload" = "Xtrue" ]; then
-    combine_extra_args="$combine_extra_args --rucio_upload"
+    extraflags="$extraflags --rucio_upload"
 fi
 
 # The rest of the arguments are the inputs
@@ -39,9 +39,7 @@ echo "data dir:"
 ls -l data
 
 echo
-echo
 echo "Total amount of data before combine: "`du -s --si . | cut -f1`
-echo
 echo
 
 # source the environment
@@ -69,11 +67,11 @@ then
 fi
 
 # Combine the data
-time python combine.py ${run_id} --context ${context} --xedocs_version ${xedocs_version} --path data ${combine_extra_args} {chunkarg}
+time python combine.py ${run_id} --context ${context} --xedocs_version ${xedocs_version} --input_path data --output_path finished_data ${extraflags} {chunkarg}
 
 # Check data dir again
 echo "Here is what is in the data directory after combining:"
 ls -l data
 
 # tar up the output
-tar czfv ${output} finished_data
+tar czfv ${tar_filename} finished_data

@@ -84,14 +84,14 @@ foreach my $file (keys %errors) {
 foreach my $file (keys %similar_messages) {
     print "======================= Output for: $file =======================\n";
     # Print stats
-    print("Error pattern stats:\n");
-    print("-----------------------------------------------------------------\n");
+    print "Error pattern stats:\n";
+    print "-----------------------------------------------------------------\n";
     foreach my $error_pattern (keys %{$known_error_stats{$file}}){
         my $stats = $known_error_stats{$file}{$error_pattern};
         if ($error_pattern ne "qr/(\bERROR\b.+)/") {$error_pattern = "ERROR"}
-        print("- \e[1m$error_pattern\e[0m: found $stats times in the logfile\n");
+        print "- \e[1m$error_pattern\e[0m: found $stats times in the logfile\n";
     }
-    print("-----------------------------------------------------------------\n");
+    print "-----------------------------------------------------------------\n";
     foreach my $key_err (keys %{$similar_messages{$file}}) {
         print "Error msg: $key_err \t in lines [";
         foreach my $line (sort @{$similar_messages{$file}{$key_err}}) {
