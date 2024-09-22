@@ -200,6 +200,7 @@ class RunConfig:
     """The configuration of how a run will be processed.
 
     The class will focus on the RSE and instruction to the submitter.
+
     """
 
     # Data availability to site selection map.
@@ -369,8 +370,7 @@ class RunConfig:
         return len(files) - 1
 
     def _raw_data_exists(self, raw_type="raw_records"):
-        """Returns a boolean for whether or not raw data exists in rucio and is
-        accessible."""
+        """Returns a boolean for whether or not raw data exists in rucio and is accessible."""
         # It's faster to just go through RunDB
 
         for data in self.run_data:
@@ -385,8 +385,7 @@ class RunConfig:
         return False
 
     def _determine_target_sites(self, rses):
-        """Given a list of RSEs, limit the runs for sites for those
-        locations."""
+        """Given a list of RSEs, limit the runs for sites for those locations."""
 
         exprs = []
         sites = []
