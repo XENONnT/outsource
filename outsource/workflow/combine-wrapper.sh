@@ -58,7 +58,7 @@ if [ "X$rucio_upload" = "Xtrue" ]; then
 fi
 
 # Installing customized packages
-. install.sh strax straxen cutax
+. install.sh strax straxen cutax outsource
 
 chunkarg=""
 if [ -n "${chunks}" ]

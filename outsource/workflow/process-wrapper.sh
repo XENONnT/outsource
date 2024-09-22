@@ -55,7 +55,7 @@ if [ "X$rucio_upload" = "Xtrue" ]; then
 fi
 
 # Installing customized packages
-. install.sh strax straxen cutax
+. install.sh strax straxen cutax outsource
 
 echo "Current dir is $PWD. Here's whats inside:"
 ls -lah
