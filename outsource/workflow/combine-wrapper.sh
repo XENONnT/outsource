@@ -3,12 +3,13 @@
 set -e
 
 run_id=$1
-dtype=$2
-context=$3
-xedocs_version=$4
-output=$5
-update_db=$5
-upload_to_rucio=$7
+context=$2
+xedocs_version=$3
+output=$4
+upload_to_rucio=$5
+update_db=$6
+args=( "$@" )
+chunks=${args[@]:6}
 
 export HOME=$PWD
 
@@ -44,6 +45,14 @@ echo
 
 # source the environment
 . /opt/XENONnT/setup.sh
+
+if [ -e /image-build-info.txt ]; then
+    echo
+    echo "Running in image with build info:"
+    cat /image-build-info.txt
+    echo
+fi
+
 export XENON_CONFIG=$PWD/.xenon_config
 if [ "X$upload_to_rucio" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
@@ -52,8 +61,14 @@ fi
 # Installing customized packages
 . install.sh strax straxen cutax
 
+chunkarg=""
+if [ -n "${chunks}" ]
+then
+    chunkarg="--chunks ${chunks}"
+fi
+
 # Combine the data
-time python combine.py ${run_id} ${dtype} --context ${context} --xedocs_version ${xedocs_version} --input data ${combine_extra_args}
+time python combine.py ${run_id} --context ${context} --xedocs_version ${xedocs_version} --path data ${combine_extra_args} {chunkarg}
 
 # Check data dir again
 echo "Here is what is in the data directory after combining:"

@@ -506,6 +506,21 @@ class Outsource:
                 requirements, requirements_us = dbcfg.get_requirements(rses)
 
                 if dtype in PER_CHUNK_DTYPES:
+                    # Add jobs, one for each input file
+                    n_chunks = dbcfg.nchunks(dtype)
+
+                    chunk_list = np.arange(n_chunks)
+                    njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
+                    chunk_str_list = []
+
+                    # Loop over the chunks
+                    for job_i in range(njobs):
+                        chunks = chunk_list[
+                            dbcfg.chunks_per_job * job_i : dbcfg.chunks_per_job * (job_i + 1)
+                        ]
+                        chunk_str = " ".join([f"{c}" for c in chunks])
+                        chunk_str_list.append(chunk_str)
+
                     # Set up the combine job first -
                     # we can then add to that job inside the chunk file loop
                     # only need combine job for low-level stuff
@@ -524,29 +539,20 @@ class Outsource:
                     )
                     combine_job.add_args(
                         dbcfg.run_id,
-                        dtype,
                         self.context_name,
                         self.xedocs_version,
                         combine_output_tar_name,
                         f"{self.upload_to_rucio}".lower(),
                         f"{self.update_db}".lower(),
+                        *(f'"{c}"' for c in chunk_str_list),
                     )
 
                     wf.add_jobs(combine_job)
                     combine_jobs[dtype] = (combine_job, combine_output_tar)
 
-                    # Add jobs, one for each input file
-                    n_chunks = dbcfg.nchunks(dtype)
-
-                    chunk_list = np.arange(n_chunks)
-                    njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
-
                     # Loop over the chunks
                     for job_i in range(njobs):
-                        chunks = chunk_list[
-                            dbcfg.chunks_per_job * job_i : dbcfg.chunks_per_job * (job_i + 1)
-                        ]
-                        chunk_str = " ".join([f"{c}" for c in chunks])
+                        chunk_str = chunk_str_list[job_i]
 
                         self.logger.debug(f" ... adding job for chunk files: {chunk_str}")
 
@@ -554,7 +560,7 @@ class Outsource:
                         # from rucio first, which is useful for testing and when using
                         # dedicated clusters with storage
                         if dbcfg.standalone_download:
-                            data_tar = File(f"{dbcfg.key_for(dtype)}-data-{job_i:04d}.tar.gz")
+                            tar_filename = File(f"{dbcfg.key_for(dtype)}-data-{job_i:04d}.tar.gz")
                             download_job = self._job(
                                 "download", disk=self.job_kwargs["download"]["disk"]
                             )
@@ -567,7 +573,7 @@ class Outsource:
                                 self.context_name,
                                 self.xedocs_version,
                                 dtype,
-                                data_tar,
+                                tar_filename,
                                 "download-only",
                                 f"{self.upload_to_rucio}".lower(),
                                 f"{self.update_db}".lower(),
@@ -576,7 +582,7 @@ class Outsource:
                             download_job.add_inputs(
                                 installsh, processpy, xenon_config, token, *tarballs
                             )
-                            download_job.add_outputs(data_tar, stage_out=False)
+                            download_job.add_outputs(tar_filename, stage_out=False)
                             wf.add_jobs(download_job)
 
                         # output files
@@ -619,7 +625,7 @@ class Outsource:
                             self.xedocs_version,
                             dtype,
                             job_output_tar,
-                            "false",  # if not dbcfg.standalone_download else 'no-download',
+                            "false" if not dbcfg.standalone_download else "no-download",
                             f"{self.upload_to_rucio}".lower(),
                             f"{self.update_db}".lower(),
                             chunk_str,
@@ -632,7 +638,7 @@ class Outsource:
                         # All strax jobs depend on the pre-flight or a download job,
                         # but pre-flight jobs have been outdated so it is not necessary.
                         if dbcfg.standalone_download:
-                            job.add_inputs(data_tar)
+                            job.add_inputs(tar_filename)
                             wf.add_dependency(job, parents=[download_job])
 
                         # Update combine job
@@ -665,7 +671,7 @@ class Outsource:
                         self.xedocs_version,
                         dtype,
                         job_output_tar,
-                        "false",  # if not dbcfg.standalone_download else 'no-download',
+                        "false" if not dbcfg.standalone_download else "no-download",
                         f"{self.upload_to_rucio}".lower(),
                         f"{self.update_db}".lower(),
                     )
