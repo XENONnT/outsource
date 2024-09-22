@@ -156,9 +156,9 @@ After installation and setting up the environment, it is time to submit jobs. Th
 ```
 [whoami@ap23 ~]$ outsource --help
 usage: Outsource [-h] --context CONTEXT --xedocs_version XEDOCS_VERSION [--image IMAGE]
-                 [--detector {all,tpc,muon_veto,neutron_veto}] [--workflow_id WORKFLOW_ID] [--force] [--debug]
-                 [--from NUMBER_FROM] [--to NUMBER_TO] [--run [RUN ...]] [--runlist RUNLIST] [--ignore_processed]
-                 [--rucio_upload] [--rundb_update]
+                 [--detector {all,tpc,muon_veto,neutron_veto}] [--workflow_id WORKFLOW_ID] [--ignore_processed]
+                 [--debug] [--from NUMBER_FROM] [--to NUMBER_TO] [--run [RUN ...]] [--runlist RUNLIST] [--rucio_upload]
+                 [--rundb_update]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -172,15 +172,13 @@ optional arguments:
                         single one of 'tpc', 'neutron_veto', 'muon_veto'. Pairs of detectors not yet supported.
   --workflow_id WORKFLOW_ID
                         Custom workflow_id of workflow. If not passed, inferred from today's date.
-  --force               Force overwrites workflows and reprocesses data even if processed already. Will not re-upload to
-                        rucio though.
+  --ignore_processed    Ignore runs that have already been processed
   --debug               Debug mode. Does not automatically submit the workflow, and jobs do not update RunDB nor upload
                         to rucio.
   --from NUMBER_FROM    Run number to start with
   --to NUMBER_TO        Run number to end with
   --run [RUN ...]       Space separated specific run number(s) to process
   --runlist RUNLIST     Path to a runlist file
-  --ignore_processed    Ignore runs that have already been processed
   --rucio_upload        Upload data to rucio after processing
   --rundb_update        Update RunDB after processing
 ```
