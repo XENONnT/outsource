@@ -6,22 +6,23 @@ run_id=$1
 context=$2
 xedocs_version=$3
 output=$4
-upload_to_rucio=$5
-update_db=$6
+rucio_upload=$5
+rundb_update=$6
 args=( "$@" )
 chunks=${args[@]:6}
 
-export HOME=$PWD
-
+echo $@
 echo $*
+
+export HOME=$PWD
 
 combine_extra_args=""
 
-if [ "X$update_db" = "Xtrue" ]; then
-    combine_extra_args="$combine_extra_args --update-db"
+if [ "X$rundb_update" = "Xtrue" ]; then
+    combine_extra_args="$combine_extra_args --rundb_update"
 fi
-if [ "X$upload_to_rucio" = "Xtrue" ]; then
-    combine_extra_args="$combine_extra_args --upload-to-rucio"
+if [ "X$rucio_upload" = "Xtrue" ]; then
+    combine_extra_args="$combine_extra_args --rucio_upload"
 fi
 
 # The rest of the arguments are the inputs
@@ -54,7 +55,7 @@ if [ -e /image-build-info.txt ]; then
 fi
 
 export XENON_CONFIG=$PWD/.xenon_config
-if [ "X$upload_to_rucio" = "Xtrue" ]; then
+if [ "X$rucio_upload" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
 

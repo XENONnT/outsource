@@ -8,12 +8,15 @@ xedocs_version=$3
 data_type=$4
 tar_filename=$5
 standalone_download=$6
-upload_to_rucio=$7
-update_db=$8
+rucio_upload=$7
+rundb_update=$8
 args=( "$@" )
 chunks=${args[@]:8}
 
 echo $@
+echo $*
+
+export HOME=$PWD
 
 echo "Processing chunks:"
 echo "$chunks"
@@ -21,17 +24,17 @@ echo "$chunks"
 extraflags=""
 
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
-    extraflags="$extraflags --download-only"
+    extraflags="$extraflags --download_only"
 elif [ "X${standalone_download}" = "Xno-download" ]; then
-    extraflags="$extraflags --no-download"
+    extraflags="$extraflags --no_download"
 fi
 
-if [ "X${upload_to_rucio}" = "Xtrue" ]; then
-    extraflags="$extraflags --upload-to-rucio"
+if [ "X${rucio_upload}" = "Xtrue" ]; then
+    extraflags="$extraflags --rucio_upload"
 fi
 
-if [ "X${update_db}" = "Xtrue" ]; then
-    extraflags="$extraflags --update-db"
+if [ "X${rundb_update}" = "Xtrue" ]; then
+    extraflags="$extraflags --rundb_update"
 fi
 
 . /opt/XENONnT/setup.sh
@@ -47,7 +50,7 @@ if [ -e /image-build-info.txt ]; then
     echo
 fi
 
-if [ "X$upload_to_rucio" = "Xtrue" ]; then
+if [ "X$rucio_upload" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
 
@@ -58,7 +61,6 @@ echo "Current dir is $PWD. Here's whats inside:"
 ls -lah
 
 unset http_proxy
-export HOME=$PWD
 export XENON_CONFIG=$PWD/.xenon_config
 # Do we still neeed these?
 export XDG_CACHE_HOME=$PWD/.cache
@@ -103,8 +105,8 @@ echo
 # ping -c 5 xenon-runsdb.grid.uchicago.edu
 # echo
 echo "Checking if we have .dbtoken:"
-echo "ls -lah $HOME/.dbtoken"
-ls -lah $HOME/.dbtoken
+echo "ls -lah $PWD/.dbtoken"
+ls -lah $PWD/.dbtoken
 echo
 # echo "nmap xenon-runsdb.grid.uchicago.edu"
 # map -p5000 xenon-runsdb.grid.uchicago.edu
@@ -132,7 +134,7 @@ echo "We want to find and delete any records or records_nv if existing, to save 
 find data -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -rf {} +
 
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
-    echo "We are tarballing the data directory for download-only job:"
+    echo "We are tarballing the data directory for download_only job:"
     tar czfv ${tar_filename} data
 else
     echo "We are tarballing the data directory for ${data_type} job:"
