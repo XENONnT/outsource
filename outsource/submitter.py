@@ -182,6 +182,7 @@ class Submitter:
         """Wrapper for a Pegasus job, also sets resource requirement profiles.
 
         Memory and disk in unit of MB.
+
         """
         job = Job(name)
 
@@ -346,8 +347,7 @@ class Submitter:
         return ReplicaCatalog()
 
     def make_tarballs(self):
-        """Make tarballs of Ax-based packages if they are in editable user-
-        installed mode."""
+        """Make tarballs of Ax-based packages if they are in editable user- installed mode."""
         tarballs = []
         tarball_paths = []
         for package_name in ["strax", "straxen", "cutax"]:

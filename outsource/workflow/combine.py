@@ -23,6 +23,7 @@ def merge(st, run_id, data_type, path, chunk_number_group):
     :param data_type: data_type 'level' e.g. records, peaklets
     :param path: path where the data is stored
     :param chunk_number_group: list of chunk number to merge.
+
     """
     # Initialize plugin needed for processing
     plugin = st._plugin_class_registry[data_type]()
