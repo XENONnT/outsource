@@ -5,73 +5,19 @@ import sys
 import time
 import shutil
 import gc
+from utilix.config import setup_logger
 import admix
 import strax
 import straxen
 import cutax
 
-from .upload import get_bottom_data_types, upload_to_rucio
+from outsource.config import get_bottom_data_types
+from outsource.config import RECHUNK_DATA_TYPES, IGNORE_DATA_TYPES, BUDDY_DATA_TYPES, PRIORITY_RANK
+from outsource.upload import upload_to_rucio
 
+
+logger = setup_logger("outsource")
 straxen.Events.save_when = strax.SaveWhen.TARGET
-
-# These data_types we need to rechunk, so don't upload to rucio here!
-RECHUNK_DATA_TYPES = [
-    "pulse_counts",
-    "veto_regions",
-    "records",
-    "peaklets",
-    "lone_hits",
-    "hitlets_nv",
-    "afterpulses",
-    "led_calibration",
-]
-
-# These data_types will not be uploaded to rucio, and will be removed after processing
-IGNORE_DATA_TYPES = [
-    "records",
-    "records_nv",
-    "lone_raw_records_nv",
-    "raw_records_coin_nv",
-    "lone_raw_record_statistics_nv",
-    "records_he",
-    "records_mv",
-    "peaks",
-    "peaklets",  # added to avoid duplicating upload/staging
-    "lone_hites",  # added to avoid duplicating upload/staging
-]
-
-# These data_types should always be made at the same time:
-BUDDY_DATA_TYPES = [
-    ("veto_regions_nv", "event_positions_nv"),
-    (
-        "event_info_double",
-        "event_pattern_fit",
-        "event_area_per_channel",
-        "event_top_bottom_params",
-        "event_ms_naive",
-        "peak_s1_positions_cnn",
-        "event_ambience",
-        "event_shadow",
-        "cuts_basic",
-    ),
-    ("event_shadow", "event_ambience"),
-    ("events_nv", "ref_mon_nv"),
-]
-
-# These are the data_types we want to make first if any of them is in to-process list
-PRIORITY_RANK = [
-    "peaklet_classification",
-    "merged_s2s",
-    "peaks",
-    "peak_basics",
-    "peak_positions_mlp",
-    "peak_positions_gcn",
-    "peak_positions_cnn",
-    "peak_positions",
-    "peak_proximity",
-    "events",
-    "event_basics",
-]
 
 
 def process(run_id, out_data_type, st, chunks):
@@ -97,7 +43,7 @@ def process(run_id, out_data_type, st, chunks):
         )
 
     process_time = time.time() - t0
-    print(f"=== Processing time for {out_data_type}: {process_time / 60:0.2f} minutes === ")
+    logger.info(f"Processing time for {out_data_type}: {process_time / 60:0.2f} minutes")
 
 
 def main():
@@ -117,18 +63,8 @@ def main():
     # Directory where we will be putting everything
     data_dir = "./data"
 
-    # Make sure this is empty
-    # if os.path.exists(data_dir):
-    #     shutil.rmtree(data_dir)
-
     # Get context
     st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
-    # st.storage = [
-    #     strax.DataDirectory(data_dir),
-    #     straxen.rucio.RucioFrontend(
-    #         include_remote=True, download_heavy=True, staging_dir=os.path.join(data_dir, "rucio")
-    #     ),
-    # ]
     st.storage = [
         strax.DataDirectory(data_dir),
         straxen.storage.RucioRemoteFrontend(download_heavy=True),
@@ -139,9 +75,9 @@ def main():
     try:
         st.storage.append(straxen.storage.RucioLocalFrontend())
     except KeyError:
-        print("No local RSE found")
+        logger.info("No local RSE found")
 
-    print("Context is set up!")
+    logger.info("Context is set up!")
 
     run_id = args.run_id
     run_id_str = f"{run_id:06d}"
@@ -185,12 +121,9 @@ def main():
     to_process = [data_type for data_type in to_process if data_type not in admix.utils.RAW_DTYPES]
 
     missing = [d for d in to_process if d != args.data_type]
-    print(f"Need to create intermediate data: {', '.join(missing)}")
+    (f"Need to create intermediate data: {', '.join(missing)}")
 
-    print("-- Available data --")
-    for dd in available_data_types:
-        print(dd)
-    print("-------------------\n")
+    logger.info(f"Available data: {available_data_types}")
 
     if args.download_only:
         sys.exit(0)
@@ -207,25 +140,22 @@ def main():
         # Sort the priority by their dependencies
         to_process = filtered_priority_rank + to_process_low_priority
 
-    print(f"To process: {', '.join(to_process)}")
+    logger.info(f"To process: {to_process}")
     for data_type in to_process:
         process(run_id, data_type, st, args.chunks)
         gc.collect()
 
-    print("Done processing. Now check if we should upload to rucio")
+    logger.info("Done processing. Now check if we should upload to rucio")
 
     # Remove rucio directory
     shutil.rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
 
     # Now loop over data_type we just made and upload the data
     processed_data = [d for d in os.listdir(data_dir)]
-    print("---- Processed data ----")
-    for d in processed_data:
-        print(d)
-    print("------------------------\n")
+    logger.info(f"Processed data: {processed_data}")
 
     if args.chunks:
-        print(f"Skipping upload since we used per-chunk storage")
+        logger.warning(f"Skipping upload since we used per-chunk storage")
         processed_data = []
 
     for dirname in processed_data:
@@ -236,12 +166,12 @@ def main():
 
         # Remove data we do not want to upload
         if this_data_type in IGNORE_DATA_TYPES:
-            print(f"Removing {this_data_type} instead of uploading")
+            logger.warning(f"Removing {this_data_type} instead of uploading")
             shutil.rmtree(path)
             continue
 
         if not args.rucio_upload:
-            print("Ignoring rucio upload")
+            logger.warning("Ignoring rucio upload")
             continue
 
         upload_to_rucio(path, rundb_update=args.rundb_update)
@@ -249,7 +179,7 @@ def main():
         # Cleanup the files we uploaded
         shutil.rmtree(path)
 
-    print("ALL DONE!")
+    logger.info("ALL DONE!")
 
 
 if __name__ == "__main__":

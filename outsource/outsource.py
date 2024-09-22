@@ -14,7 +14,6 @@ from utilix.x509 import _validate_x509_proxy
 from utilix.tarball import Tarball
 from utilix.config import setup_logger, set_logging_level
 import cutax
-
 from Pegasus.api import (
     Operation,
     Namespace,
@@ -31,6 +30,7 @@ from Pegasus.api import (
 )
 
 from outsource.config import base_dir, RunConfig, PER_CHUNK_DATA_TYPES, NEED_RAW_DATA_TYPES
+
 
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
 COMBINE_WRAPPER = "combine-wrapper.sh"

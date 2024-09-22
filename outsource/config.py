@@ -1,11 +1,70 @@
 import os
 import time
-
 from utilix import DB, uconfig, xent_collection
 import admix
 
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
+
+
+# These data_types we need to rechunk, so don't upload to rucio here!
+RECHUNK_DATA_TYPES = [
+    "pulse_counts",
+    "veto_regions",
+    "records",
+    "peaklets",
+    "lone_hits",
+    "hitlets_nv",
+    "afterpulses",
+    "led_calibration",
+]
+
+# These data_types will not be uploaded to rucio, and will be removed after processing
+IGNORE_DATA_TYPES = [
+    "records",
+    "records_nv",
+    "lone_raw_records_nv",
+    "raw_records_coin_nv",
+    "lone_raw_record_statistics_nv",
+    "records_he",
+    "records_mv",
+    "peaks",
+    "peaklets",  # added to avoid duplicating upload/staging
+    "lone_hites",  # added to avoid duplicating upload/staging
+]
+
+# These data_types should always be made at the same time:
+BUDDY_DATA_TYPES = [
+    ("veto_regions_nv", "event_positions_nv"),
+    (
+        "event_info_double",
+        "event_pattern_fit",
+        "event_area_per_channel",
+        "event_top_bottom_params",
+        "event_ms_naive",
+        "peak_s1_positions_cnn",
+        "event_ambience",
+        "event_shadow",
+        "cuts_basic",
+    ),
+    ("event_shadow", "event_ambience"),
+    ("events_nv", "ref_mon_nv"),
+]
+
+# These are the data_types we want to make first if any of them is in to-process list
+PRIORITY_RANK = [
+    "peaklet_classification",
+    "merged_s2s",
+    "peaks",
+    "peak_basics",
+    "peak_positions_mlp",
+    "peak_positions_gcn",
+    "peak_positions_cnn",
+    "peak_positions",
+    "peak_proximity",
+    "events",
+    "event_basics",
+]
 
 
 # These are the developer decided dependencies of data_type
@@ -110,6 +169,31 @@ LED_DATA_TYPES = list(set().union(*LED_MODES.values()))
 
 db = DB()
 coll = xent_collection()
+
+
+def get_bottom_data_types(data_type):
+    """Get the lowest level dependencies for a given data_type."""
+    if data_type in ["hitlets_nv", "events_nv", "veto_regions_nv", "ref_mon_nv"]:
+        return ("raw_records_nv",)
+    elif data_type in ["peak_basics_he"]:
+        return ("raw_records_he",)
+    elif data_type in ["records", "peaklets"]:
+        return ("raw_records",)
+    elif data_type == "veto_regions_mv":
+        return ("raw_records_mv",)
+    else:
+        return ("peaklets", "lone_hits")
+
+
+def get_rse(this_data_type):
+    # Based on the data_type and the utilix config, where should this data go?
+    if this_data_type in ["records", "pulse_counts", "veto_regions", "records_nv", "records_he"]:
+        rse = uconfig.get("Outsource", "records_rse")
+    elif this_data_type in ["peaklets", "lone_hits", "merged_s2s", "hitlets_nv"]:
+        rse = uconfig.get("Outsource", "peaklets_rse")
+    else:
+        rse = uconfig.get("Outsource", "events_rse")
+    return rse
 
 
 class RunConfig:
