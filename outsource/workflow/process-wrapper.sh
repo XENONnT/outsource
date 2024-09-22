@@ -5,8 +5,8 @@ set -e
 run_id=$1
 context=$2
 xedocs_version=$3
-output_dtype=$4
-output_tar=$5
+data_type=$4
+tar_filename=$5
 standalone_download=$6
 upload_to_rucio=$7
 update_db=$8
@@ -51,6 +51,9 @@ if [ "X$upload_to_rucio" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
 
+# Installing customized packages
+. install.sh strax straxen cutax
+
 echo "Current dir is $PWD. Here's whats inside:"
 ls -lah
 
@@ -69,23 +72,25 @@ rucio whoami
 
 echo
 
+mkdir -p data
+
+# We are given a tarball from the previous download job
+echo "Checking if we have any downloaded input tarballs:"
 if [ "X${standalone_download}" = "Xno-download" ]; then
-    # We are given a tarball from the previous download job
-    echo "Untar input data:"
-    tar -xzf *-data*.tar.gz
+    for tarball in $(ls *-data-*.tar.gz)
+    do
+        echo "Untarr downloaded input : $tarball:"
+        tar -xzf $tarball -C data --strip-components=1
+    done
 fi
-
-
-# Installing customized packages
-. install.sh strax straxen cutax
+echo
 
 
 # See if we have any input tarballs
 echo "Checking if we have any input tarballs:"
-runid_pad=`printf %06d $run_id`
-if [ -f ./$runid_pad*.tar.gz ]; then
-    mkdir data
-    for tarball in $(ls $runid_pad*.tar.gz)
+run_id_pad=`printf %06d $run_id`
+if [ -f ./$run_id_pad*.tar.gz ]; then
+    for tarball in $(ls $run_id_pad*.tar.gz)
     do
         echo "Untarr input: $tarball:"
         tar -xzf $tarball -C data --strip-components=1
@@ -113,7 +118,7 @@ then
     chunkarg="--chunks ${chunks}"
 fi
 
-time python process.py ${run_id} --context ${context} --xedocs_version ${xedocs_version} --output ${output_dtype} ${extraflags} ${chunkarg}
+time python process.py ${run_id} --context ${context} --xedocs_version ${xedocs_version} --output ${data_type} ${extraflags} ${chunkarg}
 
 if [[ $? -ne 0 ]];
 then
@@ -128,13 +133,10 @@ find data -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -
 
 if [ "X${standalone_download}" = "Xdownload-only" ]; then
     echo "We are tarballing the data directory for download-only job:"
-    tar czfv ${output_tar} data
-elif [ "X${output_dtype}" = "Xevent_info_double" ] || [ "X${output_dtype}" = "Xevents_mv" ] || [ "X${output_dtype}" = "Xevents_nv" ]; then
-    echo "We are tarballing the data directory for ${output_dtype} job:"
-    tar czfv ${output_tar} data
+    tar czfv ${tar_filename} data
 else
-    echo "We are tarballing the data directory, but only for those with _temp:"
-    tar czfv ${output_tar} data/*_temp
+    echo "We are tarballing the data directory for ${data_type} job:"
+    tar czfv ${tar_filename} data
 fi
 
 echo
