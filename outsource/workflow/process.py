@@ -51,11 +51,11 @@ def main():
     parser.add_argument("--xedocs_version")
     parser.add_argument("--data_type")
     parser.add_argument("--output_path")
-    parser.add_argument("--chunks", nargs="*", type=int)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--download_only", action="store_true", dest="download_only")
     parser.add_argument("--no_download", action="store_true", dest="no_download")
+    parser.add_argument("--chunks", nargs="*", type=int)
 
     args = parser.parse_args()
 
