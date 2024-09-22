@@ -30,7 +30,7 @@ from Pegasus.api import (
     ReplicaCatalog,
 )
 
-from outsource.config import base_dir, RunConfig, PER_CHUNK_DTYPES, NEED_RAW_DATA_DTYPES
+from outsource.config import base_dir, RunConfig, PER_CHUNK_DATA_TYPES, NEED_RAW_DATA_TYPES
 
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
 COMBINE_WRAPPER = "combine-wrapper.sh"
@@ -88,8 +88,8 @@ class Outsource:
         xedocs_version,
         image,
         workflow_id=None,
-        upload_to_rucio=True,
-        update_db=True,
+        rucio_upload=True,
+        rundb_update=True,
         force=False,
         debug=True,
     ):
@@ -129,8 +129,8 @@ class Outsource:
 
         self.debug = debug
         self.force = force
-        self.upload_to_rucio = upload_to_rucio
-        self.update_db = update_db
+        self.rucio_upload = rucio_upload
+        self.rundb_update = rundb_update
 
         # Load from xenon_config
         self.work_dir = uconfig.get("Outsource", "work_dir")
@@ -450,48 +450,48 @@ class Outsource:
                 )
                 continue
 
-            # Will have combine jobs for all the PER_CHUNK_DTYPES we passed
+            # Will have combine jobs for all the PER_CHUNK_DATA_TYPES we passed
             combine_jobs = {}
 
-            # Get dtypes to process
-            for dtype_i, dtype in enumerate(dbcfg.needs_processed):
-                # These dtypes need raw data
-                if dtype in NEED_RAW_DATA_DTYPES:
+            # Get data_types to process
+            for data_type_i, data_type in enumerate(dbcfg.needs_processed):
+                # These data_types need raw data
+                if data_type in NEED_RAW_DATA_TYPES:
                     # Check that raw data exist for this run_id
                     if not all(
-                        [dbcfg._raw_data_exists(raw_type=d) for d in dbcfg.depends_on(dtype)]
+                        [dbcfg._raw_data_exists(raw_type=d) for d in dbcfg.depends_on(data_type)]
                     ):
                         self.logger.error(
-                            f"Doesn't have raw data for {dtype} of run_id {run_id}, skipping"
+                            f"Doesn't have raw data for {data_type} of run_id {run_id}, skipping"
                         )
                         continue
 
-                self.logger.debug(f"Adding {dbcfg.key_for(dtype)}")
+                self.logger.debug(f"Adding {dbcfg.key_for(data_type)}")
                 if dbcfg.run_id not in runlist:
                     runlist.append(dbcfg.run_id)
-                rses = dbcfg.dependencies_rses[dtype]
+                rses = dbcfg.dependencies_rses[data_type]
                 if len(rses) == 0:
-                    if dtype == "raw_records":
+                    if data_type == "raw_records":
                         raise RuntimeError(
                             f"Unable to find a raw records location for {dbcfg.run_id:06d}"
                         )
                     else:
                         self.logger.warning(
-                            f"No data found as the dependency of {dbcfg.key_for(dtype)}. "
+                            f"No data found as the dependency of {dbcfg.key_for(data_type)}. "
                             f"Hopefully those will be created by the workflow."
                         )
 
-                rses_specified = uconfig.get("Outsource", "raw_records_rse").split(",")
+                rses_specified = uconfig.getlist("Outsource", "raw_records_rse")
                 # For standalone downloads, only target US
                 if dbcfg.standalone_download:
                     rses = rses_specified
 
                 # For low level data, we only want to run_id on sites
                 # that we specified for raw_records_rse
-                if dtype in NEED_RAW_DATA_DTYPES:
+                if data_type in NEED_RAW_DATA_TYPES:
                     rses = list(set(rses) & set(rses_specified))
                     assert len(rses) > 0, (
-                        f"No sites found for {dbcfg.key_for(dtype)}, "
+                        f"No sites found for {dbcfg.key_for(data_type)}, "
                         "since no intersection between the available rses "
                         f"{rses} and the specified raw_records_rses {rses_specified}"
                     )
@@ -505,9 +505,9 @@ class Outsource:
 
                 requirements, requirements_us = dbcfg.get_requirements(rses)
 
-                if dtype in PER_CHUNK_DTYPES:
+                if data_type in PER_CHUNK_DATA_TYPES:
                     # Add jobs, one for each input file
-                    n_chunks = dbcfg.nchunks(dtype)
+                    n_chunks = dbcfg.nchunks(data_type)
 
                     chunk_list = np.arange(n_chunks)
                     njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
@@ -532,23 +532,21 @@ class Outsource:
                     # priority is given in the order they were submitted
                     combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                     combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
-                    combine_output_tar_name = f"{dbcfg.key_for(dtype)}-combined.tar.gz"
+                    combine_output_tar_name = f"{dbcfg.key_for(data_type)}-combined.tar.gz"
                     combine_output_tar = File(combine_output_tar_name)
-                    combine_job.add_outputs(
-                        combine_output_tar, stage_out=(not self.upload_to_rucio)
-                    )
+                    combine_job.add_outputs(combine_output_tar, stage_out=(not self.rucio_upload))
                     combine_job.add_args(
                         dbcfg.run_id,
                         self.context_name,
                         self.xedocs_version,
                         combine_output_tar_name,
-                        f"{self.upload_to_rucio}".lower(),
-                        f"{self.update_db}".lower(),
+                        f"{self.rucio_upload}".lower(),
+                        f"{self.rundb_update}".lower(),
                         *(f'"{c}"' for c in chunk_str_list),
                     )
 
                     wf.add_jobs(combine_job)
-                    combine_jobs[dtype] = (combine_job, combine_output_tar)
+                    combine_jobs[data_type] = (combine_job, combine_output_tar)
 
                     # Loop over the chunks
                     for job_i in range(njobs):
@@ -560,7 +558,9 @@ class Outsource:
                         # from rucio first, which is useful for testing and when using
                         # dedicated clusters with storage
                         if dbcfg.standalone_download:
-                            tar_filename = File(f"{dbcfg.key_for(dtype)}-data-{job_i:04d}.tar.gz")
+                            tar_filename = File(
+                                f"{dbcfg.key_for(data_type)}-data-{job_i:04d}.tar.gz"
+                            )
                             download_job = self._job(
                                 "download", disk=self.job_kwargs["download"]["disk"]
                             )
@@ -572,11 +572,11 @@ class Outsource:
                                 dbcfg.run_id,
                                 self.context_name,
                                 self.xedocs_version,
-                                dtype,
+                                data_type,
                                 tar_filename,
-                                "download-only",
-                                f"{self.upload_to_rucio}".lower(),
-                                f"{self.update_db}".lower(),
+                                "download_only",
+                                f"{self.rucio_upload}".lower(),
+                                f"{self.rundb_update}".lower(),
                                 chunk_str,
                             )
                             download_job.add_inputs(
@@ -586,7 +586,9 @@ class Outsource:
                             wf.add_jobs(download_job)
 
                         # output files
-                        job_output_tar = File(f"{dbcfg.key_for(dtype)}-output-{job_i:04d}.tar.gz")
+                        job_output_tar = File(
+                            f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz"
+                        )
                         # Do we already have a local copy?
                         job_output_tar_local_path = os.path.join(
                             self.outputs_dir, f"{job_output_tar}"
@@ -600,7 +602,7 @@ class Outsource:
                             )
 
                         # Add job
-                        job = self._job(**self.job_kwargs[dtype])
+                        job = self._job(**self.job_kwargs[data_type])
                         if desired_sites:
                             # Give a hint to glideinWMS for the sites we want
                             # (mostly useful for XENON VO in Europe).
@@ -623,16 +625,16 @@ class Outsource:
                             dbcfg.run_id,
                             self.context_name,
                             self.xedocs_version,
-                            dtype,
+                            data_type,
                             job_output_tar,
-                            "false" if not dbcfg.standalone_download else "no-download",
-                            f"{self.upload_to_rucio}".lower(),
-                            f"{self.update_db}".lower(),
+                            "false" if not dbcfg.standalone_download else "no_download",
+                            f"{self.rucio_upload}".lower(),
+                            f"{self.rundb_update}".lower(),
                             chunk_str,
                         )
 
                         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                        job.add_outputs(job_output_tar, stage_out=(not self.upload_to_rucio))
+                        job.add_outputs(job_output_tar, stage_out=(not self.rucio_upload))
                         wf.add_jobs(job)
 
                         # All strax jobs depend on the pre-flight or a download job,
@@ -646,7 +648,7 @@ class Outsource:
                         wf.add_dependency(job, children=[combine_job])
 
                         parent_combines = []
-                        for d in dbcfg.depends_on(dtype):
+                        for d in dbcfg.depends_on(data_type):
                             if d in combine_jobs:
                                 parent_combines.append(combine_jobs.get(d))
 
@@ -655,10 +657,10 @@ class Outsource:
                 else:
                     # High level data.. we do it all on one job
                     # output files
-                    job_output_tar = File(f"{dbcfg.key_for(dtype)}-output.tar.gz")
+                    job_output_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
 
                     # Add job
-                    job = self._job(**self.job_kwargs[dtype], cores=2)
+                    job = self._job(**self.job_kwargs[data_type], cores=2)
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
                     job.add_profiles(Namespace.CONDOR, "requirements", requirements)
                     job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
@@ -669,11 +671,11 @@ class Outsource:
                         dbcfg.run_id,
                         self.context_name,
                         self.xedocs_version,
-                        dtype,
+                        data_type,
                         job_output_tar,
-                        "false" if not dbcfg.standalone_download else "no-download",
-                        f"{self.upload_to_rucio}".lower(),
-                        f"{self.update_db}".lower(),
+                        "false" if not dbcfg.standalone_download else "no_download",
+                        f"{self.rucio_upload}".lower(),
+                        f"{self.rundb_update}".lower(),
                     )
 
                     job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
@@ -684,7 +686,7 @@ class Outsource:
                     # If there are multiple levels to the workflow,
                     # need to have current process-wrapper.sh depend on previous combine-wrapper.sh
 
-                    for d in dbcfg.depends_on(dtype):
+                    for d in dbcfg.depends_on(data_type):
                         if d in combine_jobs:
                             cj, cj_output = combine_jobs[d]
                             wf.add_dependency(job, parents=[cj])
@@ -749,6 +751,6 @@ class Outsource:
             wf.graph(
                 output=os.path.join(self.generated_dir, "workflow_graph.dot"), label="xform-id"
             )
-            wf.graph(
-                output=os.path.join(self.generated_dir, "workflow_graph.svg"), label="xform-id"
-            )
+            # wf.graph(
+            #     output=os.path.join(self.generated_dir, "workflow_graph.svg"), label="xform-id"
+            # )

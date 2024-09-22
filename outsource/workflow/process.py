@@ -10,12 +10,12 @@ import strax
 import straxen
 import cutax
 
-from .upload import get_bottom_dtypes, attach_rucio, upload_to_rucio, update_db
+from .upload import get_bottom_data_types, upload_to_rucio
 
 straxen.Events.save_when = strax.SaveWhen.TARGET
 
-# These dtypes we need to rechunk, so don't upload to rucio here!
-RECHUNK_DTYPES = [
+# These data_types we need to rechunk, so don't upload to rucio here!
+RECHUNK_DATA_TYPES = [
     "pulse_counts",
     "veto_regions",
     "records",
@@ -26,8 +26,8 @@ RECHUNK_DTYPES = [
     "led_calibration",
 ]
 
-# These dtypes will not be uploaded to rucio, and will be removed after processing
-IGNORE_DTYPES = [
+# These data_types will not be uploaded to rucio, and will be removed after processing
+IGNORE_DATA_TYPES = [
     "records",
     "records_nv",
     "lone_raw_records_nv",
@@ -40,8 +40,8 @@ IGNORE_DTYPES = [
     "lone_hites",  # added to avoid duplicating upload/staging
 ]
 
-# These dtypes should always be made at the same time:
-BUDDY_DTYPES = [
+# These data_types should always be made at the same time:
+BUDDY_DATA_TYPES = [
     ("veto_regions_nv", "event_positions_nv"),
     (
         "event_info_double",
@@ -58,7 +58,7 @@ BUDDY_DTYPES = [
     ("events_nv", "ref_mon_nv"),
 ]
 
-# These are the dtypes we want to make first if any of them is in to-process list
+# These are the data_types we want to make first if any of them is in to-process list
 PRIORITY_RANK = [
     "peaklet_classification",
     "merged_s2s",
@@ -74,30 +74,30 @@ PRIORITY_RANK = [
 ]
 
 
-def process(run_id, out_dtype, st, chunks):
+def process(run_id, out_data_type, st, chunks):
     run_id_str = f"{run_id:06d}"
     t0 = time.time()
 
     if chunks:
-        assert out_dtype in RECHUNK_DTYPES
-        bottoms = get_bottom_dtypes(out_dtype)
+        assert out_data_type in RECHUNK_DATA_TYPES
+        bottoms = get_bottom_data_types(out_data_type)
         assert len(bottoms) == 1
         st.make(
             run_id_str,
-            out_dtype,
+            out_data_type,
             chunk_number={bottoms[0]: chunks},
             processor="single_thread",
         )
     else:
-        assert out_dtype not in RECHUNK_DTYPES
+        assert out_data_type not in RECHUNK_DATA_TYPES
         st.make(
             run_id_str,
-            out_dtype,
+            out_data_type,
             processor="single_thread",
         )
 
     process_time = time.time() - t0
-    print(f"=== Processing time for {out_dtype}: {process_time / 60:0.2f} minutes === ")
+    print(f"=== Processing time for {out_data_type}: {process_time / 60:0.2f} minutes === ")
 
 
 def main():
@@ -107,10 +107,10 @@ def main():
     parser.add_argument("--xedocs_version", help="xedocs global version")
     parser.add_argument("--data_type", help="desired strax data_type")
     parser.add_argument("--chunks", nargs="*", help="chunk numbers to download", type=int)
-    parser.add_argument("--upload-to-rucio", action="store_true", dest="upload_to_rucio")
-    parser.add_argument("--update-db", action="store_true", dest="update_db")
-    parser.add_argument("--download-only", action="store_true", dest="download_only")
-    parser.add_argument("--no-download", action="store_true", dest="no_download")
+    parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
+    parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
+    parser.add_argument("--download_only", action="store_true", dest="download_only")
+    parser.add_argument("--no_download", action="store_true", dest="no_download")
 
     args = parser.parse_args()
 
@@ -145,48 +145,50 @@ def main():
 
     run_id = args.run_id
     run_id_str = f"{run_id:06d}"
-    out_dtype = args.data_type  # eg. typically for tpc: peaklets/event_info
+    out_data_type = args.data_type  # eg. typically for tpc: peaklets/event_info
 
     # Initialize plugin needed for processing this output type
-    plugin = st._plugin_class_registry[out_dtype]()
+    plugin = st._plugin_class_registry[out_data_type]()
 
     # Figure out what plugins we need to process/initialize
     to_process = [args.data_type]
-    for buddies in BUDDY_DTYPES:
+    for buddies in BUDDY_DATA_TYPES:
         if args.data_type in buddies:
             to_process = list(buddies)
     # Remove duplicates
     to_process = list(set(to_process))
 
     # Keep track of the data we can download now -- will be important for the upload step later
-    available_dtypes = st.available_for_run(run_id_str)
-    available_dtypes = available_dtypes[available_dtypes.is_stored].target.values.tolist()
+    available_data_types = st.available_for_run(run_id_str)
+    available_data_types = available_data_types[
+        available_data_types.is_stored
+    ].target.values.tolist()
 
-    missing = set(plugin.depends_on) - set(available_dtypes)
+    missing = set(plugin.depends_on) - set(available_data_types)
     intermediates = missing.copy()
     to_process = list(intermediates) + to_process
 
     # Now we need to figure out what intermediate data we need to make
     while len(intermediates) > 0:
         new_intermediates = []
-        for _dtype in intermediates:
-            _plugin = st._get_plugins((_dtype,), run_id_str)[_dtype]
+        for _data_type in intermediates:
+            _plugin = st._get_plugins((_data_type,), run_id_str)[_data_type]
             # Adding missing dependencies to to-process list
             for dependency in _plugin.depends_on:
-                if dependency not in available_dtypes:
+                if dependency not in available_data_types:
                     if dependency not in to_process:
                         to_process = [dependency] + to_process
                     new_intermediates.append(dependency)
         intermediates = new_intermediates
 
     # Remove any raw data
-    to_process = [dtype for dtype in to_process if dtype not in admix.utils.RAW_DTYPES]
+    to_process = [data_type for data_type in to_process if data_type not in admix.utils.RAW_DTYPES]
 
     missing = [d for d in to_process if d != args.data_type]
     print(f"Need to create intermediate data: {', '.join(missing)}")
 
     print("-- Available data --")
-    for dd in available_dtypes:
+    for dd in available_data_types:
         print(dd)
     print("-------------------\n")
 
@@ -195,17 +197,19 @@ def main():
 
     # If to-process has anything in PRIORITY_RANK, we process them first
     if len(set(PRIORITY_RANK) & set(to_process)) > 0:
-        # Remove any prioritized dtypes that are not in to_process
-        filtered_priority_rank = [dtype for dtype in PRIORITY_RANK if dtype in to_process]
-        # Remove the PRIORITY_RANK dtypes from to_process, as low priority data_type which we don't
-        # rigorously care their order
+        # Remove any prioritized data_types that are not in to_process
+        filtered_priority_rank = [
+            data_type for data_type in PRIORITY_RANK if data_type in to_process
+        ]
+        # Remove the PRIORITY_RANK data_types from to_process,
+        # as low priority data_type which we don't rigorously care their order
         to_process_low_priority = [dt for dt in to_process if dt not in filtered_priority_rank]
         # Sort the priority by their dependencies
         to_process = filtered_priority_rank + to_process_low_priority
 
     print(f"To process: {', '.join(to_process)}")
-    for dtype in to_process:
-        process(run_id, dtype, st, args.chunks)
+    for data_type in to_process:
+        process(run_id, data_type, st, args.chunks)
         gc.collect()
 
     print("Done processing. Now check if we should upload to rucio")
@@ -228,26 +232,19 @@ def main():
         path = os.path.join(data_dir, dirname)
 
         # Get rucio dataset
-        this_run, this_dtype, this_hash = dirname.split("-")
+        this_run, this_data_type, this_hash = dirname.split("-")
 
         # Remove data we do not want to upload
-        if this_dtype in IGNORE_DTYPES:
-            print(f"Removing {this_dtype} instead of uploading")
+        if this_data_type in IGNORE_DATA_TYPES:
+            print(f"Removing {this_data_type} instead of uploading")
             shutil.rmtree(path)
             continue
 
-        if not args.upload_to_rucio:
+        if not args.rucio_upload:
             print("Ignoring rucio upload")
             continue
 
-        attach_rucio(path)
-
-        succeded_rucio_upload = upload_to_rucio(path)
-
-        # If we processed the whole thing, add a rule at DALI update the RunDB here
-        # Skip if update_db flag is false, or if the rucio upload failed
-        if args.update_db and succeded_rucio_upload:
-            update_db(st, path)
+        upload_to_rucio(path, rundb_update=args.rundb_update)
 
         # Cleanup the files we uploaded
         shutil.rmtree(path)

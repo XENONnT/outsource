@@ -51,8 +51,8 @@ ACTUALLY_STORED = {
     "led_calibration": ["led_calibration"],
 }
 
-# Do a query to see if these data types are present
-DETECTOR_DTYPES = {
+# Do a query to see if these data_types are present
+DETECTOR_DATA_TYPES = {
     "tpc": {
         "raw": "raw_records",
         "to_process": [
@@ -88,8 +88,8 @@ DETECTOR_DTYPES = {
     "muon_veto": {"raw": "raw_records_mv", "to_process": ["events_mv"], "possible": ["events_mv"]},
 }
 
-PER_CHUNK_DTYPES = ["records", "peaklets", "hitlets_nv", "afterpulses", "led_calibration"]
-NEED_RAW_DATA_DTYPES = [
+PER_CHUNK_DATA_TYPES = ["records", "peaklets", "hitlets_nv", "afterpulses", "led_calibration"]
+NEED_RAW_DATA_TYPES = [
     "peaklets",
     "peak_basics_he",
     "hitlets_nv",
@@ -106,7 +106,7 @@ LED_MODES = {
 }
 
 # LED calibration particular data_type we care about
-LED_DTYPES = list(set().union(*LED_MODES.values()))
+LED_DATA_TYPES = list(set().union(*LED_MODES.values()))
 
 db = DB()
 coll = xent_collection()
@@ -197,7 +197,7 @@ class RunConfig:
         if not uconfig.has_option("Outsource", "exclude_sites"):
             return ""
 
-        sites = uconfig.get_list("Outsource", "exclude_sites")
+        sites = uconfig.getlist("Outsource", "exclude_sites")
         exprs = []
         for site in sites:
             exprs.append(f'GLIDEIN_Site =!= "{site}"')
@@ -217,44 +217,46 @@ class RunConfig:
             requirements_us += f" && ({self._exclude_sites})"
         return requirements, requirements_us
 
-    def depends_on(self, dtype):
-        return DEPENDS_ON[dtype]
+    def depends_on(self, data_type):
+        return DEPENDS_ON[data_type]
 
-    def key_for(self, dtype):
-        return self.context.key_for(f"{self.run_id:06d}", dtype)
+    def key_for(self, data_type):
+        return self.context.key_for(f"{self.run_id:06d}", data_type)
 
     def get_needs_processed(self):
         """Returns the list of data_type we need to process."""
         # Do we need to process? read from xenon_config
-        requested_dtypes = uconfig.get_list("Outsource", "dtypes")
+        include_data_types = uconfig.getlist("Outsource", "include_data_types")
 
         if self.mode in LED_MODES:
-            # If we are using LED data, only process those dtypes
+            # If we are using LED data, only process those data_types
             # For this context, see if we have that data yet
-            requested_dtypes = [
-                dtype for dtype in requested_dtypes if dtype in LED_MODES[self.mode]
+            include_data_types = [
+                data_type for data_type in include_data_types if data_type in LED_MODES[self.mode]
             ]
         else:
-            # If we are not, don't process those dtypes
-            requested_dtypes = list(set(requested_dtypes) - set(LED_DTYPES))
+            # If we are not, don't process those data_types
+            include_data_types = list(set(include_data_types) - set(LED_DATA_TYPES))
 
-        # Get all possible dtypes we can process for this run
-        possible_dtypes = []
+        # Get all possible data_types we can process for this run
+        possible_data_types = []
         for detector in self.detectors:
-            possible_dtypes.extend(DETECTOR_DTYPES[detector]["possible"])
+            possible_data_types.extend(DETECTOR_DATA_TYPES[detector]["possible"])
 
-        # Modify requested_dtypes to only consider the possible ones
-        requested_dtypes = [dtype for dtype in requested_dtypes if dtype in possible_dtypes]
+        # Modify include_data_types to only consider the possible ones
+        include_data_types = [
+            data_type for data_type in include_data_types if data_type in possible_data_types
+        ]
 
         ret = []
-        for category in requested_dtypes:
-            dtypes_already_processed = []
-            for dtype in ACTUALLY_STORED[category]:
-                hash = self.context.key_for(f"{self.run_id:06d}", dtype).lineage_hash
-                rses = db.get_rses(self.run_id, dtype, hash)
+        for category in include_data_types:
+            data_types_already_processed = []
+            for data_type in ACTUALLY_STORED[category]:
+                hash = self.context.key_for(f"{self.run_id:06d}", data_type).lineage_hash
+                rses = db.get_rses(self.run_id, data_type, hash)
                 # If this data is not on any rse, reprocess it, or we are asking for a rerun
-                dtypes_already_processed.append(len(rses) > 0)
-            if not all(dtypes_already_processed) or self.force:
+                data_types_already_processed.append(len(rses) > 0)
+            if not all(data_types_already_processed) or self.force:
                 ret.append(category)
 
         ret.sort(key=lambda x: len(self.context.get_dependencies(x)))
@@ -264,20 +266,20 @@ class RunConfig:
     def get_dependencies_rses(self):
         """Get Rucio Storage Elements of data_type."""
         rses = dict()
-        for dtype in self.needs_processed:
-            input_dtypes = self.depends_on(dtype)
+        for data_type in self.needs_processed:
+            input_data_types = self.depends_on(data_type)
             _rses_tmp = []
-            for input_dtype in input_dtypes:
-                hash = self.context.key_for(f"{self.run_id:06d}", input_dtype).lineage_hash
-                _rses_tmp.extend(db.get_rses(self.run_id, input_dtype, hash))
-            rses[dtype] = list(set(_rses_tmp))
+            for input_data_type in input_data_types:
+                hash = self.context.key_for(f"{self.run_id:06d}", input_data_type).lineage_hash
+                _rses_tmp.extend(db.get_rses(self.run_id, input_data_type, hash))
+            rses[data_type] = list(set(_rses_tmp))
         return rses
 
-    def nchunks(self, dtype):
-        # Get the dtype this one depends on
-        dtype = self.depends_on(dtype)[0]
-        hash = self.context.key_for(f"{self.run_id:06d}", dtype).lineage_hash
-        did = f"xnt_{self.run_id:06d}:{dtype}-{hash}"
+    def nchunks(self, data_type):
+        # Get the data_type this one depends on
+        data_type = self.depends_on(data_type)[0]
+        hash = self.context.key_for(f"{self.run_id:06d}", data_type).lineage_hash
+        did = f"xnt_{self.run_id:06d}:{data_type}-{hash}"
         files = admix.rucio.list_files(did)
         # Subtract 1 for metadata
         return len(files) - 1
