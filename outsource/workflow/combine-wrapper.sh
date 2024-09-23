@@ -72,7 +72,8 @@ echo
 run_id_pad=`printf %06d $run_id`
 
 # The rest of the arguments are the inputs
-for TAR in $run_id_pad*-output*.tar.gz; do
+for TAR in $(ls $run_id_pad*-output*.tar.gz)
+do
     tar -xzf $TAR -C $input_path --strip-components=1
 done
 

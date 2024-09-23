@@ -89,7 +89,7 @@ run_id_pad=`printf %06d $run_id`
 # We are given a tarball from the previous download job
 echo "Checking if we have any downloaded input tarballs:"
 if [ "X$standalone_download" = "Xno-download" ]; then
-    for tarball in $run_id_pad*-download*.tar.gz
+    for tarball in $(ls $run_id_pad*-download*.tar.gz)
     do
         echo "Untarr downloaded input : $tarball:"
         tar -xzf $tarball -C $input_path --strip-components=1
@@ -99,7 +99,7 @@ echo
 
 # See if we have any input tarballs
 echo "Checking if we have any processed input tarballs:"
-for tarball in $run_id_pad*-output*.tar.gz
+for tarball in $(ls $run_id_pad*-output*.tar.gz)
 do
     echo "Untarr input: $tarball:"
     tar -xzf $tarball -C $input_path --strip-components=1
