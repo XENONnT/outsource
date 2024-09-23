@@ -350,7 +350,7 @@ class Submitter:
         """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
         tarballs = []
         tarball_paths = []
-        for package_name in ["strax", "straxen", "cutax", "outsource"]:
+        for package_name in ["strax", "straxen", "cutax", "utilix", "outsource"]:
             _tarball = Tarball(self.generated_dir, package_name)
             if not Tarball.get_installed_git_repo(package_name):
                 # Packages should not be non-editable user-installed
@@ -530,7 +530,7 @@ class Submitter:
                     # priority is given in the order they were submitted
                     combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                     combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
-                    combine_tar = File(f"{dbcfg.key_for(data_type)}-combined.tar.gz")
+                    combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
                     combine_job.add_outputs(combine_tar, stage_out=(not self.rucio_upload))
                     combine_job.add_args(
                         dbcfg.run_id,
@@ -556,7 +556,7 @@ class Submitter:
                         # dedicated clusters with storage
                         if dbcfg.standalone_download:
                             download_tar = File(
-                                f"{dbcfg.key_for(data_type)}-data-{job_i:04d}.tar.gz"
+                                f"{dbcfg.key_for(data_type)}-download-{job_i:04d}.tar.gz"
                             )
                             download_job = self._job(
                                 "download", disk=self.job_kwargs["download"]["disk"]

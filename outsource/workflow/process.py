@@ -50,6 +50,7 @@ def main():
     parser.add_argument("--context")
     parser.add_argument("--xedocs_version")
     parser.add_argument("--data_type")
+    parser.add_argument("--input_path")
     parser.add_argument("--output_path")
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
@@ -59,12 +60,14 @@ def main():
 
     args = parser.parse_args()
 
-    # Directory where we will be putting everything
+    # Directory of input and output
+    input_path = args.input_path
     output_path = args.output_path
 
     # Get context
     st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     st.storage = [
+        strax.DataDirectory(input_path, readonly=True),
         strax.DataDirectory(output_path),
         straxen.storage.RucioRemoteFrontend(download_heavy=True),
     ]
@@ -152,10 +155,6 @@ def main():
     processed_data = os.listdir(output_path)
     logger.info(f"Processed data: {processed_data}")
 
-    if args.chunks:
-        logger.warning(f"Skipping upload since we used per-chunk storage")
-        processed_data = []
-
     for dirname in processed_data:
         path = os.path.join(output_path, dirname)
 
@@ -166,6 +165,10 @@ def main():
         if this_data_type in IGNORE_DATA_TYPES:
             logger.warning(f"Removing {this_data_type} instead of uploading")
             shutil.rmtree(path)
+            continue
+
+        if args.chunks:
+            logger.warning(f"Skipping upload since we used per-chunk storage")
             continue
 
         if not args.rucio_upload:
