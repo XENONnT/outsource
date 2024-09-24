@@ -523,7 +523,8 @@ class Submitter:
                     # we can then add to that job inside the chunk file loop
                     # only need combine job for low-level stuff
                     combine_job = self._job(
-                        "combine", disk=self.job_kwargs["combine"]["disk"], cores=4
+                        "combine",
+                        disk=self.job_kwargs["combine"]["disk"],
                     )
                     # combine jobs must happen in the US
                     combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
@@ -559,7 +560,8 @@ class Submitter:
                                 f"{dbcfg.key_for(data_type)}-download-{job_i:04d}.tar.gz"
                             )
                             download_job = self._job(
-                                "download", disk=self.job_kwargs["download"]["disk"]
+                                "download",
+                                disk=self.job_kwargs["download"]["disk"],
                             )
                             download_job.add_profiles(
                                 Namespace.CONDOR, "requirements", requirements
@@ -649,7 +651,7 @@ class Submitter:
                     job_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
 
                     # Add job
-                    job = self._job(**self.job_kwargs[data_type], cores=2)
+                    job = self._job(**self.job_kwargs[data_type])
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
                     job.add_profiles(Namespace.CONDOR, "requirements", requirements)
                     job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)

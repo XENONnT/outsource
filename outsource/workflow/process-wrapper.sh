@@ -72,9 +72,6 @@ fi
 
 unset http_proxy
 export XENON_CONFIG=$PWD/.xenon_config
-# Do we still neeed these?
-export XDG_CACHE_HOME=$PWD/.cache
-export XDG_CONFIG_HOME=$PWD/.config
 
 echo "RUCIO/X509 Stuff:"
 env | grep X509
@@ -93,6 +90,7 @@ if [ "X$standalone_download" = "Xno-download" ]; then
     do
         echo "Untarr downloaded input : $tarball:"
         tar -xzf $tarball -C $input_path --strip-components=1
+        rm $tarball
     done
 fi
 echo
@@ -103,6 +101,7 @@ for tarball in $(ls $run_id_pad*-output*.tar.gz)
 do
     echo "Untarr input: $tarball:"
     tar -xzf $tarball -C $input_path --strip-components=1
+    rm $tarball
 done
 echo
 
@@ -121,12 +120,17 @@ echo
 echo "Processing:"
 time python process.py $run_id --context $context --xedocs_version $xedocs_version --data_type $data_type --input_path $input_path --output_path $output_path $extraflags $chunkarg
 
+echo "Removing inputs directory:"
+rm -r $input_path
+
 echo "Here is what is in the output directory after processing:"
 ls -lah $output_path
-echo "We want to find and delete any records or records_nv if existing, to save disk in combine jobs."
+
+echo "We want to find and delete any records or records_nv if existing."
 find $output_path -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -rf {} +
+
 echo
-echo "Total amount of data before tarballing: "`du -s --si . | cut -f1`
+echo "Total amount of data before tarballing: "`du -s --si $output_path | cut -f1`
 echo
 
 echo "We are tarballing the output directory:"

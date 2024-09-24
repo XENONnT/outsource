@@ -28,17 +28,17 @@ def merge(st, run_id, data_type, path, chunk_number_group):
     # Initialize plugin needed for processing
     plugin = st._plugin_class_registry[data_type]()
 
-    to_merge = [d.split("-")[1] for d in os.listdir(path)]
+    to_merge = set(d.split("-")[1] for d in os.listdir(path))
 
     # Rechunk the data if we can
-    for data_type in plugin.provides:
-        if data_type not in to_merge:
+    for _data_type in plugin.provides:
+        if _data_type not in to_merge:
             continue
         bottoms = get_bottom_data_types(data_type)
         assert len(bottoms) == 1
         st.merge_per_chunk_storage(
             run_id,
-            data_type,
+            _data_type,
             bottoms[0],
             chunk_number_group=chunk_number_group,
         )

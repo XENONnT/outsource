@@ -57,9 +57,6 @@ fi
 
 unset http_proxy
 export XENON_CONFIG=$PWD/.xenon_config
-# Do we still neeed these?
-export XDG_CACHE_HOME=$PWD/.cache
-export XDG_CONFIG_HOME=$PWD/.config
 
 echo "RUCIO/X509 Stuff:"
 env | grep X509
@@ -75,6 +72,7 @@ run_id_pad=`printf %06d $run_id`
 for TAR in $(ls $run_id_pad*-output*.tar.gz)
 do
     tar -xzf $TAR -C $input_path --strip-components=1
+    rm $TAR
 done
 
 echo "What is in the input directory:"
@@ -87,8 +85,15 @@ echo
 echo "Combining:"
 time python combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path $extraflags $chunkarg
 
+echo "Removing inputs directory:"
+rm -r $input_path
+
 echo "Here is what is in the output directory after combining:"
 ls -lah $output_path
+
+echo
+echo "Total amount of data before tarballing: "`du -s --si $output_path | cut -f1`
+echo
 
 echo "We are tarballing the output directory:"
 tar czfv $tar_filename $output_path

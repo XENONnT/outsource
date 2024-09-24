@@ -29,8 +29,6 @@ IGNORE_DATA_TYPES = [
     "records_he",
     "records_mv",
     "peaks",
-    "peaklets",  # added to avoid duplicating upload/staging
-    "lone_hites",  # added to avoid duplicating upload/staging
 ]
 
 # These data_types should always be made at the same time:

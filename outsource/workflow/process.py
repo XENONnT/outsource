@@ -19,7 +19,7 @@ logger = setup_logger("outsource")
 straxen.Events.save_when = strax.SaveWhen.TARGET
 
 
-def process(run_id, data_type, st, chunks):
+def process(st, run_id, data_type, chunks):
     t0 = time.time()
 
     if chunks:
@@ -66,10 +66,15 @@ def main():
 
     # Get context
     st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
+    staging_dir = "./strax_data"
+    if os.path.abspath(staging_dir) == os.path.abspath(input_path):
+        raise ValueError("Input path cannot be the same as staging directory")
+    if os.path.abspath(staging_dir) == os.path.abspath(output_path):
+        raise ValueError("Output path cannot be the same as staging directory")
     st.storage = [
         strax.DataDirectory(input_path, readonly=True),
         strax.DataDirectory(output_path),
-        straxen.storage.RucioRemoteFrontend(download_heavy=True),
+        straxen.storage.RucioRemoteFrontend(staging_dir=staging_dir, download_heavy=True),
     ]
 
     # Add local frontend if we can
@@ -143,13 +148,13 @@ def main():
 
     logger.info(f"To process: {to_process}")
     for data_type in to_process:
-        process(run_id, data_type, st, args.chunks)
+        process(st, run_id, data_type, args.chunks)
         gc.collect()
 
     logger.info("Done processing. Now check if we should upload to rucio")
 
     # Remove rucio directory
-    shutil.rmtree(st.storage[1]._get_backend("RucioRemoteBackend").staging_dir)
+    shutil.rmtree(staging_dir)
 
     # Now loop over data_type we just made and upload the data
     processed_data = os.listdir(output_path)
