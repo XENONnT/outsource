@@ -30,7 +30,7 @@ if [ "X$rucio_upload" = "Xtrue" ]; then
     extraflags="$extraflags --rucio_upload"
 fi
 
-chunkarg="--chunks $chunks"
+chunksarg="--chunks $chunks"
 
 . /opt/XENONnT/setup.sh
 
@@ -78,8 +78,15 @@ echo
 echo "Total amount of data before combine: "`du -s --si $input_path | cut -f1`
 echo
 
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export BLIS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export GOTO_NUM_THREADS=1
+
 echo "Combining:"
-time python combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path $extraflags $chunkarg
+time python3 combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path $chunksarg $extraflags
 
 echo "Removing inputs directory:"
 rm -r $input_path

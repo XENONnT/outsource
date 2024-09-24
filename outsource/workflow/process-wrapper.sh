@@ -42,10 +42,10 @@ if [ "X$rundb_update" = "Xtrue" ]; then
     extraflags="$extraflags --rundb_update"
 fi
 
-chunkarg=""
+chunksarg=""
 if [ -n "$chunks" ]
 then
-    chunkarg="--chunks $chunks"
+    chunksarg="--chunks $chunks"
 fi
 
 . /opt/XENONnT/setup.sh
@@ -117,8 +117,15 @@ echo
 # map -p5000 xenon-runsdb.grid.uchicago.edu
 # echo
 
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export BLIS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export GOTO_NUM_THREADS=1
+
 echo "Processing:"
-time python process.py $run_id --context $context --xedocs_version $xedocs_version --data_type $data_type --input_path $input_path --output_path $output_path $extraflags $chunkarg
+time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --data_type $data_type --input_path $input_path --output_path $output_path $chunksarg $extraflags
 
 echo "Removing inputs directory:"
 rm -r $input_path

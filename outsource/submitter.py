@@ -33,12 +33,16 @@ from outsource.config import base_dir, RunConfig, PER_CHUNK_DATA_TYPES, NEED_RAW
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
 COMBINE_WRAPPER = "combine-wrapper.sh"
 PROCESS_WRAPPER = "process-wrapper.sh"
+REQUEST_CPUS = uconfig.getint("Outsource", "request_cpus", fallback=1)
 COMBINE_MEMORY = uconfig.getint("Outsource", "combine_memory")
 COMBINE_DISK = uconfig.getint("Outsource", "combine_disk")
 PEAKLETS_MEMORY = uconfig.getint("Outsource", "peaklets_memory")
 PEAKLETS_DISK = uconfig.getint("Outsource", "peaklets_disk")
 EVENTS_MEMORY = uconfig.getint("Outsource", "events_memory")
 EVENTS_DISK = uconfig.getint("Outsource", "events_disk")
+COMBINE_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=COMBINE_MEMORY, disk=COMBINE_DISK)
+PEAKLETS_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK)
+EVENTS_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=EVENTS_MEMORY, disk=EVENTS_DISK)
 
 db = DB()
 
@@ -63,20 +67,20 @@ class Submitter:
 
     # Jobs details for a given datatype
     job_kwargs = {
-        "combine": dict(name="combine", memory=COMBINE_MEMORY, disk=COMBINE_DISK),
-        "download": dict(name="download", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "records": dict(name="records", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "peaklets": dict(name="peaklets", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "peak_basics": dict(name="peak_basics", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "event_info_double": dict(name="events", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "event_shadow": dict(name="event_shadow", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "peak_basics_he": dict(name="peaks_he", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "hitlets_nv": dict(name="nv_hitlets", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "events_nv": dict(name="nv_events", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "ref_mon_nv": dict(name="ref_mon_nv", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "events_mv": dict(name="mv", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "afterpulses": dict(name="afterpulses", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "led_calibration": dict(name="led", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
+        "combine": {"name": "combine", **COMBINE_JOB_KWARGS},
+        "download": {"name": "download", **PEAKLETS_JOB_KWARGS},
+        "records": {"name": "records", **PEAKLETS_JOB_KWARGS},
+        "peaklets": {"name": "peaklets", **PEAKLETS_JOB_KWARGS},
+        "hitlets_nv": {"name": "nv_hitlets", **PEAKLETS_JOB_KWARGS},
+        "afterpulses": {"name": "afterpulses", **PEAKLETS_JOB_KWARGS},
+        "led_calibration": {"name": "led", **PEAKLETS_JOB_KWARGS},
+        "peak_basics": {"name": "peak_basics", **EVENTS_JOB_KWARGS},
+        "event_info_double": {"name": "events", **EVENTS_JOB_KWARGS},
+        "event_shadow": {"name": "event_shadow", **EVENTS_JOB_KWARGS},
+        "peak_basics_he": {"name": "peaks_he", **EVENTS_JOB_KWARGS},
+        "events_nv": {"name": "nv_events", **EVENTS_JOB_KWARGS},
+        "ref_mon_nv": {"name": "ref_mon_nv", **EVENTS_JOB_KWARGS},
+        "events_mv": {"name": "mv", **EVENTS_JOB_KWARGS},
     }
 
     def __init__(

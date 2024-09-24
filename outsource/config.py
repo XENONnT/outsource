@@ -219,7 +219,7 @@ class RunConfig:
         "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
     }
 
-    chunks_per_job = uconfig.getint("Outsource", "chunks_per_job")
+    chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=10)
 
     def __init__(self, context, run_id, ignore_processed=False, standalone_download=False):
         self.context = context
