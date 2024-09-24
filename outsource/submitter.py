@@ -507,17 +507,15 @@ class Submitter:
                     # Add jobs, one for each input file
                     n_chunks = dbcfg.nchunks(data_type)
 
-                    chunk_list = np.arange(n_chunks)
                     njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
-                    chunk_str_list = []
+                    chunks_list = []
 
                     # Loop over the chunks
                     for job_i in range(njobs):
-                        chunks = chunk_list[
+                        chunks = list(range(n_chunks))[
                             dbcfg.chunks_per_job * job_i : dbcfg.chunks_per_job * (job_i + 1)
                         ]
-                        chunk_str = " ".join([f"{c}" for c in chunks])
-                        chunk_str_list.append(chunk_str)
+                        chunks_list.append(chunks)
 
                     # Set up the combine job first -
                     # we can then add to that job inside the chunk file loop
@@ -540,7 +538,7 @@ class Submitter:
                         f"{self.rucio_upload}".lower(),
                         f"{self.rundb_update}".lower(),
                         combine_tar,
-                        *(f'"{c}"' for c in chunk_str_list),
+                        " ".join(map(str, [cs[-1] + 1 for cs in chunks_list])),
                     )
 
                     wf.add_jobs(combine_job)
@@ -548,7 +546,7 @@ class Submitter:
 
                     # Loop over the chunks
                     for job_i in range(njobs):
-                        chunk_str = chunk_str_list[job_i]
+                        chunk_str = " ".join(map(str, chunks_list[job_i]))
 
                         self.logger.debug(f"Adding job for chunk files: {chunk_str}")
 

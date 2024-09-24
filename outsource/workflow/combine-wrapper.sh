@@ -30,11 +30,7 @@ if [ "X$rucio_upload" = "Xtrue" ]; then
     extraflags="$extraflags --rucio_upload"
 fi
 
-chunkarg=""
-if [ -n "$chunks" ]
-then
-    chunkarg="--chunks $chunks"
-fi
+chunkarg="--chunks $chunks"
 
 . /opt/XENONnT/setup.sh
 

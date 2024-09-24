@@ -47,13 +47,13 @@ def merge(st, run_id, data_type, path, chunk_number_group):
 def main():
     parser = argparse.ArgumentParser(description="Combine strax output")
     parser.add_argument("run_id", type=int)
-    parser.add_argument("--context")
-    parser.add_argument("--xedocs_version")
-    parser.add_argument("--input_path")
-    parser.add_argument("--output_path")
+    parser.add_argument("--context", required=True)
+    parser.add_argument("--xedocs_version", required=True)
+    parser.add_argument("--input_path", required=True)
+    parser.add_argument("--output_path", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
-    parser.add_argument("--chunks", nargs="*", type=str)
+    parser.add_argument("--chunks", required=True, nargs="*", type=int)
 
     args = parser.parse_args()
 
@@ -82,7 +82,8 @@ def main():
     else:
         plugin_levels = ["peaklets"]
 
-    chunk_number_group = [[int(i) for i in c.split()] for c in args.chunks]
+    _chunks = [0] + args.chunks
+    chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
 
     # Merge
     for data_type in plugin_levels:
