@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 import admix
 from utilix.config import setup_logger
 import strax
@@ -41,7 +42,11 @@ def merge(st, run_id, data_type, path, chunk_number_group):
             _data_type,
             bottoms[0],
             chunk_number_group=chunk_number_group,
+            check_is_stored=False,
         )
+        rucio_remote_frontend = st.storage.pop(2)
+        assert st.is_stored(run_id, _data_type)
+        st.storage.append(rucio_remote_frontend)
 
 
 def main():
@@ -63,9 +68,15 @@ def main():
 
     # Get context
     st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
+    staging_dir = "./strax_data"
+    if os.path.abspath(staging_dir) == os.path.abspath(input_path):
+        raise ValueError("Input path cannot be the same as staging directory")
+    if os.path.abspath(staging_dir) == os.path.abspath(output_path):
+        raise ValueError("Output path cannot be the same as staging directory")
     st.storage = [
         strax.DataDirectory(input_path, readonly=True),
         strax.DataDirectory(output_path),  # where we are copying data to
+        straxen.storage.RucioRemoteFrontend(staging_dir=staging_dir, download_heavy=False),
     ]
 
     # Check what data is in the output folder
@@ -90,8 +101,9 @@ def main():
         logger.info(f"Merging {data_type} level")
         merge(st, run_id, data_type, input_path, chunk_number_group)
 
-    # Now upload the merged metadata
-    # Setup the rucio client(s)
+    # Remove rucio directory
+    shutil.rmtree(staging_dir)
+
     if not args.rucio_upload:
         logger.warning("Ignoring rucio upload")
         return

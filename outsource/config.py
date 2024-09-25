@@ -308,7 +308,7 @@ class RunConfig:
 
     def get_needs_processed(self):
         """Returns the list of data_type we need to process."""
-        # Do we need to process? read from xenon_config
+        # Do we need to process? read from XENON_CONFIG
         include_data_types = uconfig.getlist("Outsource", "include_data_types")
 
         if self.mode in LED_MODES:

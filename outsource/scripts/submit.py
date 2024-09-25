@@ -108,7 +108,7 @@ def main():
         )
     if not runlist:
         raise RuntimeError(
-            "Cannot find any runs matching the criteria specified in your input and xenon_config!"
+            "Cannot find any runs matching the criteria specified in your input and XENON_CONFIG!"
         )
 
     # This object contains all the information needed to submit the workflow

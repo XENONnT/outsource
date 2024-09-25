@@ -34,7 +34,7 @@ def get_runlist(
     include_sources = uconfig.getlist("Outsource", "include_sources", fallback=[])
     exclude_sources = uconfig.getlist("Outsource", "exclude_sources", fallback=[])
     include_tags = uconfig.getlist("Outsource", "include_tags", fallback=[])
-    exclude_tags = uconfig.getlist("Outsource", "exclude_tags", fallback=["bad", "abandon"])
+    exclude_tags = uconfig.getlist("Outsource", "exclude_tags", fallback=[])
 
     min_run_number = uconfig.getint("Outsource", "min_run_number", fallback=1)
     max_run_number = uconfig.getint("Outsource", "min_run_number", fallback=999999)

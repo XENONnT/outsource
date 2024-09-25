@@ -134,7 +134,7 @@ class Submitter:
         self.rucio_upload = rucio_upload
         self.rundb_update = rundb_update
 
-        # Load from xenon_config
+        # Load from XENON_CONFIG
         self.work_dir = uconfig.get("Outsource", "work_dir")
 
         # User can provide a name for the workflow, otherwise it will be the current time
@@ -240,7 +240,7 @@ class Submitter:
 
         # local site - this is the submit host
         local = Site("local")
-        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=f"{self.scratch_dir}")
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
         scratch_dir.add_file_servers(FileServer(f"file:///{self.scratch_dir}", Operation.ALL))
         storage_dir = Directory(Directory.LOCAL_STORAGE, path=self.outputs_dir)
         storage_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
@@ -337,11 +337,7 @@ class Submitter:
         condorpool.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
         condorpool.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
 
-        sc.add_sites(
-            local,
-            staging_davs,
-            condorpool,
-        )
+        sc.add_sites(local, staging_davs, condorpool)
         return sc
 
     def _generate_tc(self):
