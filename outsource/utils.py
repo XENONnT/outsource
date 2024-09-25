@@ -10,7 +10,7 @@ coll = xent_collection()
 logger = setup_logger("outsource")
 
 
-def get_run_ids(
+def get_runlist(
     st,
     detector,
     runlist=None,
@@ -27,13 +27,14 @@ def get_run_ids(
     :param number_to: end run number
     :param runlist: list of run numbers to process
     :return: list of run numbers
+
     """
     include_modes = uconfig.getlist("Outsource", "include_modes", fallback=[])
     exclude_modes = uconfig.getlist("Outsource", "exclude_modes", fallback=[])
     include_sources = uconfig.getlist("Outsource", "include_sources", fallback=[])
     exclude_sources = uconfig.getlist("Outsource", "exclude_sources", fallback=[])
     include_tags = uconfig.getlist("Outsource", "include_tags", fallback=[])
-    exclude_tags = uconfig.getlist("Outsource", "exclude_tags", fallback=["bad", "abandon"])
+    exclude_tags = uconfig.getlist("Outsource", "exclude_tags", fallback=[])
 
     min_run_number = uconfig.getint("Outsource", "min_run_number", fallback=1)
     max_run_number = uconfig.getint("Outsource", "min_run_number", fallback=999999)

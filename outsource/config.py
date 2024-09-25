@@ -29,8 +29,6 @@ IGNORE_DATA_TYPES = [
     "records_he",
     "records_mv",
     "peaks",
-    "peaklets",  # added to avoid duplicating upload/staging
-    "lone_hites",  # added to avoid duplicating upload/staging
 ]
 
 # These data_types should always be made at the same time:
@@ -200,6 +198,7 @@ class RunConfig:
     """The configuration of how a run will be processed.
 
     The class will focus on the RSE and instruction to the submitter.
+
     """
 
     # Data availability to site selection map.
@@ -220,12 +219,12 @@ class RunConfig:
         "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
     }
 
-    chunks_per_job = uconfig.getint("Outsource", "chunks_per_job")
+    chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=10)
 
-    def __init__(self, context, run_id, force=False, standalone_download=False):
+    def __init__(self, context, run_id, ignore_processed=False, standalone_download=False):
         self.context = context
         self.run_id = run_id
-        self.force = force
+        self.ignore_processed = ignore_processed
         self.standalone_download = standalone_download
 
         # Default job priority - workflows will be given priority
@@ -309,7 +308,7 @@ class RunConfig:
 
     def get_needs_processed(self):
         """Returns the list of data_type we need to process."""
-        # Do we need to process? read from xenon_config
+        # Do we need to process? read from XENON_CONFIG
         include_data_types = uconfig.getlist("Outsource", "include_data_types")
 
         if self.mode in LED_MODES:
@@ -340,7 +339,7 @@ class RunConfig:
                 rses = db.get_rses(self.run_id, data_type, hash)
                 # If this data is not on any rse, reprocess it, or we are asking for a rerun
                 data_types_already_processed.append(len(rses) > 0)
-            if not all(data_types_already_processed) or self.force:
+            if not all(data_types_already_processed) or self.ignore_processed:
                 ret.append(category)
 
         ret.sort(key=lambda x: len(self.context.get_dependencies(x)))
@@ -369,8 +368,7 @@ class RunConfig:
         return len(files) - 1
 
     def _raw_data_exists(self, raw_type="raw_records"):
-        """Returns a boolean for whether or not raw data exists in rucio and is
-        accessible."""
+        """Returns a boolean for whether or not raw data exists in rucio and is accessible."""
         # It's faster to just go through RunDB
 
         for data in self.run_data:
@@ -385,8 +383,7 @@ class RunConfig:
         return False
 
     def _determine_target_sites(self, rses):
-        """Given a list of RSEs, limit the runs for sites for those
-        locations."""
+        """Given a list of RSEs, limit the runs for sites for those locations."""
 
         exprs = []
         sites = []

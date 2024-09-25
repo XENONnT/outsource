@@ -1,18 +1,11 @@
-#!/usr/bin/env python
-
 import argparse
-import os
-import pymongo
-import numpy as np
 from utilix import xent_collection
 from utilix.io import load_runlist
 from utilix.config import setup_logger
-import straxen
 import cutax
 
-from outsource.utils import get_run_ids
-from outsource.outsource import Outsource
-from outsource.config import DETECTOR_DATA_TYPES
+from outsource.utils import get_runlist
+from outsource.submitter import Submitter
 
 
 coll = xent_collection()
@@ -49,12 +42,10 @@ def main():
         help="Custom workflow_id of workflow. If not passed, inferred from today's date.",
     )
     parser.add_argument(
-        "--force",
+        "--ignore_processed",
+        dest="ignore_processed",
         action="store_true",
-        help=(
-            "Force overwrites workflows and reprocesses data even if processed already. "
-            "Will not re-upload to rucio though."
-        ),
+        help="Ignore runs that have already been processed",
     )
     parser.add_argument(
         "--debug",
@@ -66,17 +57,10 @@ def main():
     )
     parser.add_argument("--from", dest="number_from", type=int, help="Run number to start with")
     parser.add_argument("--to", dest="number_to", type=int, help="Run number to end with")
-    parser.add_argument("--mode", nargs="*", help="Space separated run mode(s) to consider")
     parser.add_argument(
         "--run", nargs="*", type=int, help="Space separated specific run number(s) to process"
     )
     parser.add_argument("--runlist", type=str, help="Path to a runlist file")
-    parser.add_argument(
-        "--ignore_processed",
-        dest="ignore_processed",
-        action="store_true",
-        help="Ignore runs that have already been processed",
-    )
     parser.add_argument(
         "--rucio_upload",
         dest="rucio_upload",
@@ -109,7 +93,7 @@ def main():
     else:
         _runlist = None
 
-    runlist = get_run_ids(
+    runlist = get_runlist(
         st,
         detector=args.detector,
         runlist=_runlist,
@@ -124,11 +108,11 @@ def main():
         )
     if not runlist:
         raise RuntimeError(
-            "Cannot find any runs matching the criteria specified in your input and xenon_config!"
+            "Cannot find any runs matching the criteria specified in your input and XENON_CONFIG!"
         )
 
     # This object contains all the information needed to submit the workflow
-    outsource = Outsource(
+    submitter = Submitter(
         runlist,
         context_name=args.context,
         xedocs_version=args.xedocs_version,
@@ -136,12 +120,12 @@ def main():
         workflow_id=args.workflow_id,
         rucio_upload=args.rucio_upload,
         rundb_update=args.rundb_update,
-        force=args.force,
+        ignore_processed=args.ignore_processed,
         debug=args.debug,
     )
 
     # Finally submit the workflow
-    outsource.submit()
+    submitter.submit()
 
 
 if __name__ == "__main__":

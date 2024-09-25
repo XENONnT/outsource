@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os
 import sys
 import getpass
@@ -35,17 +33,21 @@ from outsource.config import base_dir, RunConfig, PER_CHUNK_DATA_TYPES, NEED_RAW
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
 COMBINE_WRAPPER = "combine-wrapper.sh"
 PROCESS_WRAPPER = "process-wrapper.sh"
+REQUEST_CPUS = uconfig.getint("Outsource", "request_cpus", fallback=1)
 COMBINE_MEMORY = uconfig.getint("Outsource", "combine_memory")
 COMBINE_DISK = uconfig.getint("Outsource", "combine_disk")
 PEAKLETS_MEMORY = uconfig.getint("Outsource", "peaklets_memory")
 PEAKLETS_DISK = uconfig.getint("Outsource", "peaklets_disk")
 EVENTS_MEMORY = uconfig.getint("Outsource", "events_memory")
 EVENTS_DISK = uconfig.getint("Outsource", "events_disk")
+COMBINE_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=COMBINE_MEMORY, disk=COMBINE_DISK)
+PEAKLETS_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK)
+EVENTS_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=EVENTS_MEMORY, disk=EVENTS_DISK)
 
 db = DB()
 
 
-class Outsource:
+class Submitter:
     # Transformation map (high level name -> script)
     _transformations_map = {
         "combine": COMBINE_WRAPPER,
@@ -65,20 +67,20 @@ class Outsource:
 
     # Jobs details for a given datatype
     job_kwargs = {
-        "combine": dict(name="combine", memory=COMBINE_MEMORY, disk=COMBINE_DISK),
-        "download": dict(name="download", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "records": dict(name="records", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "peaklets": dict(name="peaklets", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "peak_basics": dict(name="peak_basics", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "event_info_double": dict(name="events", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "event_shadow": dict(name="event_shadow", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "peak_basics_he": dict(name="peaks_he", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "hitlets_nv": dict(name="nv_hitlets", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "events_nv": dict(name="nv_events", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "ref_mon_nv": dict(name="ref_mon_nv", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "events_mv": dict(name="mv", memory=EVENTS_MEMORY, disk=EVENTS_DISK),
-        "afterpulses": dict(name="afterpulses", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
-        "led_calibration": dict(name="led", memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK),
+        "combine": {"name": "combine", **COMBINE_JOB_KWARGS},
+        "download": {"name": "download", **PEAKLETS_JOB_KWARGS},
+        "records": {"name": "records", **PEAKLETS_JOB_KWARGS},
+        "peaklets": {"name": "peaklets", **PEAKLETS_JOB_KWARGS},
+        "hitlets_nv": {"name": "nv_hitlets", **PEAKLETS_JOB_KWARGS},
+        "afterpulses": {"name": "afterpulses", **PEAKLETS_JOB_KWARGS},
+        "led_calibration": {"name": "led", **PEAKLETS_JOB_KWARGS},
+        "peak_basics": {"name": "peak_basics", **EVENTS_JOB_KWARGS},
+        "event_info_double": {"name": "events", **EVENTS_JOB_KWARGS},
+        "event_shadow": {"name": "event_shadow", **EVENTS_JOB_KWARGS},
+        "peak_basics_he": {"name": "peaks_he", **EVENTS_JOB_KWARGS},
+        "events_nv": {"name": "nv_events", **EVENTS_JOB_KWARGS},
+        "ref_mon_nv": {"name": "ref_mon_nv", **EVENTS_JOB_KWARGS},
+        "events_mv": {"name": "mv", **EVENTS_JOB_KWARGS},
     }
 
     def __init__(
@@ -90,7 +92,7 @@ class Outsource:
         workflow_id=None,
         rucio_upload=True,
         rundb_update=True,
-        force=False,
+        ignore_processed=False,
         debug=True,
     ):
         self.logger = setup_logger(
@@ -128,11 +130,11 @@ class Outsource:
         self.context = getattr(cutax.contexts, context_name)(xedocs_version=self.xedocs_version)
 
         self.debug = debug
-        self.force = force
+        self.ignore_processed = ignore_processed
         self.rucio_upload = rucio_upload
         self.rundb_update = rundb_update
 
-        # Load from xenon_config
+        # Load from XENON_CONFIG
         self.work_dir = uconfig.get("Outsource", "work_dir")
 
         # User can provide a name for the workflow, otherwise it will be the current time
@@ -184,6 +186,7 @@ class Outsource:
         """Wrapper for a Pegasus job, also sets resource requirement profiles.
 
         Memory and disk in unit of MB.
+
         """
         job = Job(name)
 
@@ -237,7 +240,7 @@ class Outsource:
 
         # local site - this is the submit host
         local = Site("local")
-        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=f"{self.scratch_dir}")
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
         scratch_dir.add_file_servers(FileServer(f"file:///{self.scratch_dir}", Operation.ALL))
         storage_dir = Directory(Directory.LOCAL_STORAGE, path=self.outputs_dir)
         storage_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
@@ -263,7 +266,7 @@ class Outsource:
         local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
         local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
         # local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")  # noqa
-        if not self.debug:
+        if not self.rucio_upload:
             local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
         # Improve python logging / suppress depreciation warnings (from gfal2 for example)
         local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
@@ -327,18 +330,14 @@ class Outsource:
         condorpool.add_profiles(
             Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s"
         )
-        if not self.debug:
+        if not self.rucio_upload:
             condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
 
         # Improve python logging / suppress depreciation warnings (from gfal2 for example)
         condorpool.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
         condorpool.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
 
-        sc.add_sites(
-            local,
-            staging_davs,
-            condorpool,
-        )
+        sc.add_sites(local, staging_davs, condorpool)
         return sc
 
     def _generate_tc(self):
@@ -348,11 +347,10 @@ class Outsource:
         return ReplicaCatalog()
 
     def make_tarballs(self):
-        """Make tarballs of Ax-based packages if they are in editable user-
-        installed mode."""
+        """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
         tarballs = []
         tarball_paths = []
-        for package_name in ["strax", "straxen", "cutax"]:
+        for package_name in ["strax", "straxen", "cutax", "utilix", "outsource"]:
             _tarball = Tarball(self.generated_dir, package_name)
             if not Tarball.get_installed_git_repo(package_name):
                 # Packages should not be non-editable user-installed
@@ -389,7 +387,7 @@ class Outsource:
         """Use the Pegasus API to build an abstract graph of the workflow."""
 
         # Create a abstract dag
-        wf = Workflow("xenonnt")
+        wf = Workflow("outsource_workflow")
         # Initialize the catalogs
         sc = self._generate_sc()
         tc = self._generate_tc()
@@ -439,7 +437,7 @@ class Outsource:
         # Keep track of what runs we submit, useful for bookkeeping
         runlist = []
         for run_id in iterator:
-            dbcfg = RunConfig(self.context, run_id, force=self.force)
+            dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
 
             # Check if this run_id needs to be processed
             if len(dbcfg.needs_processed) > 0:
@@ -509,60 +507,59 @@ class Outsource:
                     # Add jobs, one for each input file
                     n_chunks = dbcfg.nchunks(data_type)
 
-                    chunk_list = np.arange(n_chunks)
                     njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
-                    chunk_str_list = []
+                    chunks_list = []
 
                     # Loop over the chunks
                     for job_i in range(njobs):
-                        chunks = chunk_list[
+                        chunks = list(range(n_chunks))[
                             dbcfg.chunks_per_job * job_i : dbcfg.chunks_per_job * (job_i + 1)
                         ]
-                        chunk_str = " ".join([f"{c}" for c in chunks])
-                        chunk_str_list.append(chunk_str)
+                        chunks_list.append(chunks)
 
                     # Set up the combine job first -
                     # we can then add to that job inside the chunk file loop
                     # only need combine job for low-level stuff
                     combine_job = self._job(
-                        "combine", disk=self.job_kwargs["combine"]["disk"], cores=4
+                        "combine",
+                        disk=self.job_kwargs["combine"]["disk"],
                     )
                     # combine jobs must happen in the US
                     combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
                     # priority is given in the order they were submitted
                     combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                     combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
-                    combine_output_tar_name = f"{dbcfg.key_for(data_type)}-combined.tar.gz"
-                    combine_output_tar = File(combine_output_tar_name)
-                    combine_job.add_outputs(combine_output_tar, stage_out=(not self.rucio_upload))
+                    combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
+                    combine_job.add_outputs(combine_tar, stage_out=(not self.rucio_upload))
                     combine_job.add_args(
                         dbcfg.run_id,
                         self.context_name,
                         self.xedocs_version,
-                        combine_output_tar_name,
                         f"{self.rucio_upload}".lower(),
                         f"{self.rundb_update}".lower(),
-                        *(f'"{c}"' for c in chunk_str_list),
+                        combine_tar,
+                        " ".join(map(str, [cs[-1] + 1 for cs in chunks_list])),
                     )
 
                     wf.add_jobs(combine_job)
-                    combine_jobs[data_type] = (combine_job, combine_output_tar)
+                    combine_jobs[data_type] = (combine_job, combine_tar)
 
                     # Loop over the chunks
                     for job_i in range(njobs):
-                        chunk_str = chunk_str_list[job_i]
+                        chunk_str = " ".join(map(str, chunks_list[job_i]))
 
-                        self.logger.debug(f" ... adding job for chunk files: {chunk_str}")
+                        self.logger.debug(f"Adding job for chunk files: {chunk_str}")
 
                         # standalone_download is a special case where we download data
                         # from rucio first, which is useful for testing and when using
                         # dedicated clusters with storage
                         if dbcfg.standalone_download:
-                            tar_filename = File(
-                                f"{dbcfg.key_for(data_type)}-data-{job_i:04d}.tar.gz"
+                            download_tar = File(
+                                f"{dbcfg.key_for(data_type)}-download-{job_i:04d}.tar.gz"
                             )
                             download_job = self._job(
-                                "download", disk=self.job_kwargs["download"]["disk"]
+                                "download",
+                                disk=self.job_kwargs["download"]["disk"],
                             )
                             download_job.add_profiles(
                                 Namespace.CONDOR, "requirements", requirements
@@ -573,33 +570,25 @@ class Outsource:
                                 self.context_name,
                                 self.xedocs_version,
                                 data_type,
-                                tar_filename,
                                 "download_only",
                                 f"{self.rucio_upload}".lower(),
                                 f"{self.rundb_update}".lower(),
+                                download_tar,
                                 chunk_str,
                             )
                             download_job.add_inputs(
                                 installsh, processpy, xenon_config, token, *tarballs
                             )
-                            download_job.add_outputs(tar_filename, stage_out=False)
+                            download_job.add_outputs(download_tar, stage_out=False)
                             wf.add_jobs(download_job)
 
                         # output files
-                        job_output_tar = File(
-                            f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz"
-                        )
+                        job_tar = File(f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz")
                         # Do we already have a local copy?
-                        job_output_tar_local_path = os.path.join(
-                            self.outputs_dir, f"{job_output_tar}"
-                        )
+                        job_output_tar_local_path = os.path.join(self.outputs_dir, f"{job_tar}")
                         if os.path.isfile(job_output_tar_local_path):
-                            self.logger.info(
-                                f" ... local copy found at: {job_output_tar_local_path}"
-                            )
-                            rc.add_replica(
-                                "local", job_output_tar, f"file://{job_output_tar_local_path}"
-                            )
+                            self.logger.info(f"Local copy found at: {job_output_tar_local_path}")
+                            rc.add_replica("local", job_tar, f"file://{job_output_tar_local_path}")
 
                         # Add job
                         job = self._job(**self.job_kwargs[data_type])
@@ -626,25 +615,25 @@ class Outsource:
                             self.context_name,
                             self.xedocs_version,
                             data_type,
-                            job_output_tar,
                             "false" if not dbcfg.standalone_download else "no_download",
                             f"{self.rucio_upload}".lower(),
                             f"{self.rundb_update}".lower(),
+                            job_tar,
                             chunk_str,
                         )
 
                         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                        job.add_outputs(job_output_tar, stage_out=(not self.rucio_upload))
+                        job.add_outputs(job_tar, stage_out=(not self.rucio_upload))
                         wf.add_jobs(job)
 
                         # All strax jobs depend on the pre-flight or a download job,
                         # but pre-flight jobs have been outdated so it is not necessary.
                         if dbcfg.standalone_download:
-                            job.add_inputs(tar_filename)
+                            job.add_inputs(download_tar)
                             wf.add_dependency(job, parents=[download_job])
 
                         # Update combine job
-                        combine_job.add_inputs(job_output_tar)
+                        combine_job.add_inputs(job_tar)
                         wf.add_dependency(job, children=[combine_job])
 
                         parent_combines = []
@@ -657,10 +646,10 @@ class Outsource:
                 else:
                     # High level data.. we do it all on one job
                     # output files
-                    job_output_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
+                    job_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
 
                     # Add job
-                    job = self._job(**self.job_kwargs[data_type], cores=2)
+                    job = self._job(**self.job_kwargs[data_type])
                     # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
                     job.add_profiles(Namespace.CONDOR, "requirements", requirements)
                     job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
@@ -672,15 +661,15 @@ class Outsource:
                         self.context_name,
                         self.xedocs_version,
                         data_type,
-                        job_output_tar,
                         "false" if not dbcfg.standalone_download else "no_download",
                         f"{self.rucio_upload}".lower(),
                         f"{self.rundb_update}".lower(),
+                        job_tar,
                     )
 
                     job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                     # As long as we are giving outputs
-                    job.add_outputs(job_output_tar, stage_out=True)
+                    job.add_outputs(job_tar, stage_out=True)
                     wf.add_jobs(job)
 
                     # If there are multiple levels to the workflow,
