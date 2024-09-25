@@ -30,7 +30,7 @@ python = ">=3.8,<3.13"
 xe-admix = "*"
 numpy  = "*"
 tqdm = "*"
-utilix = ">=0.9.0"
+utilix = ">=0.9.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.8", "setuptools>=61.0"]
