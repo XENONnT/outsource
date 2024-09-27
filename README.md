@@ -1,6 +1,7 @@
 # outsource
 
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/XENONnT/outsource/master.svg)](https://results.pre-commit.ci/latest/github/XENONnT/outsource/master)
+[![PyPI version shields.io](https://img.shields.io/pypi/v/xe-outsource.svg)](https://pypi.python.org/pypi/xe-outsource/)
 
 Job submission code for XENONnT.
 
