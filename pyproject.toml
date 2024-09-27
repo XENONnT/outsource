@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "outsource"
-version = "0.2.2"
+version = "0.3.1"
 description = "Job submission of reprocessing"
 readme = "README.md"
 authors = [
