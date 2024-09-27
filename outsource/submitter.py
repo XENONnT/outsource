@@ -218,7 +218,7 @@ class Submitter:
         # If more than one is provided, use current time.
         now = datetime.now().strftime("%Y%m%d%H%M")
         if workflow_id:
-            self.workflow_id = (workflow_id, now)
+            workflow_id = (workflow_id, now)
         else:
             if len(self._runlist) == 1:
                 workflow_id = (
