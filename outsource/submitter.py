@@ -226,15 +226,10 @@ class Submitter:
                     self.context_name,
                     self.xedocs_version,
                     f"{self._runlist[0]:06d}",
-                    now
+                    now,
                 )
             else:
-                workflow_id = (
-                    self.image_tag,
-                    self.context_name,
-                    self.xedocs_version,
-                    now
-                )
+                workflow_id = (self.image_tag, self.context_name, self.xedocs_version, now)
         self.workflow_id = "-".join(workflow_id)
 
     def _generate_sc(self):
