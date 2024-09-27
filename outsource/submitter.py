@@ -214,10 +214,11 @@ class Submitter:
     def _setup_workflow_id(self, workflow_id):
         """Set up the workflow ID."""
         # Determine a unique id for the workflow. If none passed, looks at the runlist.
-        # If only one run_id is provided, use the run_id of that object.
+        # If only one run_id is provided, use the run_id of that object + current time.
         # If more than one is provided, use current time.
+        now = datetime.now().strftime("%Y%m%d%H%M")
         if workflow_id:
-            self.workflow_id = workflow_id
+            self.workflow_id = (workflow_id, now)
         else:
             if len(self._runlist) == 1:
                 workflow_id = (
@@ -225,15 +226,16 @@ class Submitter:
                     self.context_name,
                     self.xedocs_version,
                     f"{self._runlist[0]:06d}",
+                    now
                 )
             else:
                 workflow_id = (
                     self.image_tag,
                     self.context_name,
                     self.xedocs_version,
-                    datetime.now().strftime("%Y%m%d%H%M"),
+                    now
                 )
-            self.workflow_id = "-".join(workflow_id)
+        self.workflow_id = "-".join(workflow_id)
 
     def _generate_sc(self):
         sc = SiteCatalog()
