@@ -73,6 +73,12 @@ def main():
         action="store_true",
         help="Update RunDB after processing",
     )
+    parser.add_argument(
+        "--local_transfer",
+        dest="transfer_to_local",
+        action="store_true",
+        help="Transfer data to local after processing",
+    )
     args = parser.parse_args()
 
     if args.ignore_processed and args.rucio_upload:
@@ -121,6 +127,7 @@ def main():
         rucio_upload=args.rucio_upload,
         rundb_update=args.rundb_update,
         ignore_processed=args.ignore_processed,
+        local_transfer=args.local_transfer,
         debug=args.debug,
     )
 
