@@ -75,7 +75,7 @@ def main():
     )
     parser.add_argument(
         "--local_transfer",
-        dest="transfer_to_local",
+        dest="local_transfer",
         action="store_true",
         help="Transfer data to local after processing",
     )
