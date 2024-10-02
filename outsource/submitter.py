@@ -282,27 +282,25 @@ class Submitter:
         else:
             # staging site - davs
             staging_davs = Site("staging-davs")
+            scratch_dir_path = f"/xenon/scratch/{getpass.getuser()}/{self.workflow_id}"
             scratch_dir = Directory(
-                Directory.SHARED_SCRATCH, path=f"/xenon/scratch/{getpass.getuser()}"
+                Directory.SHARED_SCRATCH,
+                path=scratch_dir_path,
             )
             scratch_dir.add_file_servers(
                 FileServer(
-                    (
-                        "gsidavs://xenon-gridftp.grid.uchicago.edu:2880"
-                        f"/xenon/scratch/{getpass.getuser()}"
-                    ),
+                    f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880{scratch_dir_path}",
                     Operation.ALL,
                 )
             )
+            output_dir_path = f"/xenon/output/{getpass.getuser()}/{self.workflow_id}"
             output_dir = Directory(
-                Directory.LOCAL_STORAGE, path=f"/xenon/output/{getpass.getuser()}"
+                Directory.LOCAL_STORAGE,
+                path=output_dir_path,
             )
             output_dir.add_file_servers(
                 FileServer(
-                    (
-                        "gsidavs://xenon-gridftp.grid.uchicago.edu:2880"
-                        f"/xenon/output/{getpass.getuser()}"
-                    ),
+                    f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880{output_dir_path}",
                     Operation.ALL,
                 )
             )
