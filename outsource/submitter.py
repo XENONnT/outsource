@@ -93,6 +93,7 @@ class Submitter:
         rucio_upload=True,
         rundb_update=True,
         ignore_processed=False,
+        local_transfer=False,
         debug=True,
     ):
         self.logger = setup_logger(
@@ -129,10 +130,11 @@ class Submitter:
         self.xedocs_version = xedocs_version
         self.context = getattr(cutax.contexts, context_name)(xedocs_version=self.xedocs_version)
 
-        self.debug = debug
         self.ignore_processed = ignore_processed
         self.rucio_upload = rucio_upload
         self.rundb_update = rundb_update
+        self.local_transfer = local_transfer
+        self.debug = debug
 
         # Load from XENON_CONFIG
         self.work_dir = uconfig.get("Outsource", "work_dir")
@@ -235,77 +237,6 @@ class Submitter:
     def _generate_sc(self):
         sc = SiteCatalog()
 
-        # local site - this is the submit host
-        local = Site("local")
-        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
-        scratch_dir.add_file_servers(FileServer(f"file:///{self.scratch_dir}", Operation.ALL))
-        storage_dir = Directory(Directory.LOCAL_STORAGE, path=self.outputs_dir)
-        storage_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
-        local.add_directories(scratch_dir, storage_dir)
-
-        local.add_profiles(Namespace.ENV, HOME=os.environ["HOME"])
-        local.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
-        local.add_profiles(
-            Namespace.ENV,
-            PATH=(
-                f"/cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/anaconda/envs/XENONnT_development/bin:"  # noqa
-                f"/cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/anaconda/condabin:"
-                "/usr/bin:/bin"
-            ),
-        )
-        local.add_profiles(
-            Namespace.ENV,
-            LD_LIBRARY_PATH=(
-                f"/cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/anaconda/envs/XENONnT_development/lib64:"  # noqa
-                f"/cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/anaconda/envs/XENONnT_development/lib"  # noqa
-            ),
-        )
-        local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
-        local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
-        # local.add_profiles(Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s")  # noqa
-        if not self.rucio_upload:
-            local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
-        # Improve python logging / suppress depreciation warnings (from gfal2 for example)
-        local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
-        local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
-
-        # staging site
-        staging = Site("staging")
-        scratch_dir = Directory(
-            Directory.SHARED_SCRATCH,
-            path=f"/ospool/uc-shared/project/xenon/wf-scratch/{getpass.getuser()}",
-        )
-        scratch_dir.add_file_servers(
-            FileServer(
-                f"osdf:///ospool/uc-shared/project/xenon/wf-scratch/{getpass.getuser()}",
-                Operation.ALL,
-            )
-        )
-        staging.add_directories(scratch_dir)
-
-        # staging site - davs
-        staging_davs = Site("staging-davs")
-        scratch_dir = Directory(
-            Directory.SHARED_SCRATCH, path=f"/xenon/scratch/{getpass.getuser()}"
-        )
-        scratch_dir.add_file_servers(
-            FileServer(
-                f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880/xenon/scratch/{getpass.getuser()}",
-                Operation.ALL,
-            )
-        )
-        staging_davs.add_directories(scratch_dir)
-
-        # output on davs
-        output_dir = Directory(Directory.LOCAL_STORAGE, path=f"/xenon/output/{getpass.getuser()}")
-        output_dir.add_file_servers(
-            FileServer(
-                f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880/xenon/output/{getpass.getuser()}",
-                Operation.ALL,
-            )
-        )
-        staging_davs.add_directories(output_dir)
-
         # condorpool
         condorpool = Site("condorpool")
         condorpool.add_profiles(Namespace.PEGASUS, style="condor")
@@ -334,7 +265,72 @@ class Submitter:
         condorpool.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
         condorpool.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
 
-        sc.add_sites(local, staging_davs, condorpool)
+        # staging site - davs
+        staging_davs = Site("staging-davs")
+        scratch_dir_path = f"/xenon/scratch/{getpass.getuser()}/{self.workflow_id}"
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=scratch_dir_path)
+        scratch_dir.add_file_servers(
+            FileServer(
+                f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880{scratch_dir_path}",
+                Operation.ALL,
+            )
+        )
+        staging_davs.add_directories(scratch_dir)
+
+        if not self.local_transfer:
+            output_dir_path = f"/xenon/output/{getpass.getuser()}/{self.workflow_id}"
+            output_dir = Directory(Directory.LOCAL_STORAGE, path=output_dir_path)
+            output_dir.add_file_servers(
+                FileServer(
+                    f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880{output_dir_path}",
+                    Operation.ALL,
+                )
+            )
+            staging_davs.add_directories(output_dir)
+        else:
+            # local site - this is the submit host
+            local = Site("local")
+            scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
+            scratch_dir.add_file_servers(FileServer(f"file:///{self.scratch_dir}", Operation.ALL))
+            output_dir = Directory(Directory.LOCAL_STORAGE, path=self.outputs_dir)
+            output_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
+            local.add_directories(scratch_dir, output_dir)
+
+            local.add_profiles(Namespace.ENV, HOME=os.environ["HOME"])
+            local.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
+            local.add_profiles(
+                Namespace.ENV,
+                PATH=(
+                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                    f"{self.image_tag}/anaconda/envs/XENONnT_development/bin:"
+                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                    f"{self.image_tag}/anaconda/condabin:"
+                    "/usr/bin:/bin"
+                ),
+            )
+            local.add_profiles(
+                Namespace.ENV,
+                LD_LIBRARY_PATH=(
+                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                    f"{self.image_tag}/anaconda/envs/XENONnT_development/lib64:"
+                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                    f"{self.image_tag}/anaconda/envs/XENONnT_development/lib"
+                ),
+            )
+            local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
+            local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
+            # local.add_profiles(
+            #     Namespace.ENV,
+            #     RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s",
+            # )
+            if not self.rucio_upload:
+                local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
+            # Improve python logging / suppress depreciation warnings (from gfal2 for example)
+            local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
+            local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
+            sc.add_sites(local)
+
+        sc.add_sites(staging_davs, condorpool)
         return sc
 
     def _generate_tc(self):
@@ -527,7 +523,7 @@ class Submitter:
                     combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                     combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
                     combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
-                    combine_job.add_outputs(combine_tar, stage_out=(not self.rucio_upload))
+                    combine_job.add_outputs(combine_tar, stage_out=not self.rucio_upload)
                     combine_job.add_args(
                         dbcfg.run_id,
                         self.context_name,
@@ -620,7 +616,7 @@ class Submitter:
                         )
 
                         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                        job.add_outputs(job_tar, stage_out=(not self.rucio_upload))
+                        job.add_outputs(job_tar, stage_out=False)
                         wf.add_jobs(job)
 
                         # All strax jobs depend on the pre-flight or a download job,
@@ -665,8 +661,7 @@ class Submitter:
                     )
 
                     job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                    # As long as we are giving outputs
-                    job.add_outputs(job_tar, stage_out=True)
+                    job.add_outputs(job_tar, stage_out=not self.rucio_upload)
                     wf.add_jobs(job)
 
                     # If there are multiple levels to the workflow,
@@ -699,7 +694,7 @@ class Submitter:
             sites=["condorpool"],
             verbose=3 if self.debug else 0,
             staging_sites={"condorpool": "staging-davs"},
-            output_sites=["staging-davs"],
+            output_sites=["local" if self.local_transfer else "staging-davs"],
             dir=os.path.dirname(self.runs_dir),
             relative_dir=os.path.basename(self.runs_dir),
             **self.pegasus_config,

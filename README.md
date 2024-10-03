@@ -159,7 +159,7 @@ After installation and setting up the environment, it is time to submit jobs. Th
 usage: Outsource [-h] --context CONTEXT --xedocs_version XEDOCS_VERSION [--image IMAGE]
                  [--detector {all,tpc,muon_veto,neutron_veto}] [--workflow_id WORKFLOW_ID] [--ignore_processed]
                  [--debug] [--from NUMBER_FROM] [--to NUMBER_TO] [--run [RUN ...]] [--runlist RUNLIST] [--rucio_upload]
-                 [--rundb_update]
+                 [--rundb_update] [--local_transfer]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -182,6 +182,7 @@ optional arguments:
   --runlist RUNLIST     Path to a runlist file
   --rucio_upload        Upload data to rucio after processing
   --rundb_update        Update RunDB after processing
+  --local_transfer      Transfer data to local after processing
 ```
 
 This script requires at minimum the name of context (which must reside in the cutax version installed in the environment you are in). If no other arguments are passed, this script will try to find all data that can be processed, and process it. Some inputs from the configuration file at environmental variable `XENON_CONFIG` are also used, specifically:
