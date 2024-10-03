@@ -616,7 +616,7 @@ class Submitter:
                         )
 
                         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                        job.add_outputs(job_tar, stage_out=not self.rucio_upload)
+                        job.add_outputs(job_tar, stage_out=False)
                         wf.add_jobs(job)
 
                         # All strax jobs depend on the pre-flight or a download job,
