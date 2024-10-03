@@ -524,6 +524,7 @@ class Submitter:
                     combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
                     combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
                     combine_job.add_outputs(combine_tar, stage_out=not self.rucio_upload)
+                    combine_job.set_stdout(File(f"{combine_tar}.log"), stage_out=True)
                     combine_job.add_args(
                         dbcfg.run_id,
                         self.context_name,
@@ -573,6 +574,7 @@ class Submitter:
                                 installsh, processpy, xenon_config, token, *tarballs
                             )
                             download_job.add_outputs(download_tar, stage_out=False)
+                            download_job.set_stdout(File(f"{download_tar}.log"), stage_out=True)
                             wf.add_jobs(download_job)
 
                         # output files
@@ -617,6 +619,7 @@ class Submitter:
 
                         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                         job.add_outputs(job_tar, stage_out=False)
+                        job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
                         wf.add_jobs(job)
 
                         # All strax jobs depend on the pre-flight or a download job,
@@ -662,6 +665,7 @@ class Submitter:
 
                     job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                     job.add_outputs(job_tar, stage_out=not self.rucio_upload)
+                    job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
                     wf.add_jobs(job)
 
                     # If there are multiple levels to the workflow,
