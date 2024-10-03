@@ -541,10 +541,10 @@ class Submitter:
 
                     if self.local_transfer:
                         untar_job = self._job("untar", run_on_submit_node=True)
+                        untar_job.add_inputs(combine_tar)
                         untar_job.add_args(combine_tar, self.outputs_dir)
                         untar_job.set_stdout(File(f"untar-{combine_tar}.log"), stage_out=True)
                         wf.add_jobs(untar_job)
-                        wf.add_dependency(untar_job, parents=[combine_job])
 
                     combine_jobs[data_type] = (combine_job, combine_tar)
 
@@ -689,10 +689,10 @@ class Submitter:
 
                     if self.local_transfer:
                         untar_job = self._job("untar", run_on_submit_node=True)
+                        untar_job.add_inputs(job_tar)
                         untar_job.add_args(job_tar, self.outputs_dir)
                         untar_job.set_stdout(File(f"untar-{job_tar}.log"), stage_out=True)
                         wf.add_jobs(untar_job)
-                        wf.add_dependency(untar_job, parents=[job])
 
         # Write the wf to stdout
         wf.add_replica_catalog(rc)

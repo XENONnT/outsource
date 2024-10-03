@@ -10,18 +10,18 @@ outputs_dir=$2
 ls -lh $outputs_dir
 
 # Make a temporary directory for decompressed files
-mkdir $outputs_dir/decompressed
+mkdir -p $outputs_dir/decompressed
 
 # Untar the output file
-tar -xzf $outputs_dir/$tar_filename -C decompressed
-rm $outputs_dir/$tar_filename
+tar -xzf $tar_filename -C $outputs_dir/decompressed --strip-components=1
+rm $tar_filename
 
 # Check the output
 echo "Checking the output"
 ls -lh
 
 # Move the outputs
-mv decompressed/* $outputs_dir/
+mv $outputs_dir/decompressed/* $outputs_dir/
 
 # Goodbye
 echo "Done. Exiting."
