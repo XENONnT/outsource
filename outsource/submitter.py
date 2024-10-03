@@ -356,7 +356,15 @@ class Submitter:
         check_package_names = uconfig.getlist(
             "Outsource", "check_user_install_package", fallback=[]
         )
-        check_package_names += ["strax", "straxen", "cutax", "utilix", "admix", "outsource"]
+        check_package_names += [
+            "strax",
+            "straxen",
+            "cutax",
+            "rucio",
+            "utilix",
+            "admix",
+            "outsource",
+        ]
         for package_name in set(check_package_names) - set(package_names):
             if Tarball.get_installed_git_repo(package_name) or Tarball.is_user_installed(
                 package_name
