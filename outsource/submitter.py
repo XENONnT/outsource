@@ -33,6 +33,7 @@ from outsource.config import base_dir, RunConfig, PER_CHUNK_DATA_TYPES, NEED_RAW
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
 COMBINE_WRAPPER = "combine-wrapper.sh"
 PROCESS_WRAPPER = "process-wrapper.sh"
+UNTAR_WRAPPER = "untar.sh"
 REQUEST_CPUS = uconfig.getint("Outsource", "request_cpus", fallback=1)
 COMBINE_MEMORY = uconfig.getint("Outsource", "combine_memory")
 COMBINE_DISK = uconfig.getint("Outsource", "combine_disk")
@@ -52,6 +53,7 @@ class Submitter:
     _transformations_map = {
         "combine": COMBINE_WRAPPER,
         "download": PROCESS_WRAPPER,
+        "untar": UNTAR_WRAPPER,
         "records": PROCESS_WRAPPER,
         "peaklets": PROCESS_WRAPPER,
         "peak_basics": PROCESS_WRAPPER,
@@ -536,6 +538,14 @@ class Submitter:
                     )
 
                     wf.add_jobs(combine_job)
+
+                    if self.local_transfer:
+                        untar_job = self._job("untar", run_on_submit_node=True)
+                        untar_job.add_args(combine_tar, self.outputs_dir)
+                        untar_job.set_stdout(File(f"untar-{combine_tar}.log"), stage_out=True)
+                        wf.add_jobs(untar_job)
+                        wf.add_dependency(untar_job, parents=[combine_job])
+
                     combine_jobs[data_type] = (combine_job, combine_tar)
 
                     # Loop over the chunks
@@ -676,6 +686,13 @@ class Submitter:
                             cj, cj_output = combine_jobs[d]
                             wf.add_dependency(job, parents=[cj])
                             job.add_inputs(cj_output)
+
+                    if self.local_transfer:
+                        untar_job = self._job("untar", run_on_submit_node=True)
+                        untar_job.add_args(job_tar, self.outputs_dir)
+                        untar_job.set_stdout(File(f"untar-{job_tar}.log"), stage_out=True)
+                        wf.add_jobs(untar_job)
+                        wf.add_dependency(untar_job, parents=[job])
 
         # Write the wf to stdout
         wf.add_replica_catalog(rc)
