@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime
 from utilix import DB
 from utilix.config import setup_logger
 import admix
@@ -38,7 +39,13 @@ def upload_to_rucio(path, update_db=False):
 
         logger.info(f"Uploading {path} to rucio!")
         t0 = time.time()
-        admix.upload(path, rse=rse, did=dataset_did, update_db=update_db)
+        miscellaneous = {
+            "creation_time": datetime.utcnow().isoformat(),
+            "creation_place": "OSG",
+        }
+        admix.upload(
+            path, rse=rse, did=dataset_did, update_db=update_db, miscellaneous=miscellaneous
+        )
         upload_time = time.time() - t0
         logger.warning(f"Uploading time for {this_data_type}: {upload_time / 60:0.2f} minutes")
     except Exception:
