@@ -345,7 +345,38 @@ class Submitter:
         """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
         tarballs = []
         tarball_paths = []
-        for package_name in ["strax", "straxen", "cutax", "utilix", "outsource"]:
+
+        package_names = uconfig.getlist("Outsource", "user_install_package", fallback=[])
+        if "cutax" not in package_names:
+            raise RuntimeError(
+                "cutax must be in the list of user_install_package "
+                f"in the XENON_CONFIG configuration, but got {package_names}."
+            )
+        # Check if the package in not in the official software environment
+        check_package_names = uconfig.getlist(
+            "Outsource", "check_user_install_package", fallback=[]
+        )
+        check_package_names += [
+            "strax",
+            "straxen",
+            "cutax",
+            "rucio",
+            "utilix",
+            "admix",
+            "outsource",
+        ]
+        for package_name in set(check_package_names) - set(package_names):
+            if Tarball.get_installed_git_repo(package_name) or Tarball.is_user_installed(
+                package_name
+            ):
+                raise RuntimeError(
+                    f"{package_name} should be either in user_install_package "
+                    "in the XENON_CONFIG configuration after being installed in editable mode, "
+                    "because it is not in the official software environment. "
+                    "Or uninstalled from the user-installed environment."
+                )
+        # Install the specified user-installed packages
+        for package_name in package_names:
             _tarball = Tarball(self.generated_dir, package_name)
             if not Tarball.get_installed_git_repo(package_name):
                 # Packages should not be non-editable user-installed
