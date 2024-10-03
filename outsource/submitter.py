@@ -237,7 +237,57 @@ class Submitter:
     def _generate_sc(self):
         sc = SiteCatalog()
 
-        if self.local_transfer:
+        # condorpool
+        condorpool = Site("condorpool")
+        condorpool.add_profiles(Namespace.PEGASUS, style="condor")
+        condorpool.add_profiles(Namespace.CONDOR, universe="vanilla")
+        # We need the x509 proxy for Rucio transfers
+        condorpool.add_profiles(Namespace.CONDOR, "x509userproxy", os.environ["X509_USER_PROXY"])
+        condorpool.add_profiles(
+            Namespace.CONDOR, "+SingularityImage", f'"{self.singularity_image}"'
+        )
+
+        # Ignore the site settings - the container will set all this up inside
+        condorpool.add_profiles(Namespace.ENV, OSG_LOCATION="")
+        condorpool.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
+        condorpool.add_profiles(Namespace.ENV, PYTHONPATH="")
+        condorpool.add_profiles(Namespace.ENV, PERL5LIB="")
+        condorpool.add_profiles(Namespace.ENV, LD_LIBRARY_PATH="")
+
+        condorpool.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
+        condorpool.add_profiles(
+            Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s"
+        )
+        if not self.rucio_upload:
+            condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
+
+        # Improve python logging / suppress depreciation warnings (from gfal2 for example)
+        condorpool.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
+        condorpool.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
+
+        # staging site - davs
+        staging_davs = Site("staging-davs")
+        scratch_dir_path = f"/xenon/scratch/{getpass.getuser()}/{self.workflow_id}"
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=scratch_dir_path)
+        scratch_dir.add_file_servers(
+            FileServer(
+                f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880{scratch_dir_path}",
+                Operation.ALL,
+            )
+        )
+        staging_davs.add_directories(scratch_dir)
+
+        if not self.local_transfer:
+            output_dir_path = f"/xenon/output/{getpass.getuser()}/{self.workflow_id}"
+            output_dir = Directory(Directory.LOCAL_STORAGE, path=output_dir_path)
+            output_dir.add_file_servers(
+                FileServer(
+                    f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880{output_dir_path}",
+                    Operation.ALL,
+                )
+            )
+            staging_davs.add_directories(output_dir)
+        else:
             # local site - this is the submit host
             local = Site("local")
             scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
@@ -279,62 +329,8 @@ class Submitter:
             local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
             local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
             sc.add_sites(local)
-        else:
-            # staging site - davs
-            staging_davs = Site("staging-davs")
-            scratch_dir_path = f"/xenon/scratch/{getpass.getuser()}/{self.workflow_id}"
-            scratch_dir = Directory(
-                Directory.SHARED_SCRATCH,
-                path=scratch_dir_path,
-            )
-            scratch_dir.add_file_servers(
-                FileServer(
-                    f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880{scratch_dir_path}",
-                    Operation.ALL,
-                )
-            )
-            output_dir_path = f"/xenon/output/{getpass.getuser()}/{self.workflow_id}"
-            output_dir = Directory(
-                Directory.LOCAL_STORAGE,
-                path=output_dir_path,
-            )
-            output_dir.add_file_servers(
-                FileServer(
-                    f"gsidavs://xenon-gridftp.grid.uchicago.edu:2880{output_dir_path}",
-                    Operation.ALL,
-                )
-            )
-            staging_davs.add_directories(scratch_dir, output_dir)
-            sc.add_sites(staging_davs)
 
-        # condorpool
-        condorpool = Site("condorpool")
-        condorpool.add_profiles(Namespace.PEGASUS, style="condor")
-        condorpool.add_profiles(Namespace.CONDOR, universe="vanilla")
-        # We need the x509 proxy for Rucio transfers
-        condorpool.add_profiles(Namespace.CONDOR, "x509userproxy", os.environ["X509_USER_PROXY"])
-        condorpool.add_profiles(
-            Namespace.CONDOR, "+SingularityImage", f'"{self.singularity_image}"'
-        )
-
-        # Ignore the site settings - the container will set all this up inside
-        condorpool.add_profiles(Namespace.ENV, OSG_LOCATION="")
-        condorpool.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
-        condorpool.add_profiles(Namespace.ENV, PYTHONPATH="")
-        condorpool.add_profiles(Namespace.ENV, PERL5LIB="")
-        condorpool.add_profiles(Namespace.ENV, LD_LIBRARY_PATH="")
-
-        condorpool.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
-        condorpool.add_profiles(
-            Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s"
-        )
-        if not self.rucio_upload:
-            condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
-
-        # Improve python logging / suppress depreciation warnings (from gfal2 for example)
-        condorpool.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
-        condorpool.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
-        sc.add_sites(condorpool)
+        sc.add_sites(staging_davs, condorpool)
         return sc
 
     def _generate_tc(self):
@@ -527,7 +523,7 @@ class Submitter:
                     combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                     combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
                     combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
-                    combine_job.add_outputs(combine_tar, stage_out=(not self.rucio_upload))
+                    combine_job.add_outputs(combine_tar, stage_out=not self.rucio_upload)
                     combine_job.add_args(
                         dbcfg.run_id,
                         self.context_name,
@@ -620,7 +616,7 @@ class Submitter:
                         )
 
                         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                        job.add_outputs(job_tar, stage_out=(not self.rucio_upload))
+                        job.add_outputs(job_tar, stage_out=not self.rucio_upload)
                         wf.add_jobs(job)
 
                         # All strax jobs depend on the pre-flight or a download job,
@@ -665,8 +661,7 @@ class Submitter:
                     )
 
                     job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                    # As long as we are giving outputs
-                    job.add_outputs(job_tar, stage_out=True)
+                    job.add_outputs(job_tar, stage_out=not self.rucio_upload)
                     wf.add_jobs(job)
 
                     # If there are multiple levels to the workflow,
@@ -699,7 +694,7 @@ class Submitter:
             sites=["condorpool"],
             verbose=3 if self.debug else 0,
             staging_sites={"condorpool": "staging-davs"},
-            output_sites=["staging-davs"],
+            output_sites=["local" if self.local_transfer else "staging-davs"],
             dir=os.path.dirname(self.runs_dir),
             relative_dir=os.path.basename(self.runs_dir),
             **self.pegasus_config,
