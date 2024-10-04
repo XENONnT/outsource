@@ -2,6 +2,7 @@ import argparse
 import os
 import shutil
 import admix
+from utilix import uconfig
 from utilix.config import setup_logger
 import strax
 import straxen
@@ -76,7 +77,17 @@ def main():
     st.storage = [
         strax.DataDirectory(input_path, readonly=True),
         strax.DataDirectory(output_path),  # where we are copying data to
-        straxen.storage.RucioRemoteFrontend(staging_dir=staging_dir, download_heavy=False),
+        straxen.storage.RucioRemoteFrontend(
+            staging_dir=staging_dir,
+            download_heavy=True,
+            take_only=tuple(st.root_data_types),
+            rses_only=uconfig.getlist("Outsource", "raw_records_rse"),
+        ),
+        straxen.storage.RucioRemoteFrontend(
+            staging_dir=staging_dir,
+            download_heavy=True,
+            exclude=tuple(st.root_data_types),
+        ),
     ]
 
     # Check what data is in the output folder
