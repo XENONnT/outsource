@@ -9,11 +9,13 @@ outputs_dir=$2
 # Sanity check: these are the files in the output directory
 ls -lh $outputs_dir
 
+decompressed=$outputs_dir/decompressed-${tar_filename%%.*}
+
 # Make a temporary directory for decompressed files
-mkdir -p $outputs_dir/decompressed
+mkdir -p $decompressed
 
 # Untar the output file
-tar -xzf $tar_filename -C $outputs_dir/decompressed --strip-components=1
+tar -xzf $tar_filename -C $decompressed --strip-components=1
 rm $tar_filename
 
 # Check the output
@@ -21,7 +23,8 @@ echo "Checking the output"
 ls -lh
 
 # Move the outputs
-mv $outputs_dir/decompressed/* $outputs_dir/
+mv $decompressed/* $outputs_dir/
+rm -r $decompressed
 
 # Goodbye
 echo "Done. Exiting."
