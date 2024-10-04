@@ -4,6 +4,7 @@ import sys
 import time
 import shutil
 import gc
+from utilix import uconfig
 from utilix.config import setup_logger
 import admix
 import strax
@@ -78,9 +79,18 @@ def main():
         straxen.storage.RucioRemoteFrontend(
             staging_dir=staging_dir,
             download_heavy=True,
-            take_only=tuple(st.root_data_types) if args.ignore_processed else tuple(),
+            take_only=tuple(st.root_data_types),
+            rses_only=uconfig.getlist("Outsource", "raw_records_rse"),
         ),
     ]
+    if not args.ignore_processed:
+        st.storage + [
+            straxen.storage.RucioRemoteFrontend(
+                staging_dir=staging_dir,
+                download_heavy=True,
+                exclude=tuple(st.root_data_types),
+            ),
+        ]
 
     # Add local frontend if we can
     # This is a temporary hack
