@@ -378,7 +378,14 @@ class Submitter:
         # Install the specified user-installed packages
         for package_name in package_names:
             _tarball = Tarball(self.generated_dir, package_name)
-            if not Tarball.get_installed_git_repo(package_name):
+            if Tarball.get_installed_git_repo(package_name):
+                _tarball.create_tarball()
+                tarball = File(_tarball.tarball_name)
+                tarball_path = _tarball.tarball_path
+                self.logger.warning(
+                    f"Using tarball of user installed package {package_name} at {tarball_path}."
+                )
+            else:
                 # Packages should not be non-editable user-installed
                 if Tarball.is_user_installed(package_name):
                     raise RuntimeError(
@@ -398,13 +405,6 @@ class Submitter:
                     )
                 else:
                     continue
-            else:
-                _tarball.create_tarball()
-                tarball = File(_tarball.tarball_name)
-                tarball_path = _tarball.tarball_path
-                self.logger.warning(
-                    f"Using tarball of user installed package {package_name} at {tarball_path}."
-                )
             tarballs.append(tarball)
             tarball_paths.append(tarball_path)
         return tarballs, tarball_paths
@@ -608,6 +608,7 @@ class Submitter:
                                 "download_only",
                                 f"{self.rucio_upload}".lower(),
                                 f"{self.rundb_update}".lower(),
+                                f"{self.ignore_processed}".lower(),
                                 download_tar,
                                 chunk_str,
                             )
@@ -654,6 +655,7 @@ class Submitter:
                             "false" if not dbcfg.standalone_download else "no_download",
                             f"{self.rucio_upload}".lower(),
                             f"{self.rundb_update}".lower(),
+                            f"{self.ignore_processed}".lower(),
                             job_tar,
                             chunk_str,
                         )
@@ -701,6 +703,7 @@ class Submitter:
                         "false" if not dbcfg.standalone_download else "no_download",
                         f"{self.rucio_upload}".lower(),
                         f"{self.rundb_update}".lower(),
+                        f"{self.ignore_processed}".lower(),
                         job_tar,
                     )
 

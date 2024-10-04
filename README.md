@@ -100,6 +100,8 @@ xe1t_database = run
 
 [Outsource]
 work_dir = /scratch/$USER/workflows
+user_install_package = strax, straxen, cutax, rucio, utilix, admix, outsource
+check_user_install_package = strax, straxen, cutax, rucio, utilix, admix, outsource
 # sites to exclude (GLIDEIN_Site), comma seprated list
 exclude_sites = SU-ITS, NotreDame, UConn-HPC, Purdue Geddes, Chameleon, WSU-GRID, SIUE-CC-production, Lancium
 # data type to process
