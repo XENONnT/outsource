@@ -54,6 +54,7 @@ def main():
     parser.add_argument("--output_path", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
+    parser.add_argument("--ignore_processed", action="store_true", dest="ignore_processed")
     parser.add_argument("--download_only", action="store_true", dest="download_only")
     parser.add_argument("--no_download", action="store_true", dest="no_download")
     parser.add_argument("--chunks", nargs="*", type=int)
@@ -74,7 +75,11 @@ def main():
     st.storage = [
         strax.DataDirectory(input_path, readonly=True),
         strax.DataDirectory(output_path),
-        straxen.storage.RucioRemoteFrontend(staging_dir=staging_dir, download_heavy=True),
+        straxen.storage.RucioRemoteFrontend(
+            staging_dir=staging_dir,
+            download_heavy=True,
+            take_only=tuple(st.root_data_types) if args.ignore_processed else tuple(),
+        ),
     ]
 
     # Add local frontend if we can

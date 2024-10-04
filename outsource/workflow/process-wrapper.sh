@@ -9,9 +9,10 @@ data_type=$4
 standalone_download=$5
 rucio_upload=$6
 rundb_update=$7
-tar_filename=$8
+ignore_processed=$8
+tar_filename=$9
 args=( "$@" )
-chunks=${args[@]:8}
+chunks=${args[@]:9}
 
 echo $@
 echo $*
@@ -40,6 +41,10 @@ fi
 
 if [ "X$rundb_update" = "Xtrue" ]; then
     extraflags="$extraflags --rundb_update"
+fi
+
+if [ "X$ignore_processed" = "Xtrue" ]; then
+    extraflags="$extraflags --ignore_processed"
 fi
 
 chunksarg=""
