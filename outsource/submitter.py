@@ -27,7 +27,8 @@ from Pegasus.api import (
     ReplicaCatalog,
 )
 
-from outsource.config import base_dir, RunConfig, PER_CHUNK_DATA_TYPES, NEED_RAW_DATA_TYPES
+from outsource.config import base_dir, RunConfig, NEED_RAW_DATA_TYPES
+from outsource.utils import per_chunk_storage_root_data_type
 
 
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
@@ -474,7 +475,7 @@ class Submitter:
                 )
                 continue
 
-            # Will have combine jobs for all the PER_CHUNK_DATA_TYPES we passed
+            # Will have combine jobs for all the data_type lower than RECHUNK_DATA_TYPES
             combine_jobs = {}
 
             # Get data_types to process
@@ -529,7 +530,7 @@ class Submitter:
 
                 requirements, requirements_us = dbcfg.get_requirements(rses)
 
-                if data_type in PER_CHUNK_DATA_TYPES:
+                if per_chunk_storage_root_data_type(self.context, run_id, data_type):
                     # Add jobs, one for each input file
                     n_chunks = dbcfg.nchunks(data_type)
 

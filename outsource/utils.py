@@ -3,7 +3,7 @@ from utilix import uconfig
 from utilix import xent_collection
 from utilix.config import setup_logger
 
-from outsource.config import DETECTOR_DATA_TYPES
+from outsource.config import DETECTOR_DATA_TYPES, RECHUNK_DATA_TYPES
 
 
 coll = xent_collection()
@@ -164,3 +164,18 @@ def get_runlist(
         runlist = list(set(runlist_basic_to_process) & set(runlist_basic_has_raw))
 
     return runlist
+
+
+def per_chunk_storage_root_data_type(st, run_id, data_type):
+    """Return True if the data_type is per-chunk storage."""
+    tree_levels = st.tree_levels
+    components = st.get_components(run_id, data_type)
+    per_chunk_data_types = set(RECHUNK_DATA_TYPES) & set(components.savers.keys())
+    max_order = max(tree_levels[d]["order"] for d in per_chunk_data_types)
+    if tree_levels[data_type]["order"] <= max_order:
+        # find the root data_type
+        root_data_types = set(components.loaders.keys()) & set(st.root_data_types)
+        assert len(root_data_types) == 1
+        return root_data_types[0]
+    else:
+        return None

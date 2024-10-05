@@ -28,29 +28,21 @@ def upload_to_rucio(path, update_db=False):
 
     scope, dset_name = dataset_did.split(":")
 
-    try:
-        logger.info(f"Pre-uploading {path} to rucio!")
-        t0 = time.time()
-        admix.preupload(path, rse=rse, did=dataset_did)
-        preupload_time = time.time() - t0
-        logger.warning(
-            f"Preuploading time for {this_data_type}: {preupload_time / 60:0.2f} minutes"
-        )
+    logger.info(f"Pre-uploading {path} to rucio!")
+    t0 = time.time()
+    admix.preupload(path, rse=rse, did=dataset_did)
+    preupload_time = time.time() - t0
+    logger.warning(f"Preuploading time for {this_data_type}: {preupload_time / 60:0.2f} minutes")
 
-        logger.info(f"Uploading {path} to rucio!")
-        t0 = time.time()
-        miscellaneous = {
-            "creation_time": datetime.utcnow().isoformat(),
-            "creation_place": "OSG",
-        }
-        admix.upload(
-            path, rse=rse, did=dataset_did, update_db=update_db, miscellaneous=miscellaneous
-        )
-        upload_time = time.time() - t0
-        logger.warning(f"Uploading time for {this_data_type}: {upload_time / 60:0.2f} minutes")
-    except Exception:
-        logger.warning(f"Upload of {dset_name} failed for some reason")
-        raise
+    logger.info(f"Uploading {path} to rucio!")
+    t0 = time.time()
+    miscellaneous = {
+        "creation_time": datetime.utcnow().isoformat(),
+        "creation_place": "OSG",
+    }
+    admix.upload(path, rse=rse, did=dataset_did, update_db=update_db, miscellaneous=miscellaneous)
+    upload_time = time.time() - t0
+    logger.warning(f"Uploading time for {this_data_type}: {upload_time / 60:0.2f} minutes")
 
     # TODO: check rucio that the files are there
     logger.info(f"Upload of {len(files)} files in {dirname} finished successfully")

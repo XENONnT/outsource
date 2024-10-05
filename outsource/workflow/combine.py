@@ -8,7 +8,7 @@ import strax
 import straxen
 import cutax
 
-from outsource.config import get_bottom_data_types
+from outsource.utils import per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
 
@@ -22,32 +22,22 @@ def merge(st, run_id, data_type, path, chunk_number_group):
 
     :param st: straxen context
     :param run_id: run number padded with 0s
-    :param data_type: data_type 'level' e.g. records, peaklets
-    :param path: path where the data is stored
+    :param data_type: data_type to be merged
     :param chunk_number_group: list of chunk number to merge.
 
     """
-    # Initialize plugin needed for processing
-    plugin = st._plugin_class_registry[data_type]()
-
-    to_merge = set(d.split("-")[1] for d in os.listdir(path))
-
-    # Rechunk the data if we can
-    for _data_type in plugin.provides:
-        if _data_type not in to_merge:
-            continue
-        bottoms = get_bottom_data_types(data_type)
-        assert len(bottoms) == 1
-        st.merge_per_chunk_storage(
-            run_id,
-            _data_type,
-            bottoms[0],
-            chunk_number_group=chunk_number_group,
-            check_is_stored=False,
-        )
-        rucio_remote_frontend = st.storage.pop(2)
-        assert st.is_stored(run_id, _data_type)
-        st.storage.append(rucio_remote_frontend)
+    root_data_type = per_chunk_storage_root_data_type(st, run_id, data_type)
+    assert root_data_type
+    st.merge_per_chunk_storage(
+        run_id,
+        data_type,
+        root_data_type,
+        chunk_number_group=chunk_number_group,
+        check_is_stored=False,
+    )
+    rucio_remote_frontend = st.storage.pop(2)
+    assert st.is_stored(run_id, data_type)
+    st.storage.append(rucio_remote_frontend)
 
 
 def main():
@@ -93,24 +83,13 @@ def main():
     # Check what data is in the output folder
     data_types = [d.split("-")[1] for d in os.listdir(input_path)]
 
-    if any([d in data_types for d in ["lone_hits", "pulse_counts", "veto_regions"]]):
-        plugin_levels = ["records", "peaklets"]
-    elif "hitlets_nv" in data_types:
-        plugin_levels = ["hitlets_nv"]
-    elif "afterpulses" in data_types:
-        plugin_levels = ["afterpulses"]
-    elif "led_calibration" in data_types:
-        plugin_levels = ["led_calibration"]
-    else:
-        plugin_levels = ["peaklets"]
-
     _chunks = [0] + args.chunks
     chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
 
     # Merge
-    for data_type in plugin_levels:
+    for data_type in data_types:
         logger.info(f"Merging {data_type} level")
-        merge(st, run_id, data_type, input_path, chunk_number_group)
+        merge(st, run_id, data_type, chunk_number_group)
 
     # Remove rucio directory
     shutil.rmtree(staging_dir)
