@@ -7,6 +7,7 @@ from utilix.config import setup_logger
 import strax
 import straxen
 
+from outsource.meta import PER_CHUNK_DATA_TYPES
 from outsource.utils import get_context, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
@@ -86,13 +87,9 @@ def main():
         st.get_array(run_id, data_type, chunk_number={data_type: args.chunks})
         return
 
-    data_types = sorted(
-        st.get_components(
-            run_id, data_type, chunk_number=get_chunk_number(st, run_id, data_type, args.chunks)
-        ).savers.keys(),
-        key=lambda x: st.tree_levels[x]["order"],
-        reverse=True,
-    )
+    data_types = set(st._get_plugins((data_type,), run_id))
+    data_types -= set(st._get_plugins(PER_CHUNK_DATA_TYPES, run_id))
+    data_types = sorted(data_types, key=lambda x: st.tree_levels[x]["order"])
 
     logger.info(f"To process: {data_types}")
     for data_type in data_types:

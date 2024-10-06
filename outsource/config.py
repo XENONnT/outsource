@@ -3,73 +3,16 @@ import time
 import itertools
 from utilix import DB, uconfig, xent_collection
 import admix
-import strax
+
+from outsource.meta import DETECTOR_DATA_TYPES, LED_MODES
+from outsource.utils import get_possible_dependencies, get_to_save_data_types
 
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 
 
-# These data_types need per-chunk storage, so don't upload to rucio here!
-PER_CHUNK_DATA_TYPES = [
-    "peaklets",
-    "hitlets_nv",
-    "afterpulses",
-    "led_calibration",
-]
-
-
-# Do a query to see if these data_types are present
-DETECTOR_DATA_TYPES = {
-    "tpc": {
-        "raw": "raw_records",
-        "to_process": [
-            "event_ms_naive",
-            "event_info_double",
-            "event_position_uncertainty",
-            "event_top_bottom_params",
-            "event_pattern_fit",
-            "veto_proximity",
-            "event_ambience",
-            "event_shadow",
-            "event_se_density",
-            "cuts_basic",
-            "peak_s1_positions_cnn",
-            "peak_basics_he",
-            "afterpulses",
-        ],
-    },
-    "neutron_veto": {
-        "raw": "raw_records_nv",
-        "to_process": ["events_nv", "ref_mon_nv"],
-    },
-    "muon_veto": {
-        "raw": "raw_records_mv",
-        "to_process": ["events_mv"],
-    },
-}
-
-
-# LED calibration modes have particular data_type we care about
-LED_MODES = {
-    "tpc_pmtap": ["afterpulses"],
-    "tpc_commissioning_pmtap": ["afterpulses"],
-    "tpc_pmtgain": ["led_calibration"],
-}
-
-
 db = DB()
 coll = xent_collection()
-
-
-def get_rse(st, data_type):
-    # Based on the data_type and the utilix config, where should this data go?
-    if data_type in st._get_plugins(["records", "records_nv", "records_he"], "0"):
-        rse = uconfig.get("Outsource", "records_rse")
-    elif data_type in st._get_plugins(["peaks", "hitlets_nv"], "0"):
-        rse = uconfig.get("Outsource", "peaklets_rse")
-    else:
-        rse = uconfig.get("Outsource", "events_rse")
-    return rse
 
 
 class RunConfig:
@@ -186,29 +129,17 @@ class RunConfig:
         root_data_types.
 
         """
-        possible_dependencies = itertools.chain.from_iterable(
-            self.context._plugin_class_registry[d]().depends_on for d in PER_CHUNK_DATA_TYPES
-        )
-        possible_dependencies = set(possible_dependencies) | self.context.root_data_types
+        possible_dependencies = get_possible_dependencies(self.context)
+        # Get the highest data_type in the possible dependencies
         data_types = sorted(
             self.context.get_dependencies(data_type) & (possible_dependencies),
-            key=lambda x: self.context.tree_levels[x]["order"],
+            key=lambda x: self.context.tree_levels[x]["level"],
             reverse=True,
         )
         return data_types[0]
 
     def key_for(self, data_type):
         return self.context.key_for(self._run_id, data_type)
-
-    @staticmethod
-    def get_to_process_data_types(st, pendants, run_id="0"):
-        to_process_data_types = set()
-        for data_type in strax.to_str_tuple(pendants):
-            plugins = st._get_plugins((data_type,), run_id)
-            to_process_data_types |= set(
-                [k for k, v in plugins if v.save_when[k] == strax.SaveWhen.ALWAYS]
-            )
-        return to_process_data_types
 
     def get_needs_processed(self):
         """Returns the list of data_type we need to process."""
@@ -220,8 +151,8 @@ class RunConfig:
         excluded_data_types = set(include_data_types) - all_to_process_data_types
         if excluded_data_types:
             raise ValueError(
-                f"Find data_types not supported: {excluded_data_types}. "
-                f"Should include only subset of {all_to_process_data_types}."
+                f"Find data_types not supported in include_data_types: {excluded_data_types}. "
+                f"It should include only subset of {all_to_process_data_types}."
             )
 
         if self.mode in LED_MODES:
@@ -247,9 +178,7 @@ class RunConfig:
         ret = []
         for data_type in data_types:
             data_types_already_processed = []
-            _data_types = self.get_to_process_data_types(
-                self.context, data_type, run_id=self._run_id
-            )
+            _data_types = get_to_save_data_types(self.context, data_type)
             for _data_type in _data_types:
                 hash = self.key_for(_data_type).lineage_hash
                 rses = db.get_rses(self.run_id, _data_type, hash)
@@ -258,7 +187,7 @@ class RunConfig:
             if not all(data_types_already_processed) or self.ignore_processed:
                 ret.append(data_type)
 
-        ret.sort(key=lambda x: len(self.context.get_dependencies(x)))
+        ret.sort(key=lambda x: self.context.tree_levels[x]["order"])
 
         return ret
 

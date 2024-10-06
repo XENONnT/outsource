@@ -5,7 +5,7 @@ from utilix import DB
 from utilix.config import setup_logger
 import admix
 
-from outsource.config import get_rse
+from outsource.utils import get_rse
 
 
 logger = setup_logger("outsource")

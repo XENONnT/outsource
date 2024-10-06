@@ -1,3 +1,4 @@
+import itertools
 from copy import deepcopy
 from utilix import uconfig
 from utilix import xent_collection
@@ -6,7 +7,7 @@ import strax
 import straxen
 import cutax
 
-from outsource.config import DETECTOR_DATA_TYPES, PER_CHUNK_DATA_TYPES
+from outsource.meta import DETECTOR_DATA_TYPES, PER_CHUNK_DATA_TYPES
 
 
 coll = xent_collection()
@@ -204,15 +205,40 @@ def get_runlist(
     return runlist
 
 
+def get_possible_dependencies(st):
+    # Get the data_types in the same plugin of PER_CHUNK_DATA_TYPES
+    possible_dependencies = itertools.chain.from_iterable(
+        st._plugin_class_registry[d]().provides for d in PER_CHUNK_DATA_TYPES
+    )
+    # Add the root_data_types because PER_CHUNK_DATA_TYPES depends on them
+    possible_dependencies = set(possible_dependencies) | st.root_data_types
+    return possible_dependencies
+
+
+def get_to_save_data_types(st, data_types):
+    plugins = st._get_plugins(strax.to_str_tuple(data_types), "0")
+    to_process_data_types = set(
+        [k for k, v in plugins.items() if v.save_when[k] == strax.SaveWhen.ALWAYS]
+    )
+    return to_process_data_types
+
+
+def get_rse(st, data_type):
+    # Based on the data_type and the utilix config, where should this data go?
+    if data_type in st._get_plugins(["records", "records_nv", "records_he"], "0"):
+        rse = uconfig.get("Outsource", "records_rse")
+    elif data_type in st._get_plugins(["peaks", "hitlets_nv"], "0"):
+        rse = uconfig.get("Outsource", "peaklets_rse")
+    else:
+        rse = uconfig.get("Outsource", "events_rse")
+    return rse
+
+
 def per_chunk_storage_root_data_type(st, run_id, data_type):
     """Return True if the data_type is per-chunk storage."""
-    max_level = max(
-        st.tree_levels[d]["level"]
-        for d in st.get_dependencies(data_type) & set(PER_CHUNK_DATA_TYPES)
-    )
-    if st.tree_levels[data_type]["level"] <= max_level:
+    if data_type in st._get_plugins(PER_CHUNK_DATA_TYPES, "0"):
         # find the root data_type
-        root_data_types = set(st.get_source(run_id, data_type)) & set(st.root_data_types)
+        root_data_types = set(st._get_plugins((data_type,), run_id)) & set(st.root_data_types)
         if len(root_data_types) != 1:
             raise ValueError(
                 f"Cannot determine root data type for {data_type} "
