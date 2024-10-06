@@ -2,13 +2,11 @@ import argparse
 import os
 import shutil
 import admix
-from utilix import uconfig
 from utilix.config import setup_logger
 import strax
 import straxen
-import cutax
 
-from outsource.utils import per_chunk_storage_root_data_type
+from outsource.utils import get_context, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
 
@@ -27,7 +25,7 @@ def merge(st, run_id, data_type, path, chunk_number_group):
 
     """
     root_data_type = per_chunk_storage_root_data_type(st, run_id, data_type)
-    assert root_data_type
+    assert root_data_type is not None
     st.merge_per_chunk_storage(
         run_id,
         data_type,
@@ -35,9 +33,8 @@ def merge(st, run_id, data_type, path, chunk_number_group):
         chunk_number_group=chunk_number_group,
         check_is_stored=False,
     )
-    rucio_remote_frontend = st.storage.pop(2)
-    assert st.is_stored(run_id, data_type)
-    st.storage.append(rucio_remote_frontend)
+    if not st.is_stored(run_id, data_type):
+        raise ValueError(f"Data type {data_type} not stored after merging the per-chunk storage.")
 
 
 def main():
@@ -58,27 +55,19 @@ def main():
     output_path = args.output_path
 
     # Get context
-    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     staging_dir = "./strax_data"
     if os.path.abspath(staging_dir) == os.path.abspath(input_path):
         raise ValueError("Input path cannot be the same as staging directory")
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):
         raise ValueError("Output path cannot be the same as staging directory")
-    st.storage = [
-        strax.DataDirectory(input_path, readonly=True),
-        strax.DataDirectory(output_path),  # where we are copying data to
-        straxen.storage.RucioRemoteFrontend(
-            staging_dir=staging_dir,
-            download_heavy=True,
-            take_only=tuple(st.root_data_types),
-            rses_only=uconfig.getlist("Outsource", "raw_records_rse"),
-        ),
-        straxen.storage.RucioRemoteFrontend(
-            staging_dir=staging_dir,
-            download_heavy=True,
-            exclude=tuple(st.root_data_types),
-        ),
-    ]
+    st = get_context(
+        args.context,
+        args.xedocs_version,
+        input_path,
+        output_path,
+        staging_dir,
+        ignore_processed=True,
+    )
 
     # Check what data is in the output folder
     data_types = [d.split("-")[1] for d in os.listdir(input_path)]
@@ -103,7 +92,7 @@ def main():
     logger.info(f"Combined data: {processed_data}")
 
     for dirname in processed_data:
-        upload_to_rucio(os.path.join(output_path, dirname), args.rundb_update)
+        upload_to_rucio(st, os.path.join(output_path, dirname), args.rundb_update)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ admix.clients._init_clients()
 db = DB()
 
 
-def upload_to_rucio(path, update_db=False):
+def upload_to_rucio(st, path, update_db=False):
     # Get rucio dataset
     files = os.listdir(path)
     dirname = os.path.basename(path)
@@ -23,7 +23,7 @@ def upload_to_rucio(path, update_db=False):
         logger.warning(f"No files to upload in {dirname}. Skipping.")
 
     this_run, this_data_type, this_hash = dirname.split("-")
-    rse = get_rse(this_data_type)
+    rse = get_rse(st, this_data_type)
     dataset_did = admix.utils.make_did(int(this_run), this_data_type, this_hash)
 
     scope, dset_name = dataset_did.split(":")

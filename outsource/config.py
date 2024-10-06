@@ -1,110 +1,53 @@
 import os
 import time
+import itertools
 from utilix import DB, uconfig, xent_collection
 import admix
+import strax
 
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 
 
-# These data_types we need to rechunk, so don't upload to rucio here!
-RECHUNK_DATA_TYPES = [
+# These data_types need per-chunk storage, so don't upload to rucio here!
+PER_CHUNK_DATA_TYPES = [
     "peaklets",
     "hitlets_nv",
     "afterpulses",
     "led_calibration",
 ]
 
-
-# These are the developer decided dependencies of data_type
-DEPENDS_ON = {
-    "records": ["raw_records"],
-    "peaklets": ["raw_records"],
-    "peak_basics": ["peaklets"],
-    "peak_basics_he": ["raw_records_he"],
-    "event_info_double": ["peaklets"],
-    "event_shadow": ["peaklets"],
-    "hitlets_nv": ["raw_records_nv"],
-    "events_nv": ["hitlets_nv"],
-    "ref_mon_nv": ["hitlets_nv"],
-    "events_mv": ["raw_records_mv"],
-    "afterpulses": ["raw_records"],
-    "led_calibration": ["raw_records"],
-}
-
-# These are datetypes to look for in RunDB
-ACTUALLY_STORED = {
-    "event_info_double": [
-        "peak_basics",
-        "event_info",
-        "distinct_channels",
-        "event_pattern_fit",
-        "event_area_per_channel",
-        "event_n_channel",
-        "event_top_bottom_params",
-        "event_ms_naive",
-        "event_ambience",
-        "event_shadow",
-        "peak_s1_positions_cnn",
-    ],
-    "event_shadow": ["event_shadow", "event_ambience"],
-    "peak_basics_he": ["peak_basics_he"],
-    "events_nv": ["ref_mon_nv", "events_nv"],
-    "ref_mon_nv": ["ref_mon_nv"],
-    "peak_basics": ["merged_s2s", "peak_basics", "peaklet_classification"],
-    "peaklets": ["peaklets", "lone_hits"],
-    "hitlets_nv": ["hitlets_nv"],
-    "events_mv": ["events_mv"],
-    "afterpulses": ["afterpulses"],
-    "led_calibration": ["led_calibration"],
-}
 
 # Do a query to see if these data_types are present
 DETECTOR_DATA_TYPES = {
     "tpc": {
         "raw": "raw_records",
         "to_process": [
-            "peaklets",
-            "event_info",
-            "peak_basics",
-            "peak_basics_he",
-            "event_pattern_fit",
-            "event_area_per_channel",
-            "event_top_bottom_params",
             "event_ms_naive",
-            "event_shadow",
-            "event_ambience",
-            "peak_s1_positions_cnn",
-            "afterpulses",
-        ],
-        "possible": [
-            "records",
-            "peaklets",
-            "peak_basics",
             "event_info_double",
+            "event_position_uncertainty",
+            "event_top_bottom_params",
+            "event_pattern_fit",
+            "veto_proximity",
+            "event_ambience",
             "event_shadow",
+            "event_se_density",
+            "cuts_basic",
+            "peak_s1_positions_cnn",
             "peak_basics_he",
             "afterpulses",
-            "led_calibration",
         ],
     },
     "neutron_veto": {
         "raw": "raw_records_nv",
-        "to_process": ["hitlets_nv", "events_nv", "ref_mon_nv"],
-        "possible": ["hitlets_nv", "events_nv", "ref_mon_nv"],
+        "to_process": ["events_nv", "ref_mon_nv"],
     },
-    "muon_veto": {"raw": "raw_records_mv", "to_process": ["events_mv"], "possible": ["events_mv"]},
+    "muon_veto": {
+        "raw": "raw_records_mv",
+        "to_process": ["events_mv"],
+    },
 }
 
-
-NEED_RAW_DATA_TYPES = [
-    "peaklets",
-    "peak_basics_he",
-    "hitlets_nv",
-    "events_mv",
-    "afterpulses",
-    "led_calibration",
-]
 
 # LED calibration modes have particular data_type we care about
 LED_MODES = {
@@ -113,18 +56,16 @@ LED_MODES = {
     "tpc_pmtgain": ["led_calibration"],
 }
 
-# LED calibration particular data_type we care about
-LED_DATA_TYPES = list(set().union(*LED_MODES.values()))
 
 db = DB()
 coll = xent_collection()
 
 
-def get_rse(this_data_type):
+def get_rse(st, data_type):
     # Based on the data_type and the utilix config, where should this data go?
-    if this_data_type in ["records", "pulse_counts", "veto_regions", "records_nv", "records_he"]:
+    if data_type in st._get_plugins(["records", "records_nv", "records_he"], "0"):
         rse = uconfig.get("Outsource", "records_rse")
-    elif this_data_type in ["peaklets", "lone_hits", "merged_s2s", "hitlets_nv"]:
+    elif data_type in st._get_plugins(["peaks", "hitlets_nv"], "0"):
         rse = uconfig.get("Outsource", "peaklets_rse")
     else:
         rse = uconfig.get("Outsource", "events_rse")
@@ -167,27 +108,28 @@ class RunConfig:
         # Default job priority - workflows will be given priority
         # in the order they were submitted.
         self.priority = 2250000000 - int(time.time())
-        assert self.priority > 0
+        if self.priority <= 0:
+            raise ValueError("Priority must be positive")
 
         self.run_data = db.get_data(self.run_id)
         self.set_requirements_base()
 
         # Get the detectors and start time of this run
-        cursor = coll.find_one(
-            {"number": self.run_id}, {"detectors": 1, "start": 1, "_id": 0, "mode": 1}
-        )
+        cursor = coll.find_one({"number": self.run_id}, {"detectors": 1, "mode": 1})
         self.detectors = cursor["detectors"]
-        self.start = cursor["start"]
         self.mode = cursor["mode"]
-        assert isinstance(
-            self.detectors, list
-        ), f"Detectors needs to be a list, not a {type(self.detectors)}"
+        if not isinstance(self.detectors, list):
+            raise ValueError(f"Detectors needs to be a list, not a {type(self.detectors)}")
 
         # Get the data_type that need to be processed
         self.needs_processed = self.get_needs_processed()
 
         # Determine which rse the input data is on
         self.dependencies_rses = self.get_dependencies_rses()
+
+    @property
+    def _run_id(self):
+        return f"{self.run_id:06d}"
 
     def set_requirements_base(self):
         requirements_base = "HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org"
@@ -238,15 +180,49 @@ class RunConfig:
         return requirements, requirements_us
 
     def depends_on(self, data_type):
-        return DEPENDS_ON[data_type]
+        """Get the data_type this one depends on.
+
+        The result will be either data_type in same level of PER_CHUNK_DATA_TYPES or the
+        root_data_types.
+
+        """
+        possible_dependencies = itertools.chain.from_iterable(
+            self.context._plugin_class_registry[d]().depends_on for d in PER_CHUNK_DATA_TYPES
+        )
+        possible_dependencies = set(possible_dependencies) | self.context.root_data_types
+        data_types = sorted(
+            self.context.get_dependencies(data_type) & (possible_dependencies),
+            key=lambda x: self.context.tree_levels[x]["order"],
+            reverse=True,
+        )
+        return data_types[0]
 
     def key_for(self, data_type):
-        return self.context.key_for(f"{self.run_id:06d}", data_type)
+        return self.context.key_for(self._run_id, data_type)
+
+    @staticmethod
+    def get_to_process_data_types(st, pendants, run_id="0"):
+        to_process_data_types = set()
+        for data_type in strax.to_str_tuple(pendants):
+            plugins = st._get_plugins((data_type,), run_id)
+            to_process_data_types |= set(
+                [k for k, v in plugins if v.save_when[k] == strax.SaveWhen.ALWAYS]
+            )
+        return to_process_data_types
 
     def get_needs_processed(self):
         """Returns the list of data_type we need to process."""
         # Do we need to process? read from XENON_CONFIG
         include_data_types = uconfig.getlist("Outsource", "include_data_types")
+        all_to_process_data_types = set(
+            itertools.chain.from_iterable(v["to_process"] for v in DETECTOR_DATA_TYPES.values())
+        )
+        excluded_data_types = set(include_data_types) - all_to_process_data_types
+        if excluded_data_types:
+            raise ValueError(
+                f"Find data_types not supported: {excluded_data_types}. "
+                f"Should include only subset of {all_to_process_data_types}."
+            )
 
         if self.mode in LED_MODES:
             # If we are using LED data, only process those data_types
@@ -256,28 +232,31 @@ class RunConfig:
             ]
         else:
             # If we are not, don't process those data_types
-            include_data_types = list(set(include_data_types) - set(LED_DATA_TYPES))
+            include_data_types = list(set(include_data_types) - set().union(*LED_MODES.values()))
 
-        # Get all possible data_types we can process for this run
-        possible_data_types = []
-        for detector in self.detectors:
-            possible_data_types.extend(DETECTOR_DATA_TYPES[detector]["possible"])
+        # Get all data_types to process
+        to_process_data_types = set(
+            itertools.chain.from_iterable(
+                DETECTOR_DATA_TYPES[detector]["to_process"] for detector in self.detectors
+            )
+        )
 
-        # Modify include_data_types to only consider the possible ones
-        include_data_types = [
-            data_type for data_type in include_data_types if data_type in possible_data_types
-        ]
+        # Modify include_data_types to intersect with to_process_data_types
+        data_types = set(include_data_types) & (to_process_data_types)
 
         ret = []
-        for category in include_data_types:
+        for data_type in data_types:
             data_types_already_processed = []
-            for data_type in ACTUALLY_STORED[category]:
-                hash = self.context.key_for(f"{self.run_id:06d}", data_type).lineage_hash
-                rses = db.get_rses(self.run_id, data_type, hash)
+            _data_types = self.get_to_process_data_types(
+                self.context, data_type, run_id=self._run_id
+            )
+            for _data_type in _data_types:
+                hash = self.key_for(_data_type).lineage_hash
+                rses = db.get_rses(self.run_id, _data_type, hash)
                 # If this data is not on any rse, reprocess it, or we are asking for a rerun
                 data_types_already_processed.append(len(rses) > 0)
             if not all(data_types_already_processed) or self.ignore_processed:
-                ret.append(category)
+                ret.append(data_type)
 
         ret.sort(key=lambda x: len(self.context.get_dependencies(x)))
 
@@ -287,30 +266,27 @@ class RunConfig:
         """Get Rucio Storage Elements of data_type."""
         rses = dict()
         for data_type in self.needs_processed:
-            input_data_types = self.depends_on(data_type)
-            _rses_tmp = []
-            for input_data_type in input_data_types:
-                hash = self.context.key_for(f"{self.run_id:06d}", input_data_type).lineage_hash
-                _rses_tmp.extend(db.get_rses(self.run_id, input_data_type, hash))
-            rses[data_type] = list(set(_rses_tmp))
+            input_data_type = self.depends_on(data_type)
+            hash = self.key_for(input_data_type).lineage_hash
+            rses[data_type] = list(set(db.get_rses(self.run_id, input_data_type, hash)))
         return rses
 
     def nchunks(self, data_type):
         # Get the data_type this one depends on
-        data_type = self.depends_on(data_type)[0]
-        hash = self.context.key_for(f"{self.run_id:06d}", data_type).lineage_hash
-        did = f"xnt_{self.run_id:06d}:{data_type}-{hash}"
+        data_type = self.depends_on(data_type)
+        hash = self.key_for(data_type).lineage_hash
+        did = f"xnt_{self._run_id}:{data_type}-{hash}"
         files = admix.rucio.list_files(did)
         # Subtract 1 for metadata
         return len(files) - 1
 
-    def _raw_data_exists(self, raw_type="raw_records"):
-        """Returns a boolean for whether or not raw data exists in rucio and is accessible."""
+    def dependency_exists(self, data_type="raw_records"):
+        """Returns a boolean for whether the dependency exists in rucio and is accessible."""
         # It's faster to just go through RunDB
 
         for data in self.run_data:
             if (
-                data["type"] == raw_type
+                data["type"] == data_type
                 and data["host"] == "rucio-catalogue"
                 and data["status"] == "transferred"
                 and data["location"] != "LNGS_USERDISK"

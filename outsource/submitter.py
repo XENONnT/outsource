@@ -27,8 +27,8 @@ from Pegasus.api import (
     ReplicaCatalog,
 )
 
-from outsource.config import base_dir, RunConfig, NEED_RAW_DATA_TYPES
-from outsource.utils import per_chunk_storage_root_data_type
+from outsource.config import base_dir, RunConfig
+from outsource.utils import get_context, per_chunk_storage_root_data_type
 
 
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
@@ -131,7 +131,7 @@ class Submitter:
         # Setup context
         self.context_name = context_name
         self.xedocs_version = xedocs_version
-        self.context = getattr(cutax.contexts, context_name)(xedocs_version=self.xedocs_version)
+        self.context = get_context(context_name, self.xedocs_version)
 
         self.ignore_processed = ignore_processed
         self.rucio_upload = rucio_upload
@@ -468,23 +468,26 @@ class Submitter:
 
             # Check if this run_id needs to be processed
             if len(dbcfg.needs_processed) > 0:
-                self.logger.debug(f"Adding run_id {dbcfg.run_id:06d} to the workflow")
+                self.logger.debug(f"Adding run_id {dbcfg._run_id} to the workflow")
             else:
                 self.logger.debug(
-                    f"Run {dbcfg.run_id:06d} is already processed with context {self.context_name}"
+                    f"Run {dbcfg._run_id} is already processed with context {self.context_name}"
                 )
                 continue
 
-            # Will have combine jobs for all the data_type lower than RECHUNK_DATA_TYPES
+            # Will have combine jobs for all the data_type lower than PER_CHUNK_DATA_TYPES
             combine_jobs = {}
 
             # Get data_types to process
-            for data_type_i, data_type in enumerate(dbcfg.needs_processed):
+            for data_type in dbcfg.needs_processed:
+                root_data_type = per_chunk_storage_root_data_type(
+                    self.context, dbcfg._run_id, data_type
+                )
                 # These data_types need raw data
-                if data_type in NEED_RAW_DATA_TYPES:
+                if root_data_type:
                     # Check that raw data exist for this run_id
                     if not all(
-                        [dbcfg._raw_data_exists(raw_type=d) for d in dbcfg.depends_on(data_type)]
+                        [dbcfg.dependency_exists(raw_type=d) for d in dbcfg.depends_on(data_type)]
                     ):
                         self.logger.error(
                             f"Doesn't have raw data for {data_type} of run_id {run_id}, skipping"
@@ -498,7 +501,7 @@ class Submitter:
                 if len(rses) == 0:
                     if data_type == "raw_records":
                         raise RuntimeError(
-                            f"Unable to find a raw records location for {dbcfg.run_id:06d}"
+                            f"Unable to find a raw records location for {dbcfg._run_id}"
                         )
                     else:
                         self.logger.warning(
@@ -506,20 +509,21 @@ class Submitter:
                             f"Hopefully those will be created by the workflow."
                         )
 
-                rses_specified = uconfig.getlist("Outsource", "raw_records_rse")
+                raw_records_rses = uconfig.getlist("Outsource", "raw_records_rse")
                 # For standalone downloads, only target US
                 if dbcfg.standalone_download:
-                    rses = rses_specified
+                    rses = raw_records_rses
 
                 # For low level data, we only want to run_id on sites
                 # that we specified for raw_records_rse
-                if data_type in NEED_RAW_DATA_TYPES:
-                    rses = list(set(rses) & set(rses_specified))
-                    assert len(rses) > 0, (
-                        f"No sites found for {dbcfg.key_for(data_type)}, "
-                        "since no intersection between the available rses "
-                        f"{rses} and the specified raw_records_rses {rses_specified}"
-                    )
+                if root_data_type:
+                    rses = list(set(rses) & set(raw_records_rses))
+                    if not len(rses):
+                        raise RuntimeError(
+                            f"No sites found for {dbcfg.key_for(data_type)}, "
+                            "since no intersection between the available rses "
+                            f"{rses} and the specified raw_records_rses {raw_records_rses}"
+                        )
 
                 sites_expression, desired_sites = dbcfg._determine_target_sites(rses)
                 self.logger.debug(f"Site expression from RSEs list: {sites_expression}")
@@ -530,7 +534,7 @@ class Submitter:
 
                 requirements, requirements_us = dbcfg.get_requirements(rses)
 
-                if per_chunk_storage_root_data_type(self.context, run_id, data_type):
+                if root_data_type:
                     # Add jobs, one for each input file
                     n_chunks = dbcfg.nchunks(data_type)
 

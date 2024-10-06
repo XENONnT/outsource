@@ -3,13 +3,11 @@ import os
 import time
 import shutil
 import gc
-from utilix import uconfig
 from utilix.config import setup_logger
 import strax
 import straxen
-import cutax
 
-from outsource.utils import per_chunk_storage_root_data_type
+from outsource.utils import get_context, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
 
@@ -17,26 +15,27 @@ logger = setup_logger("outsource")
 straxen.Events.save_when = strax.SaveWhen.TARGET
 
 
+def get_chunk_number(st, run_id, data_type, chunks):
+    """Get chunk_number for per-chunk storage."""
+    root_data_type = per_chunk_storage_root_data_type(st, run_id, data_type)
+    if chunks:
+        assert root_data_type is not None
+        chunk_number = {root_data_type: chunks}
+    else:
+        assert root_data_type is None
+        chunk_number = None
+    return chunk_number
+
+
 def process(st, run_id, data_type, chunks):
     t0 = time.time()
 
-    if chunks:
-        # find the root data_type
-        root_data_type = per_chunk_storage_root_data_type(st, run_id, data_type)
-        assert root_data_type
-        st.make(
-            run_id,
-            data_type,
-            chunk_number={root_data_type: chunks},
-            processor="single_thread",
-        )
-    else:
-        assert not per_chunk_storage_root_data_type(st, run_id, data_type)
-        st.make(
-            run_id,
-            data_type,
-            processor="single_thread",
-        )
+    st.make(
+        run_id,
+        data_type,
+        chunk_number=get_chunk_number(st, run_id, data_type, chunks),
+        processor="single_thread",
+    )
 
     process_time = time.time() - t0
     logger.info(f"Processing time for {data_type}: {process_time / 60:0.2f} minutes")
@@ -64,49 +63,39 @@ def main():
     output_path = args.output_path
 
     # Get context
-    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     staging_dir = "./strax_data"
     if os.path.abspath(staging_dir) == os.path.abspath(input_path):
         raise ValueError("Input path cannot be the same as staging directory")
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):
         raise ValueError("Output path cannot be the same as staging directory")
-    st.storage = [
-        strax.DataDirectory(input_path, readonly=True),
-        strax.DataDirectory(output_path),
-        straxen.storage.RucioRemoteFrontend(
-            staging_dir=staging_dir,
-            download_heavy=True,
-            take_only=tuple(st.root_data_types),
-            rses_only=uconfig.getlist("Outsource", "raw_records_rse"),
-        ),
-    ]
-    if not args.ignore_processed:
-        st.storage + [
-            straxen.storage.RucioRemoteFrontend(
-                staging_dir=staging_dir,
-                download_heavy=True,
-                exclude=tuple(st.root_data_types),
-            ),
-        ]
+    st = get_context(
+        args.context,
+        args.xedocs_version,
+        input_path,
+        output_path,
+        staging_dir,
+        ignore_processed=args.ignore_processed,
+    )
 
     logger.info("Context is set up!")
 
     run_id = f"{args.run_id:06d}"
-    data_type = args.data_type  # eg. typically for tpc: peaklets/event_info
+    data_type = args.data_type
 
     if args.download_only:
         st.get_array(run_id, data_type, chunk_number={data_type: args.chunks})
         return
 
-    tree_levels = st.tree_levels
-    to_process = sorted(
-        st.get_components(run_id, data_type).savers.keys(),
-        key=lambda x: tree_levels[x],
+    data_types = sorted(
+        st.get_components(
+            run_id, data_type, chunk_number=get_chunk_number(st, run_id, data_type, args.chunks)
+        ).savers.keys(),
+        key=lambda x: st.tree_levels[x]["order"],
         reverse=True,
     )
 
-    logger.info(f"To process: {to_process}")
-    for data_type in to_process:
+    logger.info(f"To process: {data_types}")
+    for data_type in data_types:
         process(st, run_id, data_type, args.chunks)
         gc.collect()
 
@@ -133,7 +122,7 @@ def main():
             logger.warning("Ignoring rucio upload")
             continue
 
-        upload_to_rucio(path, rundb_update=args.rundb_update)
+        upload_to_rucio(st, path, rundb_update=args.rundb_update)
 
         # Cleanup the files we uploaded
         shutil.rmtree(path)

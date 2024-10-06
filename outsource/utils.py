@@ -2,12 +2,50 @@ from copy import deepcopy
 from utilix import uconfig
 from utilix import xent_collection
 from utilix.config import setup_logger
+import strax
+import straxen
+import cutax
 
-from outsource.config import DETECTOR_DATA_TYPES, RECHUNK_DATA_TYPES
+from outsource.config import DETECTOR_DATA_TYPES, PER_CHUNK_DATA_TYPES
 
 
 coll = xent_collection()
 logger = setup_logger("outsource")
+
+
+def get_context(
+    context,
+    xedocs_version,
+    input_path=None,
+    output_path=None,
+    staging_dir=None,
+    ignore_processed=False,
+):
+    """Get straxen context."""
+    st = getattr(cutax.contexts, context)(xedocs_version=xedocs_version)
+    st.storage = []
+    if input_path:
+        st.storage.append(strax.DataDirectory(input_path, readonly=True))
+    if output_path:
+        st.storage.append(strax.DataDirectory(output_path))
+    if staging_dir:
+        st.storage.append(
+            straxen.storage.RucioRemoteFrontend(
+                staging_dir=staging_dir,
+                download_heavy=True,
+                take_only=tuple(st.root_data_types),
+                rses_only=uconfig.getlist("Outsource", "raw_records_rse"),
+            )
+        )
+        if not ignore_processed:
+            st.storage.append(
+                straxen.storage.RucioRemoteFrontend(
+                    staging_dir=staging_dir,
+                    download_heavy=True,
+                    exclude=tuple(st.root_data_types),
+                )
+            )
+    return st
 
 
 def get_runlist(
@@ -60,9 +98,9 @@ def get_runlist(
             continue
 
         # Check if the data_type is in the list of data_types to outsource
-        data_type_to_process = [d for d in det_info["to_process"] if d in include_data_types]
+        to_process_data_types = list(set(det_info["to_process"]) & set(include_data_types))
 
-        if not data_type_to_process:
+        if not to_process_data_types:
             logger.warning(f"Skipping {det} data")
             continue
 
@@ -107,7 +145,7 @@ def get_runlist(
                     }
                 }
             }
-            for data_type in data_type_to_process
+            for data_type in to_process_data_types
         ]
 
         # Basic query with raw data
@@ -126,19 +164,19 @@ def get_runlist(
 
     cursor_basic = coll.find(
         full_query_basic,
-        {"number": 1, "_id": 0, "mode": 1},
+        {"number": 1, "mode": 1},
         limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
     cursor_basic_has_raw = coll.find(
         full_query_basic_has_raw,
-        {"number": 1, "_id": 0, "mode": 1},
+        {"number": 1, "mode": 1},
         limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
     cursor_basic_to_process = coll.find(
         full_query_basic_to_process,
-        {"number": 1, "_id": 0, "mode": 1},
+        {"number": 1, "mode": 1},
         limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
@@ -168,14 +206,18 @@ def get_runlist(
 
 def per_chunk_storage_root_data_type(st, run_id, data_type):
     """Return True if the data_type is per-chunk storage."""
-    tree_levels = st.tree_levels
-    components = st.get_components(run_id, data_type)
-    per_chunk_data_types = set(RECHUNK_DATA_TYPES) & set(components.savers.keys())
-    max_order = max(tree_levels[d]["order"] for d in per_chunk_data_types)
-    if tree_levels[data_type]["order"] <= max_order:
+    max_level = max(
+        st.tree_levels[d]["level"]
+        for d in st.get_dependencies(data_type) & set(PER_CHUNK_DATA_TYPES)
+    )
+    if st.tree_levels[data_type]["level"] <= max_level:
         # find the root data_type
-        root_data_types = set(components.loaders.keys()) & set(st.root_data_types)
-        assert len(root_data_types) == 1
+        root_data_types = set(st.get_source(run_id, data_type)) & set(st.root_data_types)
+        if len(root_data_types) != 1:
+            raise ValueError(
+                f"Cannot determine root data type for {data_type} "
+                f"because got multiple root data types {root_data_types}."
+            )
         return root_data_types[0]
     else:
         return None
