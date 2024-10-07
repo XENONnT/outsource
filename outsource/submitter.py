@@ -495,12 +495,14 @@ class Submitter:
             dbcfg.run_id,
             self.context_name,
             self.xedocs_version,
-            data_types,
-            "false" if not dbcfg.standalone_download else "no_download",
+            -1,
+            -1,
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             f"{self.ignore_processed}".lower(),
+            "false" if not dbcfg.standalone_download else "no_download",
             job_tar,
+            *data_types,
         )
 
         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
@@ -553,7 +555,7 @@ class Submitter:
             chunks = list(range(n_chunks))[
                 dbcfg.chunks_per_job * job_i : dbcfg.chunks_per_job * (job_i + 1)
             ]
-            chunks_list.append(chunks)
+            chunks_list.append([chunks[0], chunks[-1] + 1])
 
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
@@ -574,7 +576,7 @@ class Submitter:
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             combine_tar,
-            " ".join(map(str, [cs[-1] + 1 for cs in chunks_list])),
+            " ".join(map(str, [cs[-1] for cs in chunks_list])),
         )
 
         if self.local_transfer:
@@ -586,9 +588,7 @@ class Submitter:
 
         # Loop over the chunks
         for job_i in range(njobs):
-            chunk_str = " ".join(map(str, chunks_list[job_i]))
-
-            self.logger.debug(f"Adding job for chunk files: {chunk_str}")
+            self.logger.debug(f"Adding job for per-chunk processing: {chunks_list[job_i]}")
 
             # standalone_download is a special case where we download data
             # from rucio first, which is useful for testing and when using
@@ -602,13 +602,14 @@ class Submitter:
                     dbcfg.run_id,
                     self.context_name,
                     self.xedocs_version,
-                    data_type,
-                    "download_only",
+                    chunks_list[job_i][0],
+                    chunks_list[job_i][1],
                     f"{self.rucio_upload}".lower(),
                     f"{self.rundb_update}".lower(),
                     f"{self.ignore_processed}".lower(),
+                    "download_only",
                     download_tar,
-                    chunk_str,
+                    data_type,
                 )
                 download_job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                 download_job.add_outputs(download_tar, stage_out=False)
@@ -640,13 +641,14 @@ class Submitter:
                 dbcfg.run_id,
                 self.context_name,
                 self.xedocs_version,
-                data_type,
-                "false" if not dbcfg.standalone_download else "no_download",
+                chunks_list[job_i][0],
+                chunks_list[job_i][1],
                 f"{self.rucio_upload}".lower(),
                 f"{self.rundb_update}".lower(),
                 f"{self.ignore_processed}".lower(),
+                "false" if not dbcfg.standalone_download else "no_download",
                 job_tar,
-                chunk_str,
+                data_type,
             )
 
             job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
@@ -732,6 +734,7 @@ class Submitter:
                     continue
 
                 # Get data_types to process
+                combine_tar = None
                 for group, (label, data_types) in enumerate(
                     dbcfg.needs_processed[detector].items()
                 ):
@@ -753,7 +756,6 @@ class Submitter:
                     runlist |= {dbcfg.run_id}
                     self.logger.debug(f"Adding {[dbcfg.key_for(d) for d in data_types]}.")
 
-                    combine_tar = None
                     if group == 0:
                         combine_job, combine_tar = self.add_lower_processing_job(
                             workflow,

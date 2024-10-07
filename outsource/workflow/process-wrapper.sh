@@ -5,14 +5,15 @@ set -e
 run_id=$1
 context=$2
 xedocs_version=$3
-data_type=$4
-standalone_download=$5
+chunks_start=$4
+chunks_end=$5
 rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
-tar_filename=$9
+standalone_download=$9
+tar_filename=$10
 args=( "$@" )
-chunks=${args[@]:9}
+data_types=${args[@]:10}
 
 echo $@
 echo $*
@@ -20,7 +21,7 @@ echo $*
 export HOME=$PWD
 
 echo "Processing chunks:"
-echo "$chunks"
+echo "$chunks_start to $chunks_end"
 
 input_path="input"
 mkdir -p $input_path
@@ -45,12 +46,6 @@ fi
 
 if [ "X$ignore_processed" = "Xtrue" ]; then
     extraflags="$extraflags --ignore_processed"
-fi
-
-chunksarg=""
-if [ -n "$chunks" ]
-then
-    chunksarg="--chunks $chunks"
 fi
 
 . /opt/XENONnT/setup.sh
@@ -130,7 +125,7 @@ export NUMEXPR_NUM_THREADS=1
 export GOTO_NUM_THREADS=1
 
 echo "Processing:"
-time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --data_type $data_type --input_path $input_path --output_path $output_path $chunksarg $extraflags
+time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --data_types $data_types $extraflags
 
 echo "Removing inputs directory:"
 rm -r $input_path

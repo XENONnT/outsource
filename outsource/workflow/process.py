@@ -44,15 +44,16 @@ def main():
     parser.add_argument("run_id", type=int)
     parser.add_argument("--context", required=True)
     parser.add_argument("--xedocs_version", required=True)
-    parser.add_argument("--data_type", required=True)
+    parser.add_argument("--chunks_start", type=int, required=True)
+    parser.add_argument("--chunks_end", type=int, required=True)
     parser.add_argument("--input_path", required=True)
     parser.add_argument("--output_path", required=True)
+    parser.add_argument("--data_types", nargs="*", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--ignore_processed", action="store_true", dest="ignore_processed")
     parser.add_argument("--download_only", action="store_true", dest="download_only")
     parser.add_argument("--no_download", action="store_true", dest="no_download")
-    parser.add_argument("--chunks", nargs="*", type=int)
 
     args = parser.parse_args()
 
@@ -78,21 +79,34 @@ def main():
     logger.info("Context is set up!")
 
     run_id = f"{args.run_id:06d}"
-    data_type = args.data_type
+    data_types = args.data_types
+    # Sanity check
+    if args.chunks_start == args.chunks_end or args.download_only:
+        if len(data_types) != 1:
+            raise ValueError(
+                "Cannot process multiple data types with per-chunk storage. "
+                f"'--data_types' should be a single data type, got {data_types}."
+            )
+    if args.chunks_start == args.chunks_end:
+        chunks = None
+        chunk_number = None
+    else:
+        chunks = list(range(args.chunks_start, args.chunks_end))
+        chunk_number = {data_types[0]: chunks}
 
     if args.download_only:
-        st.get_array(run_id, data_type, chunk_number={data_type: args.chunks})
+        st.get_array(run_id, data_types, chunk_number=chunk_number)
         return
 
-    data_types = get_to_save_data_types(st, data_type)
-    if not args.chunks:
+    data_types = get_to_save_data_types(st, data_types)
+    if not chunks:
         # No in per-chunk storage processing
         data_types -= get_to_save_data_types(st, PER_CHUNK_DATA_TYPES)
     data_types = sorted(data_types, key=lambda x: st.tree_levels[x]["order"])
 
     logger.info(f"To process: {data_types}")
     for data_type in data_types:
-        process(st, run_id, data_type, args.chunks)
+        process(st, run_id, data_type, chunks)
         gc.collect()
 
     logger.info("Done processing. Now check if we should upload to rucio")
@@ -110,7 +124,7 @@ def main():
         # Get rucio dataset
         this_run, this_data_type, this_hash = dirname.split("-")
 
-        if args.chunks:
+        if chunks:
             logger.warning(f"Skipping upload since we used per-chunk storage")
             continue
 
