@@ -87,7 +87,7 @@ class Submitter:
         dict(
             zip(
                 [f"lower_{det}" for det in DETECTOR_DATA_TYPES],
-                ({"name": det, **PEAKLETS_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
+                ({"name": f"lower_{det}", **PEAKLETS_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
             )
         )
     )
@@ -95,7 +95,7 @@ class Submitter:
         dict(
             zip(
                 [f"upper_{det}" for det in DETECTOR_DATA_TYPES],
-                ({"name": det, **EVENTS_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
+                ({"name": f"upper_{det}", **EVENTS_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
             )
         )
     )
@@ -465,7 +465,7 @@ class Submitter:
         tarballs,
     ):
         """Add a processing job to the workflow."""
-        rses = set().union(*[dbcfg.dependencies_rses[detector][d] for d in data_types])
+        rses = set().union(*[dbcfg.dependencies_rses[detector][label][d] for d in data_types])
         if len(rses) == 0:
             self.logger.warning(
                 f"No data found as the dependency of {data_types}. "
@@ -478,8 +478,8 @@ class Submitter:
 
         # High level data.. we do it all on one job
         # output files
-        _key = +"-".join(
-            dbcfg._run_id + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in data_types]
+        _key = "-".join(
+            [dbcfg._run_id] + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in data_types]
         )
         job_tar = File(f"{_key}-output.tar.gz")
 
@@ -506,7 +506,6 @@ class Submitter:
         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
         job.add_outputs(job_tar, stage_out=not self.rucio_upload)
         job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
-        workflow.add_jobs(job)
 
         # If there are multiple levels to the workflow, need to
         # have current process-wrapper.sh depend on previous combine-wrapper.sh
@@ -535,7 +534,7 @@ class Submitter:
         tarballs,
     ):
         """Add a per-chunk processing job to the workflow."""
-        rses = dbcfg.dependencies_rses[detector][data_type]
+        rses = dbcfg.dependencies_rses[detector][label][data_type]
         if len(rses) == 0:
             raise RuntimeError(f"No data found as the dependency of {dbcfg.key_for(data_type)}.")
 
@@ -559,7 +558,7 @@ class Submitter:
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
         # only need combine job for low-level stuff
-        combine_job = self._job(**self._job_kwargs["combine"]["disk"])
+        combine_job = self._job(**self._job_kwargs["combine"])
         # combine jobs must happen in the US
         combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
         # priority is given in the order they were submitted
@@ -577,8 +576,6 @@ class Submitter:
             combine_tar,
             " ".join(map(str, [cs[-1] + 1 for cs in chunks_list])),
         )
-
-        workflow.add_jobs(combine_job)
 
         if self.local_transfer:
             untar_job = self._job("untar", run_on_submit_node=True)
@@ -598,7 +595,7 @@ class Submitter:
             # dedicated clusters with storage
             if dbcfg.standalone_download:
                 download_tar = File(f"{dbcfg.key_for(data_type)}-download-{job_i:04d}.tar.gz")
-                download_job = self._job(**self._job_kwargs["download"]["disk"])
+                download_job = self._job(**self._job_kwargs["download"])
                 download_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
                 download_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                 download_job.add_args(
@@ -655,17 +652,18 @@ class Submitter:
             job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
             job.add_outputs(job_tar, stage_out=False)
             job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
-            workflow.add_jobs(job)
 
             # All strax jobs depend on the pre-flight or a download job,
             # but pre-flight jobs have been outdated so it is not necessary.
             if dbcfg.standalone_download:
                 job.add_inputs(download_tar)
 
+            workflow.add_jobs(job)
+
             # Update combine job
             combine_job.add_inputs(job_tar)
 
-        return combine_job
+        return combine_job, combine_tar
 
     def _generate_workflow(self):
         """Use the Pegasus API to build an abstract graph of the workflow."""
@@ -746,8 +744,8 @@ class Submitter:
                     # Check that raw data exist for this run_id
                     if group == 0:
                         # There will be at most one in data_types
-                        raw_type = dbcfg.depends_on(data_types[0])
-                        if not dbcfg.dependency_exists(raw_type=raw_type):
+                        data_type = dbcfg.depends_on(data_types[0])
+                        if not dbcfg.dependency_exists(data_type=data_type):
                             raise RuntimeError(
                                 f"Unable to find the raw data for {dbcfg.key_for(data_types[0])}."
                             )
@@ -770,6 +768,7 @@ class Submitter:
                             token,
                             tarballs,
                         )
+                        workflow.add_jobs(combine_job)
                     else:
                         job, job_tar = self.add_processing_job(
                             workflow,
@@ -785,6 +784,7 @@ class Submitter:
                         )
                         if combine_tar:
                             job.add_inputs(combine_tar)
+                        workflow.add_jobs(job)
 
         # Write the workflow to stdout
         workflow.add_replica_catalog(rc)
@@ -793,7 +793,7 @@ class Submitter:
         workflow.write(file=self.workflow)
 
         # Save the runlist
-        np.savetxt(self.runlist, runlist, fmt="%0d")
+        np.savetxt(self.runlist, list(runlist), fmt="%0d")
 
         return workflow
 

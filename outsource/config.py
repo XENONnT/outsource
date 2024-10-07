@@ -110,12 +110,10 @@ class RunConfig:
         if self.mode in LED_MODES:
             # If we are using LED data, only process those data_types
             # For this context, see if we have that data yet
-            include_data_types = [
-                data_type for data_type in include_data_types if data_type in LED_MODES[self.mode]
-            ]
+            include_data_types = set(include_data_types) & set(LED_MODES[self.mode])
         else:
             # If we are not, don't process those data_types
-            include_data_types = list(set(include_data_types) - set().union(*LED_MODES.values()))
+            include_data_types = set(include_data_types) - set().union(*LED_MODES.values())
 
         ret = dict()
         PER_CHUNK_DATA_TYPES
@@ -123,25 +121,38 @@ class RunConfig:
         # into before and after the PER_CHUNK_DATA_TYPES
         for detector in self.detectors:
             ret[detector] = dict()
+            # There are two group labels for the data_types
+            data_types_group_labels = [f"lower_{detector}", f"upper_{detector}"]
             possible_data_types = DETECTOR_DATA_TYPES[detector]["possible"]
             # Possible data_types for this detector
             data_types = set(include_data_types) & set(possible_data_types)
+            if not data_types:
+                for label in data_types_group_labels:
+                    ret[detector][label] = []
+                continue
             per_chunk_data_types = set(PER_CHUNK_DATA_TYPES) & set(possible_data_types)
-            # Sanity check of per-chunk data_types
-            if len(per_chunk_data_types) != 1:
-                raise ValueError("Why is there not one per_chunk_data_types deduced?")
-            root_data_type = per_chunk_storage_root_data_type(
-                self.context, self._run_id, per_chunk_data_types[0]
-            )
-            if root_data_type is None:
-                raise ValueError("Why is there no root_data_type deduced?")
+            # Modify the data_types based on the mode again
+            if self.mode in LED_MODES:
+                # If we are using LED data, only process those data_types
+                # For this context, see if we have that data yet
+                per_chunk_data_types = set(per_chunk_data_types) & set(LED_MODES[self.mode])
+            else:
+                # If we are not, don't process those data_types
+                per_chunk_data_types = set(per_chunk_data_types) - set().union(*LED_MODES.values())
             # In reprocessing, group the data_types into lower and higher
             # Lower is per-chunk storage, higher is not
             data_types_groups = [
                 per_chunk_data_types,
-                per_chunk_data_types | data_types - per_chunk_data_types,
+                (per_chunk_data_types | data_types) - per_chunk_data_types,
             ]
-            data_types_group_labels = [f"lower_{detector}", f"upper_{detector}"]
+            # Sanity check of per-chunk data_types
+            if len(data_types_groups[0]) != 1:
+                raise ValueError("Why is there not one per_chunk_data_types deduced?")
+            root_data_type = per_chunk_storage_root_data_type(
+                self.context, self._run_id, list(data_types_groups[0])[0]
+            )
+            if root_data_type is None:
+                raise ValueError("Why is there no root_data_type deduced?")
             for label, data_types_group in zip(data_types_group_labels, data_types_groups):
                 ret[detector][label] = []
                 for data_type in data_types_group:
