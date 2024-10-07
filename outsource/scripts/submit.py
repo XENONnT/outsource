@@ -7,8 +7,8 @@ from outsource.utils import get_context, get_runlist
 from outsource.submitter import Submitter
 
 
-coll = xent_collection()
 logger = setup_logger("outsource")
+coll = xent_collection()
 
 
 def main():

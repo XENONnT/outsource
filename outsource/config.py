@@ -1,14 +1,14 @@
-import os
 import time
-import itertools
+from itertools import chain
 from utilix import DB, uconfig, xent_collection
 import admix
 
-from outsource.meta import DETECTOR_DATA_TYPES, LED_MODES
-from outsource.utils import get_possible_dependencies, get_to_save_data_types
-
-
-base_dir = os.path.abspath(os.path.dirname(__file__))
+from outsource.meta import PER_CHUNK_DATA_TYPES, DETECTOR_DATA_TYPES, LED_MODES
+from outsource.utils import (
+    get_possible_dependencies,
+    get_to_save_data_types,
+    per_chunk_storage_root_data_type,
+)
 
 
 db = DB()
@@ -74,6 +74,131 @@ class RunConfig:
     def _run_id(self):
         return f"{self.run_id:06d}"
 
+    def key_for(self, data_type):
+        return self.context.key_for(self._run_id, data_type)
+
+    def depends_on(self, data_type):
+        """Get the data_type this one depends on.
+
+        The result will be either data_type in same level of PER_CHUNK_DATA_TYPES or the
+        root_data_types.
+
+        """
+        possible_dependencies = get_possible_dependencies(self.context)
+        # Get the highest data_type in the possible dependencies
+        data_types = sorted(
+            self.context.get_dependencies(data_type) & (possible_dependencies),
+            key=lambda x: self.context.tree_levels[x]["level"],
+            reverse=True,
+        )
+        return data_types[0]
+
+    def get_needs_processed(self):
+        """Returns the list of data_type we need to process."""
+        # Do we need to process? read from XENON_CONFIG
+        include_data_types = uconfig.getlist("Outsource", "include_data_types")
+        all_possible_data_types = set(
+            chain.from_iterable(v["possible"] for v in DETECTOR_DATA_TYPES.values())
+        )
+        excluded_data_types = set(include_data_types) - all_possible_data_types
+        if excluded_data_types:
+            raise ValueError(
+                f"Find data_types not supported in include_data_types: {excluded_data_types}. "
+                f"It should include only subset of {all_possible_data_types}."
+            )
+
+        if self.mode in LED_MODES:
+            # If we are using LED data, only process those data_types
+            # For this context, see if we have that data yet
+            include_data_types = [
+                data_type for data_type in include_data_types if data_type in LED_MODES[self.mode]
+            ]
+        else:
+            # If we are not, don't process those data_types
+            include_data_types = list(set(include_data_types) - set().union(*LED_MODES.values()))
+
+        ret = dict()
+        PER_CHUNK_DATA_TYPES
+        # Here we must try to divide the include_data_types
+        # into before and after the PER_CHUNK_DATA_TYPES
+        for detector in self.detectors:
+            ret[detector] = dict()
+            possible_data_types = DETECTOR_DATA_TYPES[detector]["possible"]
+            # Possible data_types for this detector
+            data_types = set(include_data_types) & set(possible_data_types)
+            per_chunk_data_types = set(PER_CHUNK_DATA_TYPES) & set(possible_data_types)
+            # Sanity check of per-chunk data_types
+            if len(per_chunk_data_types) != 1:
+                raise ValueError("Why is there not one per_chunk_data_types deduced?")
+            root_data_type = per_chunk_storage_root_data_type(
+                self.context, self._run_id, per_chunk_data_types[0]
+            )
+            if root_data_type is None:
+                raise ValueError("Why is there no root_data_type deduced?")
+            # In reprocessing, group the data_types into lower and higher
+            # Lower is per-chunk storage, higher is not
+            data_types_groups = [
+                per_chunk_data_types,
+                per_chunk_data_types | data_types - per_chunk_data_types,
+            ]
+            data_types_group_labels = [f"lower_{detector}", f"upper_{detector}"]
+            for label, data_types_group in zip(data_types_group_labels, data_types_groups):
+                ret[detector][label] = []
+                for data_type in data_types_group:
+                    mask_already_processed = []
+                    # Expand the data_type to data_types that need to be saved
+                    _data_types = get_to_save_data_types(self.context, data_type)
+                    for _data_type in _data_types:
+                        hash = self.key_for(_data_type).lineage_hash
+                        rses = db.get_rses(self.run_id, _data_type, hash)
+                        # If this data is not on any rse, reprocess it, or we are asking for a rerun
+                        mask_already_processed.append(len(rses) > 0)
+                    if not all(mask_already_processed) or self.ignore_processed:
+                        ret[detector][label].append(data_type)
+
+                ret[detector][label].sort(key=lambda x: self.context.tree_levels[x]["order"])
+        return ret
+
+    def get_dependencies_rses(self):
+        """Get Rucio Storage Elements of data_type that needed to be processed."""
+        rses = dict()
+        for detector in self.detectors:
+            rses[detector] = dict()
+            data_types_group_labels = [f"lower_{detector}", f"upper_{detector}"]
+            for label in data_types_group_labels:
+                rses[detector][label] = dict()
+                for data_type in self.needs_processed[detector][label]:
+                    input_data_type = self.depends_on(data_type)
+                    hash = self.key_for(input_data_type).lineage_hash
+                    rses[detector][label][data_type] = list(
+                        set(db.get_rses(self.run_id, input_data_type, hash))
+                    )
+        return rses
+
+    def dependency_exists(self, data_type="raw_records"):
+        """Returns a boolean for whether the dependency exists in rucio and is accessible."""
+        # It's faster to just go through RunDB
+
+        for data in self.run_data:
+            if (
+                data["type"] == data_type
+                and data["host"] == "rucio-catalogue"
+                and data["status"] == "transferred"
+                and data["location"] != "LNGS_USERDISK"
+                and "TAPE" not in data["location"]
+            ):
+                return True
+        return False
+
+    def nchunks(self, data_type):
+        # Get the data_type this one depends on
+        data_type = self.depends_on(data_type)
+        hash = self.key_for(data_type).lineage_hash
+        did = f"xnt_{self._run_id}:{data_type}-{hash}"
+        files = admix.rucio.list_files(did)
+        # Subtract 1 for metadata
+        return len(files) - 1
+
     def set_requirements_base(self):
         requirements_base = "HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org"
         requirements_base += " && PORT_2880 && PORT_8000 && PORT_27017"
@@ -122,108 +247,6 @@ class RunConfig:
             requirements_us += f" && ({self._exclude_sites})"
         return requirements, requirements_us
 
-    def depends_on(self, data_type):
-        """Get the data_type this one depends on.
-
-        The result will be either data_type in same level of PER_CHUNK_DATA_TYPES or the
-        root_data_types.
-
-        """
-        possible_dependencies = get_possible_dependencies(self.context)
-        # Get the highest data_type in the possible dependencies
-        data_types = sorted(
-            self.context.get_dependencies(data_type) & (possible_dependencies),
-            key=lambda x: self.context.tree_levels[x]["level"],
-            reverse=True,
-        )
-        return data_types[0]
-
-    def key_for(self, data_type):
-        return self.context.key_for(self._run_id, data_type)
-
-    def get_needs_processed(self):
-        """Returns the list of data_type we need to process."""
-        # Do we need to process? read from XENON_CONFIG
-        include_data_types = uconfig.getlist("Outsource", "include_data_types")
-        all_to_process_data_types = set(
-            itertools.chain.from_iterable(v["to_process"] for v in DETECTOR_DATA_TYPES.values())
-        )
-        excluded_data_types = set(include_data_types) - all_to_process_data_types
-        if excluded_data_types:
-            raise ValueError(
-                f"Find data_types not supported in include_data_types: {excluded_data_types}. "
-                f"It should include only subset of {all_to_process_data_types}."
-            )
-
-        if self.mode in LED_MODES:
-            # If we are using LED data, only process those data_types
-            # For this context, see if we have that data yet
-            include_data_types = [
-                data_type for data_type in include_data_types if data_type in LED_MODES[self.mode]
-            ]
-        else:
-            # If we are not, don't process those data_types
-            include_data_types = list(set(include_data_types) - set().union(*LED_MODES.values()))
-
-        # Get all data_types to process
-        to_process_data_types = set(
-            itertools.chain.from_iterable(
-                DETECTOR_DATA_TYPES[detector]["to_process"] for detector in self.detectors
-            )
-        )
-
-        # Modify include_data_types to intersect with to_process_data_types
-        data_types = set(include_data_types) & (to_process_data_types)
-
-        ret = []
-        for data_type in data_types:
-            data_types_already_processed = []
-            _data_types = get_to_save_data_types(self.context, data_type)
-            for _data_type in _data_types:
-                hash = self.key_for(_data_type).lineage_hash
-                rses = db.get_rses(self.run_id, _data_type, hash)
-                # If this data is not on any rse, reprocess it, or we are asking for a rerun
-                data_types_already_processed.append(len(rses) > 0)
-            if not all(data_types_already_processed) or self.ignore_processed:
-                ret.append(data_type)
-
-        ret.sort(key=lambda x: self.context.tree_levels[x]["order"])
-
-        return ret
-
-    def get_dependencies_rses(self):
-        """Get Rucio Storage Elements of data_type."""
-        rses = dict()
-        for data_type in self.needs_processed:
-            input_data_type = self.depends_on(data_type)
-            hash = self.key_for(input_data_type).lineage_hash
-            rses[data_type] = list(set(db.get_rses(self.run_id, input_data_type, hash)))
-        return rses
-
-    def nchunks(self, data_type):
-        # Get the data_type this one depends on
-        data_type = self.depends_on(data_type)
-        hash = self.key_for(data_type).lineage_hash
-        did = f"xnt_{self._run_id}:{data_type}-{hash}"
-        files = admix.rucio.list_files(did)
-        # Subtract 1 for metadata
-        return len(files) - 1
-
-    def dependency_exists(self, data_type="raw_records"):
-        """Returns a boolean for whether the dependency exists in rucio and is accessible."""
-        # It's faster to just go through RunDB
-
-        for data in self.run_data:
-            if (
-                data["type"] == data_type
-                and data["host"] == "rucio-catalogue"
-                and data["status"] == "transferred"
-                and data["location"] != "LNGS_USERDISK"
-                and "TAPE" not in data["location"]
-            ):
-                return True
-        return False
-
     def _determine_target_sites(self, rses):
         """Given a list of RSEs, limit the runs for sites for those locations."""
 
@@ -235,6 +258,8 @@ class RunConfig:
                     exprs.append(self.rse_site_map[rse]["expr"])
                 if "desired_sites" in self.rse_site_map[rse]:
                     sites.append(self.rse_site_map[rse]["desired_sites"])
+        exprs = list(set(exprs))
+        sites = list(set(sites))
 
         # make sure we do not request XENON1T sites we do not need
         if len(sites) == 0:

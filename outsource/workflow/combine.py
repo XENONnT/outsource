@@ -3,15 +3,12 @@ import os
 import shutil
 import admix
 from utilix.config import setup_logger
-import strax
-import straxen
 
 from outsource.utils import get_context, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
 
 logger = setup_logger("outsource")
-straxen.Events.save_when = strax.SaveWhen.TARGET
 admix.clients._init_clients()
 
 

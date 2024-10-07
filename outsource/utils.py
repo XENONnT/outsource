@@ -1,4 +1,4 @@
-import itertools
+from itertools import chain
 from copy import deepcopy
 from utilix import uconfig
 from utilix import xent_collection
@@ -10,8 +10,8 @@ import cutax
 from outsource.meta import DETECTOR_DATA_TYPES, PER_CHUNK_DATA_TYPES
 
 
-coll = xent_collection()
 logger = setup_logger("outsource")
+coll = xent_collection()
 
 
 def get_context(
@@ -91,7 +91,7 @@ def get_runlist(
     # Setup queries for different detectors
     basic_queries = []
     basic_queries_has_raw = []
-    basic_queries_to_process = []
+    basic_queries_to_save = []
 
     for det, det_info in DETECTOR_DATA_TYPES.items():
         if detector != "all" and detector != det:
@@ -99,9 +99,10 @@ def get_runlist(
             continue
 
         # Check if the data_type is in the list of data_types to outsource
-        to_process_data_types = list(set(det_info["to_process"]) & set(include_data_types))
+        possible_data_types = list(set(det_info["possible"]) & set(include_data_types))
+        to_save_data_types = get_to_save_data_types(st, possible_data_types)
 
-        if not to_process_data_types:
+        if not to_save_data_types:
             logger.warning(f"Skipping {det} data")
             continue
 
@@ -133,7 +134,7 @@ def get_runlist(
                 "location": {"$in": uconfig.getlist("Outsource", "raw_records_rse")},
             }
         }
-        to_process_data_type_query = [
+        to_save_data_type_query = [
             {
                 "data": {
                     "$not": {
@@ -146,7 +147,7 @@ def get_runlist(
                     }
                 }
             }
-            for data_type in to_process_data_types
+            for data_type in to_save_data_types
         ]
 
         # Basic query with raw data
@@ -154,14 +155,14 @@ def get_runlist(
         basic_query_has_raw["data"] = has_raw_data_type_query
         basic_queries_has_raw.append(basic_query_has_raw)
 
-        # Basic query without to_process data
-        basic_query_to_process = deepcopy(basic_query)
-        basic_query_to_process["$or"] = to_process_data_type_query
-        basic_queries_to_process.append(basic_query_to_process)
+        # Basic query without to_save data
+        basic_query_to_save = deepcopy(basic_query)
+        basic_query_to_save["$or"] = to_save_data_type_query
+        basic_queries_to_save.append(basic_query_to_save)
 
     full_query_basic = {"$or": basic_queries}
     full_query_basic_has_raw = {"$or": basic_queries_has_raw}
-    full_query_basic_to_process = {"$or": basic_queries_to_process}
+    full_query_basic_to_save = {"$or": basic_queries_to_save}
 
     cursor_basic = coll.find(
         full_query_basic,
@@ -175,8 +176,8 @@ def get_runlist(
         limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
-    cursor_basic_to_process = coll.find(
-        full_query_basic_to_process,
+    cursor_basic_to_save = coll.find(
+        full_query_basic_to_save,
         {"number": 1, "mode": 1},
         limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
@@ -191,23 +192,24 @@ def get_runlist(
         "The following are the run numbers passing the basic queries and "
         f"have raw data available: {runlist_basic_has_raw}"
     )
-    runlist_basic_to_process = [r["number"] for r in cursor_basic_to_process]
+    runlist_basic_to_save = [r["number"] for r in cursor_basic_to_save]
     logger.warning(
         "The following are the run numbers passing the basic queries and "
-        f"have to be processed: {runlist_basic_to_process}"
+        f"have to be processed: {runlist_basic_to_save}"
     )
 
     if ignore_processed:
         runlist = list(set(runlist_basic_has_raw))
     else:
-        runlist = list(set(runlist_basic_to_process) & set(runlist_basic_has_raw))
+        runlist = list(set(runlist_basic_to_save) & set(runlist_basic_has_raw))
 
     return runlist
 
 
 def get_possible_dependencies(st):
+    """Expand the by-product of PER_CHUNK_DATA_TYPES."""
     # Get the data_types in the same plugin of PER_CHUNK_DATA_TYPES
-    possible_dependencies = itertools.chain.from_iterable(
+    possible_dependencies = chain.from_iterable(
         st._plugin_class_registry[d]().provides for d in PER_CHUNK_DATA_TYPES
     )
     # Add the root_data_types because PER_CHUNK_DATA_TYPES depends on them
@@ -216,15 +218,16 @@ def get_possible_dependencies(st):
 
 
 def get_to_save_data_types(st, data_types):
+    """Get the data_types that should be saved, disregarding the storage."""
     plugins = st._get_plugins(strax.to_str_tuple(data_types), "0")
-    to_process_data_types = set(
+    possible_data_types = set(
         [k for k, v in plugins.items() if v.save_when[k] == strax.SaveWhen.ALWAYS]
     )
-    return to_process_data_types
+    return possible_data_types
 
 
 def get_rse(st, data_type):
-    # Based on the data_type and the utilix config, where should this data go?
+    """Based on the data_type and the utilix config, where should this data go?"""
     if data_type in st._get_plugins(["records", "records_nv", "records_he"], "0"):
         rse = uconfig.get("Outsource", "records_rse")
     elif data_type in st._get_plugins(["peaks", "hitlets_nv"], "0"):
@@ -235,11 +238,11 @@ def get_rse(st, data_type):
 
 
 def per_chunk_storage_root_data_type(st, run_id, data_type):
-    """Return True if the data_type is per-chunk storage."""
+    """Return root dependency if the data_type is per-chunk storage."""
     if data_type in st._get_plugins(PER_CHUNK_DATA_TYPES, "0"):
         # find the root data_type
         root_data_types = set(st._get_plugins((data_type,), run_id)) & set(st.root_data_types)
-        if len(root_data_types) != 1:
+        if len(root_data_types) > 1:
             raise ValueError(
                 f"Cannot determine root data type for {data_type} "
                 f"because got multiple root data types {root_data_types}."

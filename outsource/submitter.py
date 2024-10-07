@@ -3,6 +3,7 @@ import sys
 import getpass
 import time
 import shutil
+from itertools import chain
 from datetime import datetime
 import numpy as np
 from tqdm import tqdm
@@ -27,8 +28,12 @@ from Pegasus.api import (
     ReplicaCatalog,
 )
 
-from outsource.config import base_dir, RunConfig
-from outsource.utils import get_context, per_chunk_storage_root_data_type
+from outsource.config import RunConfig
+from outsource.meta import DETECTOR_DATA_TYPES
+from outsource.utils import get_context
+
+
+base_dir = os.path.abspath(os.path.dirname(__file__))
 
 
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
@@ -55,36 +60,45 @@ class Submitter:
         "combine": COMBINE_WRAPPER,
         "download": PROCESS_WRAPPER,
         "untar": UNTAR_WRAPPER,
-        "records": PROCESS_WRAPPER,
-        "peaklets": PROCESS_WRAPPER,
-        "peak_basics": PROCESS_WRAPPER,
-        "events": PROCESS_WRAPPER,
-        "event_shadow": PROCESS_WRAPPER,
-        "peaks_he": PROCESS_WRAPPER,
-        "nv_hitlets": PROCESS_WRAPPER,
-        "nv_events": PROCESS_WRAPPER,
-        "mv": PROCESS_WRAPPER,
-        "afterpulses": PROCESS_WRAPPER,
-        "led": PROCESS_WRAPPER,
     }
+    _transformations_map.update(
+        dict(
+            zip(
+                [f"lower_{det}" for det in DETECTOR_DATA_TYPES],
+                [PROCESS_WRAPPER] * len(DETECTOR_DATA_TYPES),
+            )
+        )
+    )
+    _transformations_map.update(
+        dict(
+            zip(
+                [f"upper_{det}" for det in DETECTOR_DATA_TYPES],
+                [PROCESS_WRAPPER] * len(DETECTOR_DATA_TYPES),
+            )
+        )
+    )
 
     # Jobs details for a given datatype
-    job_kwargs = {
+    _job_kwargs = {
         "combine": {"name": "combine", **COMBINE_JOB_KWARGS},
         "download": {"name": "download", **PEAKLETS_JOB_KWARGS},
-        "records": {"name": "records", **PEAKLETS_JOB_KWARGS},
-        "peaklets": {"name": "peaklets", **PEAKLETS_JOB_KWARGS},
-        "hitlets_nv": {"name": "nv_hitlets", **PEAKLETS_JOB_KWARGS},
-        "afterpulses": {"name": "afterpulses", **PEAKLETS_JOB_KWARGS},
-        "led_calibration": {"name": "led", **PEAKLETS_JOB_KWARGS},
-        "peak_basics": {"name": "peak_basics", **EVENTS_JOB_KWARGS},
-        "event_info_double": {"name": "events", **EVENTS_JOB_KWARGS},
-        "event_shadow": {"name": "event_shadow", **EVENTS_JOB_KWARGS},
-        "peak_basics_he": {"name": "peaks_he", **EVENTS_JOB_KWARGS},
-        "events_nv": {"name": "nv_events", **EVENTS_JOB_KWARGS},
-        "ref_mon_nv": {"name": "ref_mon_nv", **EVENTS_JOB_KWARGS},
-        "events_mv": {"name": "mv", **EVENTS_JOB_KWARGS},
     }
+    _job_kwargs.update(
+        dict(
+            zip(
+                [f"lower_{det}" for det in DETECTOR_DATA_TYPES],
+                ({"name": det, **PEAKLETS_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
+            )
+        )
+    )
+    _job_kwargs.update(
+        dict(
+            zip(
+                [f"upper_{det}" for det in DETECTOR_DATA_TYPES],
+                ({"name": det, **EVENTS_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
+            )
+        )
+    )
 
     def __init__(
         self,
@@ -410,17 +424,260 @@ class Submitter:
             tarball_paths.append(tarball_path)
         return tarballs, tarball_paths
 
+    def get_rse_sites(self, dbcfg, rses, per_chunk=False):
+        """Get the desired sites and requirements for the data_type."""
+        raw_records_rses = uconfig.getlist("Outsource", "raw_records_rse")
+        # For standalone downloads, only target US
+        if dbcfg.standalone_download:
+            rses = raw_records_rses
+
+        if per_chunk:
+            # For low level data, we only want to run_id on sites
+            # that we specified for raw_records_rse
+            rses = list(set(rses) & set(raw_records_rses))
+            if not len(rses):
+                raise RuntimeError(
+                    f"No sites found since no intersection between the available rses "
+                    f"{rses} and the specified raw_records_rses {raw_records_rses}"
+                )
+
+        sites_expression, desired_sites = dbcfg._determine_target_sites(rses)
+        self.logger.debug(f"Site expression from RSEs list: {sites_expression}")
+        self.logger.debug(
+            "XENON_DESIRED_Sites from RSEs list "
+            f"(mostly used for European sites): {desired_sites}"
+        )
+
+        requirements, requirements_us = dbcfg.get_requirements(rses)
+        return desired_sites, requirements, requirements_us
+
+    def add_processing_job(
+        self,
+        workflow,
+        detector,
+        label,
+        data_types,
+        dbcfg,
+        installsh,
+        processpy,
+        xenon_config,
+        token,
+        tarballs,
+    ):
+        """Add a processing job to the workflow."""
+        rses = set().union(*[dbcfg.dependencies_rses[detector][d] for d in data_types])
+        if len(rses) == 0:
+            self.logger.warning(
+                f"No data found as the dependency of {data_types}. "
+                f"Hopefully those will be created by the workflow."
+            )
+
+        desired_sites, requirements, requirements_us = self.get_rse_sites(
+            dbcfg, rses, per_chunk=False
+        )
+
+        # High level data.. we do it all on one job
+        # output files
+        _key = +"-".join(
+            dbcfg._run_id + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in data_types]
+        )
+        job_tar = File(f"{_key}-output.tar.gz")
+
+        # Add job
+        job = self._job(**self._job_kwargs[label])
+        # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
+        job.add_profiles(Namespace.CONDOR, "requirements", requirements)
+        job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
+
+        # Note that any changes to this argument list,
+        # also means process-wrapper.sh has to be updated
+        job.add_args(
+            dbcfg.run_id,
+            self.context_name,
+            self.xedocs_version,
+            data_types,
+            "false" if not dbcfg.standalone_download else "no_download",
+            f"{self.rucio_upload}".lower(),
+            f"{self.rundb_update}".lower(),
+            f"{self.ignore_processed}".lower(),
+            job_tar,
+        )
+
+        job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
+        job.add_outputs(job_tar, stage_out=not self.rucio_upload)
+        job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
+        workflow.add_jobs(job)
+
+        # If there are multiple levels to the workflow, need to
+        # have current process-wrapper.sh depend on previous combine-wrapper.sh
+
+        if self.local_transfer:
+            untar_job = self._job("untar", run_on_submit_node=True)
+            untar_job.add_inputs(job_tar)
+            untar_job.add_args(job_tar, self.outputs_dir)
+            untar_job.set_stdout(File(f"untar-{job_tar}.log"), stage_out=True)
+            workflow.add_jobs(untar_job)
+
+        return job, job_tar
+
+    def add_per_chunk_processing_job(
+        self,
+        workflow,
+        detector,
+        label,
+        data_type,
+        dbcfg,
+        installsh,
+        processpy,
+        combinepy,
+        xenon_config,
+        token,
+        tarballs,
+    ):
+        """Add a per-chunk processing job to the workflow."""
+        rses = dbcfg.dependencies_rses[detector][data_type]
+        if len(rses) == 0:
+            raise RuntimeError(f"No data found as the dependency of {dbcfg.key_for(data_type)}.")
+
+        desired_sites, requirements, requirements_us = self.get_rse_sites(
+            dbcfg, rses, per_chunk=True
+        )
+
+        # Add jobs, one for each input file
+        n_chunks = dbcfg.nchunks(data_type)
+
+        njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
+        chunks_list = []
+
+        # Loop over the chunks
+        for job_i in range(njobs):
+            chunks = list(range(n_chunks))[
+                dbcfg.chunks_per_job * job_i : dbcfg.chunks_per_job * (job_i + 1)
+            ]
+            chunks_list.append(chunks)
+
+        # Set up the combine job first -
+        # we can then add to that job inside the chunk file loop
+        # only need combine job for low-level stuff
+        combine_job = self._job(**self._job_kwargs["combine"]["disk"])
+        # combine jobs must happen in the US
+        combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
+        # priority is given in the order they were submitted
+        combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
+        combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
+        combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
+        combine_job.add_outputs(combine_tar, stage_out=not self.rucio_upload)
+        combine_job.set_stdout(File(f"{combine_tar}.log"), stage_out=True)
+        combine_job.add_args(
+            dbcfg.run_id,
+            self.context_name,
+            self.xedocs_version,
+            f"{self.rucio_upload}".lower(),
+            f"{self.rundb_update}".lower(),
+            combine_tar,
+            " ".join(map(str, [cs[-1] + 1 for cs in chunks_list])),
+        )
+
+        workflow.add_jobs(combine_job)
+
+        if self.local_transfer:
+            untar_job = self._job("untar", run_on_submit_node=True)
+            untar_job.add_inputs(combine_tar)
+            untar_job.add_args(combine_tar, self.outputs_dir)
+            untar_job.set_stdout(File(f"untar-{combine_tar}.log"), stage_out=True)
+            workflow.add_jobs(untar_job)
+
+        # Loop over the chunks
+        for job_i in range(njobs):
+            chunk_str = " ".join(map(str, chunks_list[job_i]))
+
+            self.logger.debug(f"Adding job for chunk files: {chunk_str}")
+
+            # standalone_download is a special case where we download data
+            # from rucio first, which is useful for testing and when using
+            # dedicated clusters with storage
+            if dbcfg.standalone_download:
+                download_tar = File(f"{dbcfg.key_for(data_type)}-download-{job_i:04d}.tar.gz")
+                download_job = self._job(**self._job_kwargs["download"]["disk"])
+                download_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
+                download_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
+                download_job.add_args(
+                    dbcfg.run_id,
+                    self.context_name,
+                    self.xedocs_version,
+                    data_type,
+                    "download_only",
+                    f"{self.rucio_upload}".lower(),
+                    f"{self.rundb_update}".lower(),
+                    f"{self.ignore_processed}".lower(),
+                    download_tar,
+                    chunk_str,
+                )
+                download_job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
+                download_job.add_outputs(download_tar, stage_out=False)
+                download_job.set_stdout(File(f"{download_tar}.log"), stage_out=True)
+                workflow.add_jobs(download_job)
+
+            # output files
+            job_tar = File(f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz")
+
+            # Add job
+            job = self._job(**self._job_kwargs[label])
+            if desired_sites:
+                # Give a hint to glideinWMS for the sites we want
+                # (mostly useful for XENON VO in Europe).
+                # Glideinwms is the provisioning system.
+                # It starts pilot jobs (glideins) at sites when you
+                # have idle jobs in the queue.
+                # Most of the jobs you run to the OSPool (Open Science Pool),
+                # but you do have a few sites where you have allocations at,
+                # and those are labeled XENON VO (Virtual Organization).
+                # The "+" has to be used by non-standard HTCondor attributes.
+                # The attribute has to have double quotes,
+                # otherwise HTCondor will try to evaluate it as an expression.
+                job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
+            job.add_profiles(Namespace.CONDOR, "requirements", requirements)
+            job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
+
+            job.add_args(
+                dbcfg.run_id,
+                self.context_name,
+                self.xedocs_version,
+                data_type,
+                "false" if not dbcfg.standalone_download else "no_download",
+                f"{self.rucio_upload}".lower(),
+                f"{self.rundb_update}".lower(),
+                f"{self.ignore_processed}".lower(),
+                job_tar,
+                chunk_str,
+            )
+
+            job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
+            job.add_outputs(job_tar, stage_out=False)
+            job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
+            workflow.add_jobs(job)
+
+            # All strax jobs depend on the pre-flight or a download job,
+            # but pre-flight jobs have been outdated so it is not necessary.
+            if dbcfg.standalone_download:
+                job.add_inputs(download_tar)
+
+            # Update combine job
+            combine_job.add_inputs(job_tar)
+
+        return combine_job
+
     def _generate_workflow(self):
         """Use the Pegasus API to build an abstract graph of the workflow."""
 
         # Create a abstract dag
-        wf = Workflow("outsource_workflow")
+        workflow = Workflow("outsource_workflow")
         # Initialize the catalogs
         sc = self._generate_sc()
         tc = self._generate_tc()
         rc = self._generate_rc()
 
-        # Add executables to the wf-level transformation catalog
+        # Add executables to the workflow-level transformation catalog
         for job_type, script in self._transformations_map.items():
             t = Transformation(
                 job_type,
@@ -462,292 +719,88 @@ class Submitter:
         iterator = self._runlist if len(self._runlist) == 1 else tqdm(self._runlist)
 
         # Keep track of what runs we submit, useful for bookkeeping
-        runlist = []
+        runlist = set()
         for run_id in iterator:
             dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
+            self.logger.debug(f"Adding run_id {dbcfg._run_id} to the workflow.")
 
-            # Check if this run_id needs to be processed
-            if len(dbcfg.needs_processed) > 0:
-                self.logger.debug(f"Adding run_id {dbcfg._run_id} to the workflow")
-            else:
-                self.logger.debug(
-                    f"Run {dbcfg._run_id} is already processed with context {self.context_name}"
-                )
-                continue
+            for detector in dbcfg.detectors:
+                # Check if this run_id needs to be processed
+                if not list(chain.from_iterable(dbcfg.needs_processed[detector].values())):
+                    self.logger.debug(
+                        f"Run {dbcfg._run_id} detector {detector} is already processed with "
+                        f"context {self.context_name} xedocs_version {self.xedocs_version}."
+                    )
+                    continue
 
-            # Will have combine jobs for all the data_type lower than PER_CHUNK_DATA_TYPES
-            combine_jobs = {}
-
-            # Get data_types to process
-            for data_type in dbcfg.needs_processed:
-                root_data_type = per_chunk_storage_root_data_type(
-                    self.context, dbcfg._run_id, data_type
-                )
-                # These data_types need raw data
-                if root_data_type:
-                    # Check that raw data exist for this run_id
-                    if not all(
-                        [dbcfg.dependency_exists(raw_type=d) for d in dbcfg.depends_on(data_type)]
-                    ):
-                        self.logger.error(
-                            f"Doesn't have raw data for {data_type} of run_id {run_id}, skipping"
+                # Get data_types to process
+                for group, (label, data_types) in enumerate(
+                    dbcfg.needs_processed[detector].items()
+                ):
+                    if not data_types:
+                        self.logger.debug(
+                            f"Run {dbcfg._run_id} group {label} is already processed with "
+                            f"context {self.context_name} xedocs_version {self.xedocs_version}."
                         )
                         continue
+                    # Check that raw data exist for this run_id
+                    if group == 0:
+                        # There will be at most one in data_types
+                        raw_type = dbcfg.depends_on(data_types[0])
+                        if not dbcfg.dependency_exists(raw_type=raw_type):
+                            raise RuntimeError(
+                                f"Unable to find the raw data for {dbcfg.key_for(data_types[0])}."
+                            )
 
-                self.logger.debug(f"Adding {dbcfg.key_for(data_type)}")
-                if dbcfg.run_id not in runlist:
-                    runlist.append(dbcfg.run_id)
-                rses = dbcfg.dependencies_rses[data_type]
-                if len(rses) == 0:
-                    if data_type == "raw_records":
-                        raise RuntimeError(
-                            f"Unable to find a raw records location for {dbcfg._run_id}"
+                    runlist |= {dbcfg.run_id}
+                    self.logger.debug(f"Adding {[dbcfg.key_for(d) for d in data_types]}.")
+
+                    combine_tar = None
+                    if group == 0:
+                        combine_job, combine_tar = self.add_per_chunk_processing_job(
+                            workflow,
+                            detector,
+                            label,
+                            data_types[0],
+                            dbcfg,
+                            installsh,
+                            processpy,
+                            combinepy,
+                            xenon_config,
+                            token,
+                            tarballs,
                         )
                     else:
-                        self.logger.warning(
-                            f"No data found as the dependency of {dbcfg.key_for(data_type)}. "
-                            f"Hopefully those will be created by the workflow."
+                        job, job_tar = self.add_processing_job(
+                            workflow,
+                            detector,
+                            label,
+                            data_types,
+                            dbcfg,
+                            installsh,
+                            processpy,
+                            xenon_config,
+                            token,
+                            tarballs,
                         )
+                        if combine_tar:
+                            job.add_inputs(combine_tar)
 
-                raw_records_rses = uconfig.getlist("Outsource", "raw_records_rse")
-                # For standalone downloads, only target US
-                if dbcfg.standalone_download:
-                    rses = raw_records_rses
-
-                # For low level data, we only want to run_id on sites
-                # that we specified for raw_records_rse
-                if root_data_type:
-                    rses = list(set(rses) & set(raw_records_rses))
-                    if not len(rses):
-                        raise RuntimeError(
-                            f"No sites found for {dbcfg.key_for(data_type)}, "
-                            "since no intersection between the available rses "
-                            f"{rses} and the specified raw_records_rses {raw_records_rses}"
-                        )
-
-                sites_expression, desired_sites = dbcfg._determine_target_sites(rses)
-                self.logger.debug(f"Site expression from RSEs list: {sites_expression}")
-                self.logger.debug(
-                    "XENON_DESIRED_Sites from RSEs list "
-                    f"(mostly used for European sites): {desired_sites}"
-                )
-
-                requirements, requirements_us = dbcfg.get_requirements(rses)
-
-                if root_data_type:
-                    # Add jobs, one for each input file
-                    n_chunks = dbcfg.nchunks(data_type)
-
-                    njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
-                    chunks_list = []
-
-                    # Loop over the chunks
-                    for job_i in range(njobs):
-                        chunks = list(range(n_chunks))[
-                            dbcfg.chunks_per_job * job_i : dbcfg.chunks_per_job * (job_i + 1)
-                        ]
-                        chunks_list.append(chunks)
-
-                    # Set up the combine job first -
-                    # we can then add to that job inside the chunk file loop
-                    # only need combine job for low-level stuff
-                    combine_job = self._job(
-                        "combine",
-                        disk=self.job_kwargs["combine"]["disk"],
-                    )
-                    # combine jobs must happen in the US
-                    combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
-                    # priority is given in the order they were submitted
-                    combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
-                    combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
-                    combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
-                    combine_job.add_outputs(combine_tar, stage_out=not self.rucio_upload)
-                    combine_job.set_stdout(File(f"{combine_tar}.log"), stage_out=True)
-                    combine_job.add_args(
-                        dbcfg.run_id,
-                        self.context_name,
-                        self.xedocs_version,
-                        f"{self.rucio_upload}".lower(),
-                        f"{self.rundb_update}".lower(),
-                        combine_tar,
-                        " ".join(map(str, [cs[-1] + 1 for cs in chunks_list])),
-                    )
-
-                    wf.add_jobs(combine_job)
-
-                    if self.local_transfer:
-                        untar_job = self._job("untar", run_on_submit_node=True)
-                        untar_job.add_inputs(combine_tar)
-                        untar_job.add_args(combine_tar, self.outputs_dir)
-                        untar_job.set_stdout(File(f"untar-{combine_tar}.log"), stage_out=True)
-                        wf.add_jobs(untar_job)
-
-                    combine_jobs[data_type] = (combine_job, combine_tar)
-
-                    # Loop over the chunks
-                    for job_i in range(njobs):
-                        chunk_str = " ".join(map(str, chunks_list[job_i]))
-
-                        self.logger.debug(f"Adding job for chunk files: {chunk_str}")
-
-                        # standalone_download is a special case where we download data
-                        # from rucio first, which is useful for testing and when using
-                        # dedicated clusters with storage
-                        if dbcfg.standalone_download:
-                            download_tar = File(
-                                f"{dbcfg.key_for(data_type)}-download-{job_i:04d}.tar.gz"
-                            )
-                            download_job = self._job(
-                                "download",
-                                disk=self.job_kwargs["download"]["disk"],
-                            )
-                            download_job.add_profiles(
-                                Namespace.CONDOR, "requirements", requirements
-                            )
-                            download_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
-                            download_job.add_args(
-                                dbcfg.run_id,
-                                self.context_name,
-                                self.xedocs_version,
-                                data_type,
-                                "download_only",
-                                f"{self.rucio_upload}".lower(),
-                                f"{self.rundb_update}".lower(),
-                                f"{self.ignore_processed}".lower(),
-                                download_tar,
-                                chunk_str,
-                            )
-                            download_job.add_inputs(
-                                installsh, processpy, xenon_config, token, *tarballs
-                            )
-                            download_job.add_outputs(download_tar, stage_out=False)
-                            download_job.set_stdout(File(f"{download_tar}.log"), stage_out=True)
-                            wf.add_jobs(download_job)
-
-                        # output files
-                        job_tar = File(f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz")
-                        # Do we already have a local copy?
-                        job_output_tar_local_path = os.path.join(self.outputs_dir, f"{job_tar}")
-                        if os.path.isfile(job_output_tar_local_path):
-                            self.logger.info(f"Local copy found at: {job_output_tar_local_path}")
-                            rc.add_replica("local", job_tar, f"file://{job_output_tar_local_path}")
-
-                        # Add job
-                        job = self._job(**self.job_kwargs[data_type])
-                        if desired_sites:
-                            # Give a hint to glideinWMS for the sites we want
-                            # (mostly useful for XENON VO in Europe).
-                            # Glideinwms is the provisioning system.
-                            # It starts pilot jobs (glideins) at sites when you
-                            # have idle jobs in the queue.
-                            # Most of the jobs you run to the OSPool (Open Science Pool),
-                            # but you do have a few sites where you have allocations at,
-                            # and those are labeled XENON VO (Virtual Organization).
-                            # The "+" has to be used by non-standard HTCondor attributes.
-                            # The attribute has to have double quotes,
-                            # otherwise HTCondor will try to evaluate it as an expression.
-                            job.add_profiles(
-                                Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"'
-                            )
-                        job.add_profiles(Namespace.CONDOR, "requirements", requirements)
-                        job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
-
-                        job.add_args(
-                            dbcfg.run_id,
-                            self.context_name,
-                            self.xedocs_version,
-                            data_type,
-                            "false" if not dbcfg.standalone_download else "no_download",
-                            f"{self.rucio_upload}".lower(),
-                            f"{self.rundb_update}".lower(),
-                            f"{self.ignore_processed}".lower(),
-                            job_tar,
-                            chunk_str,
-                        )
-
-                        job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                        job.add_outputs(job_tar, stage_out=False)
-                        job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
-                        wf.add_jobs(job)
-
-                        # All strax jobs depend on the pre-flight or a download job,
-                        # but pre-flight jobs have been outdated so it is not necessary.
-                        if dbcfg.standalone_download:
-                            job.add_inputs(download_tar)
-                            wf.add_dependency(job, parents=[download_job])
-
-                        # Update combine job
-                        combine_job.add_inputs(job_tar)
-                        wf.add_dependency(job, children=[combine_job])
-
-                        parent_combines = []
-                        for d in dbcfg.depends_on(data_type):
-                            if d in combine_jobs:
-                                parent_combines.append(combine_jobs.get(d))
-
-                        if len(parent_combines):
-                            wf.add_dependency(job, parents=parent_combines)
-                else:
-                    # High level data.. we do it all on one job
-                    # output files
-                    job_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
-
-                    # Add job
-                    job = self._job(**self.job_kwargs[data_type])
-                    # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
-                    job.add_profiles(Namespace.CONDOR, "requirements", requirements)
-                    job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
-
-                    # Note that any changes to this argument list,
-                    # also means process-wrapper.sh has to be updated
-                    job.add_args(
-                        dbcfg.run_id,
-                        self.context_name,
-                        self.xedocs_version,
-                        data_type,
-                        "false" if not dbcfg.standalone_download else "no_download",
-                        f"{self.rucio_upload}".lower(),
-                        f"{self.rundb_update}".lower(),
-                        f"{self.ignore_processed}".lower(),
-                        job_tar,
-                    )
-
-                    job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                    job.add_outputs(job_tar, stage_out=not self.rucio_upload)
-                    job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
-                    wf.add_jobs(job)
-
-                    # If there are multiple levels to the workflow,
-                    # need to have current process-wrapper.sh depend on previous combine-wrapper.sh
-
-                    for d in dbcfg.depends_on(data_type):
-                        if d in combine_jobs:
-                            cj, cj_output = combine_jobs[d]
-                            wf.add_dependency(job, parents=[cj])
-                            job.add_inputs(cj_output)
-
-                    if self.local_transfer:
-                        untar_job = self._job("untar", run_on_submit_node=True)
-                        untar_job.add_inputs(job_tar)
-                        untar_job.add_args(job_tar, self.outputs_dir)
-                        untar_job.set_stdout(File(f"untar-{job_tar}.log"), stage_out=True)
-                        wf.add_jobs(untar_job)
-
-        # Write the wf to stdout
-        wf.add_replica_catalog(rc)
-        wf.add_transformation_catalog(tc)
-        wf.add_site_catalog(sc)
-        wf.write(file=self.workflow)
+        # Write the workflow to stdout
+        workflow.add_replica_catalog(rc)
+        workflow.add_transformation_catalog(tc)
+        workflow.add_site_catalog(sc)
+        workflow.write(file=self.workflow)
 
         # Save the runlist
         np.savetxt(self.runlist, runlist, fmt="%0d")
 
-        return wf
+        return workflow
 
-    def _plan_and_submit(self, wf):
+    def _plan_and_submit(self, workflow):
         """Submit the workflow."""
 
-        wf.plan(
+        workflow.plan(
             submit=not self.debug,
             cluster=["horizontal"],
             cleanup="none",
@@ -782,16 +835,16 @@ class Submitter:
         os.makedirs(self.outputs_dir, 0o755, exist_ok=True)
 
         # Generate the workflow
-        wf = self._generate_workflow()
+        workflow = self._generate_workflow()
 
-        if len(wf.jobs):
+        if len(workflow.jobs):
             # Submit the workflow
-            self._plan_and_submit(wf)
+            self._plan_and_submit(workflow)
 
         if self.debug:
-            wf.graph(
+            workflow.graph(
                 output=os.path.join(self.generated_dir, "workflow_graph.dot"), label="xform-id"
             )
-            # wf.graph(
+            # workflow.graph(
             #     output=os.path.join(self.generated_dir, "workflow_graph.svg"), label="xform-id"
             # )

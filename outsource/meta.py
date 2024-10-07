@@ -11,7 +11,7 @@ PER_CHUNK_DATA_TYPES = [
 DETECTOR_DATA_TYPES = {
     "tpc": {
         "raw": "raw_records",
-        "to_process": [
+        "possible": [
             "peaklets",
             "event_ms_naive",
             "event_info_double",
@@ -26,15 +26,16 @@ DETECTOR_DATA_TYPES = {
             "peak_s1_positions_cnn",
             "peak_basics_he",
             "afterpulses",
+            "led_calibration",
         ],
     },
     "neutron_veto": {
         "raw": "raw_records_nv",
-        "to_process": ["events_nv", "ref_mon_nv"],
+        "possible": ["hitlets_nv", "events_nv", "ref_mon_nv"],
     },
     "muon_veto": {
         "raw": "raw_records_mv",
-        "to_process": ["events_mv"],
+        "possible": ["events_mv"],
     },
 }
 
