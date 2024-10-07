@@ -133,9 +133,6 @@ rm -r $input_path
 echo "Here is what is in the output directory after processing:"
 ls -lah $output_path
 
-echo "We want to find and delete any records or records_nv if existing."
-find $output_path -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -rf {} +
-
 echo
 echo "Total amount of data before tarballing: "`du -s --si $output_path | cut -f1`
 echo

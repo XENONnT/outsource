@@ -99,9 +99,15 @@ def main():
         return
 
     data_types = get_to_save_data_types(st, data_types)
-    if not chunks:
-        # No in per-chunk storage processing
-        data_types -= get_to_save_data_types(st, PER_CHUNK_DATA_TYPES)
+    if chunks:
+        # Remove all data_types to be saved when processing the dependencies of PER_CHUNK_DATA_TYPES
+        per_chunk_dependencies = list(
+            set().union(*[st.get_dependencies(d) for d in PER_CHUNK_DATA_TYPES])
+        )
+    else:
+        # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
+        per_chunk_dependencies = PER_CHUNK_DATA_TYPES
+    data_types -= get_to_save_data_types(st, per_chunk_dependencies)
     data_types = sorted(data_types, key=lambda x: st.tree_levels[x]["order"])
 
     logger.info(f"To process: {data_types}")
@@ -118,24 +124,19 @@ def main():
     processed_data = os.listdir(output_path)
     logger.info(f"Processed data: {processed_data}")
 
-    for dirname in processed_data:
-        path = os.path.join(output_path, dirname)
+    if chunks:
+        logger.warning(f"Skipping upload since we used per-chunk storage")
+    if not args.rucio_upload:
+        logger.warning("Ignoring rucio upload")
+    else:
+        for dirname in processed_data:
+            path = os.path.join(output_path, dirname)
 
-        # Get rucio dataset
-        this_run, this_data_type, this_hash = dirname.split("-")
+            # Upload to rucio
+            upload_to_rucio(st, path, rundb_update=args.rundb_update)
 
-        if chunks:
-            logger.warning(f"Skipping upload since we used per-chunk storage")
-            continue
-
-        if not args.rucio_upload:
-            logger.warning("Ignoring rucio upload")
-            continue
-
-        upload_to_rucio(st, path, rundb_update=args.rundb_update)
-
-        # Cleanup the files we uploaded
-        shutil.rmtree(path)
+            # Cleanup the files we uploaded
+            shutil.rmtree(path)
 
     logger.info("ALL DONE!")
 
