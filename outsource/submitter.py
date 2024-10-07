@@ -451,7 +451,7 @@ class Submitter:
         requirements, requirements_us = dbcfg.get_requirements(rses)
         return desired_sites, requirements, requirements_us
 
-    def add_processing_job(
+    def add_higher_processing_job(
         self,
         workflow,
         detector,
@@ -519,7 +519,7 @@ class Submitter:
 
         return job, job_tar
 
-    def add_per_chunk_processing_job(
+    def add_lower_processing_job(
         self,
         workflow,
         detector,
@@ -755,7 +755,7 @@ class Submitter:
 
                     combine_tar = None
                     if group == 0:
-                        combine_job, combine_tar = self.add_per_chunk_processing_job(
+                        combine_job, combine_tar = self.add_lower_processing_job(
                             workflow,
                             detector,
                             label,
@@ -770,7 +770,7 @@ class Submitter:
                         )
                         workflow.add_jobs(combine_job)
                     else:
-                        job, job_tar = self.add_processing_job(
+                        job, job_tar = self.add_higher_processing_job(
                             workflow,
                             detector,
                             label,
