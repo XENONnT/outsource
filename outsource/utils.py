@@ -223,6 +223,7 @@ def get_to_save_data_types(st, data_types):
     possible_data_types = set(
         [k for k, v in plugins.items() if v.save_when[k] == strax.SaveWhen.ALWAYS]
     )
+    possible_data_types -= st.root_data_types
     return possible_data_types
 
 
@@ -241,7 +242,7 @@ def per_chunk_storage_root_data_type(st, run_id, data_type):
     """Return root dependency if the data_type is per-chunk storage."""
     if data_type in st._get_plugins(PER_CHUNK_DATA_TYPES, "0"):
         # find the root data_type
-        root_data_types = list(set(st.get_dependencies(data_type)) & set(st.root_data_types))
+        root_data_types = list(set(st.get_dependencies(data_type)) & st.root_data_types)
         if len(root_data_types) > 1:
             raise ValueError(
                 f"Cannot determine root data type for {data_type} "

@@ -156,6 +156,9 @@ class RunConfig:
             for label, data_types_group in zip(data_types_group_labels, data_types_groups):
                 ret[detector][label] = []
                 for data_type in data_types_group:
+                    if self.ignore_processed:
+                        ret[detector][label].append(data_type)
+                        continue
                     mask_already_processed = []
                     # Expand the data_type to data_types that need to be saved
                     _data_types = get_to_save_data_types(self.context, data_type)
@@ -164,7 +167,7 @@ class RunConfig:
                         rses = db.get_rses(self.run_id, _data_type, hash)
                         # If this data is not on any rse, reprocess it, or we are asking for a rerun
                         mask_already_processed.append(len(rses) > 0)
-                    if not all(mask_already_processed) or self.ignore_processed:
+                    if not all(mask_already_processed):
                         ret[detector][label].append(data_type)
 
                 ret[detector][label].sort(key=lambda x: self.context.tree_levels[x]["order"])
