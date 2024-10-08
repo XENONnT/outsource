@@ -11,7 +11,7 @@ rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
 standalone_download=$9
-tar_filename=$10
+tar_filename=${10}
 args=( "$@" )
 data_types=${args[@]:10}
 
@@ -139,6 +139,9 @@ echo
 
 echo "We are tarballing the output directory:"
 tar czfv $tar_filename $output_path
+
+echo "Removing outputs directory:"
+rm -r $output_path
 
 echo
 echo "Job is done. Here is the contents of the directory now:"

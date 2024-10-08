@@ -2,17 +2,18 @@ import argparse
 import os
 import shutil
 import admix
+from utilix import uconfig
 from utilix.config import setup_logger
 
 from outsource.utils import get_context, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
 
-logger = setup_logger("outsource")
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 admix.clients._init_clients()
 
 
-def merge(st, run_id, data_type, path, chunk_number_group):
+def merge(st, run_id, data_type, chunk_number_group):
     """Merge per-chunk storage for a given data_type.
 
     :param st: straxen context

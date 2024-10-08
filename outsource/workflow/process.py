@@ -3,6 +3,7 @@ import os
 import time
 import shutil
 import gc
+from utilix import uconfig
 from utilix.config import setup_logger
 
 from outsource.meta import PER_CHUNK_DATA_TYPES
@@ -10,7 +11,7 @@ from outsource.utils import get_context, get_to_save_data_types, per_chunk_stora
 from outsource.upload import upload_to_rucio
 
 
-logger = setup_logger("outsource")
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 
 
 def get_chunk_number(st, run_id, data_type, chunks):
@@ -81,12 +82,11 @@ def main():
     run_id = f"{args.run_id:06d}"
     data_types = args.data_types
     # Sanity check
-    if args.chunks_start == args.chunks_end or args.download_only:
-        if len(data_types) != 1:
-            raise ValueError(
-                "Cannot process multiple data types with per-chunk storage. "
-                f"'--data_types' should be a single data type, got {data_types}."
-            )
+    if (args.chunks_start != args.chunks_end or args.download_only) and len(data_types) != 1:
+        raise ValueError(
+            "Cannot process multiple data types with per-chunk storage. "
+            f"'--data_types' should be a single data type, got {data_types}."
+        )
     if args.chunks_start == args.chunks_end:
         chunks = None
         chunk_number = None
@@ -125,7 +125,7 @@ def main():
     logger.info(f"Processed data: {processed_data}")
 
     if chunks:
-        logger.warning(f"Skipping upload since we used per-chunk storage")
+        logger.warning("Skipping upload since we used per-chunk storage")
     if not args.rucio_upload:
         logger.warning("Ignoring rucio upload")
     else:

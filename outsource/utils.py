@@ -10,7 +10,7 @@ import cutax
 from outsource.meta import DETECTOR_DATA_TYPES, PER_CHUNK_DATA_TYPES
 
 
-logger = setup_logger("outsource")
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 coll = xent_collection()
 
 

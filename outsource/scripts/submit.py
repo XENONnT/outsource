@@ -1,5 +1,5 @@
 import argparse
-from utilix import xent_collection
+from utilix import xent_collection, uconfig
 from utilix.io import load_runlist
 from utilix.config import setup_logger
 
@@ -7,7 +7,7 @@ from outsource.utils import get_context, get_runlist
 from outsource.submitter import Submitter
 
 
-logger = setup_logger("outsource")
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 coll = xent_collection()
 
 
