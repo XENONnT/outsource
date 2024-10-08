@@ -463,6 +463,7 @@ class Submitter:
         xenon_config,
         token,
         tarballs,
+        combinepy,
     ):
         """Add a processing job to the workflow."""
         rses = set().union(*[dbcfg.dependencies_rses[detector][label][d] for d in data_types])
@@ -526,16 +527,21 @@ class Submitter:
         workflow,
         detector,
         label,
-        data_type,
+        data_types,
         dbcfg,
         installsh,
         processpy,
-        combinepy,
         xenon_config,
         token,
         tarballs,
+        combinepy,
     ):
         """Add a per-chunk processing job to the workflow."""
+        if len(data_types) != 1:
+            raise RuntimeError(
+                f"Only one data type is allowed for lower processing, but got {data_types}."
+            )
+        data_type = data_types[0]
         rses = dbcfg.dependencies_rses[detector][label][data_type]
         if len(rses) == 0:
             raise RuntimeError(f"No data found as the dependency of {dbcfg.key_for(data_type)}.")
@@ -756,34 +762,24 @@ class Submitter:
                     runlist |= {dbcfg.run_id}
                     self.logger.debug(f"Adding {[dbcfg.key_for(d) for d in data_types]}.")
 
+                    args = (
+                        workflow,
+                        detector,
+                        label,
+                        data_types,
+                        dbcfg,
+                        installsh,
+                        processpy,
+                        xenon_config,
+                        token,
+                        tarballs,
+                        combinepy,
+                    )
                     if group == 0:
-                        combine_job, combine_tar = self.add_lower_processing_job(
-                            workflow,
-                            detector,
-                            label,
-                            data_types[0],
-                            dbcfg,
-                            installsh,
-                            processpy,
-                            combinepy,
-                            xenon_config,
-                            token,
-                            tarballs,
-                        )
+                        combine_job, combine_tar = self.add_lower_processing_job(*args)
                         workflow.add_jobs(combine_job)
                     else:
-                        job, job_tar = self.add_higher_processing_job(
-                            workflow,
-                            detector,
-                            label,
-                            data_types,
-                            dbcfg,
-                            installsh,
-                            processpy,
-                            xenon_config,
-                            token,
-                            tarballs,
-                        )
+                        job, job_tar = self.add_higher_processing_job(*args)
                         if combine_tar:
                             job.add_inputs(combine_tar)
                         workflow.add_jobs(job)
