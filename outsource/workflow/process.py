@@ -112,6 +112,7 @@ def main():
 
     logger.info(f"To process: {data_types}")
     for data_type in data_types:
+        logger.info(f"Processing: {data_type}")
         process(st, run_id, data_type, chunks)
         gc.collect()
 
