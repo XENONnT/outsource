@@ -40,16 +40,18 @@ IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:
 COMBINE_WRAPPER = "combine-wrapper.sh"
 PROCESS_WRAPPER = "process-wrapper.sh"
 UNTAR_WRAPPER = "untar.sh"
-REQUEST_CPUS = uconfig.getint("Outsource", "request_cpus", fallback=1)
+LOWER_MEMORY = uconfig.getint("Outsource", "lower_memory")
+LOWER_DISK = uconfig.getint("Outsource", "lower_disk")
+LOWER_CPUS = uconfig.getint("Outsource", "lower_cpus", fallback=1)
 COMBINE_MEMORY = uconfig.getint("Outsource", "combine_memory")
 COMBINE_DISK = uconfig.getint("Outsource", "combine_disk")
-PEAKLETS_MEMORY = uconfig.getint("Outsource", "peaklets_memory")
-PEAKLETS_DISK = uconfig.getint("Outsource", "peaklets_disk")
-EVENTS_MEMORY = uconfig.getint("Outsource", "events_memory")
-EVENTS_DISK = uconfig.getint("Outsource", "events_disk")
-COMBINE_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=COMBINE_MEMORY, disk=COMBINE_DISK)
-PEAKLETS_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=PEAKLETS_MEMORY, disk=PEAKLETS_DISK)
-EVENTS_JOB_KWARGS = dict(cores=REQUEST_CPUS, memory=EVENTS_MEMORY, disk=EVENTS_DISK)
+COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
+UPPER_MEMORY = uconfig.getint("Outsource", "upper_memory")
+UPPER_DISK = uconfig.getint("Outsource", "upper_disk")
+UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
+LOWER_JOB_KWARGS = dict(cores=LOWER_CPUS, memory=LOWER_MEMORY, disk=LOWER_DISK)
+COMBINE_JOB_KWARGS = dict(cores=COMBINE_CPUS, memory=COMBINE_MEMORY, disk=COMBINE_DISK)
+UPPER_JOB_KWARGS = dict(cores=UPPER_CPUS, memory=UPPER_MEMORY, disk=UPPER_DISK)
 
 db = DB()
 
@@ -81,13 +83,13 @@ class Submitter:
     # Jobs details for a given datatype
     _job_kwargs = {
         "combine": {"name": "combine", **COMBINE_JOB_KWARGS},
-        "download": {"name": "download", **PEAKLETS_JOB_KWARGS},
+        "download": {"name": "download", **LOWER_JOB_KWARGS},
     }
     _job_kwargs.update(
         dict(
             zip(
                 [f"lower_{det}" for det in DETECTOR_DATA_TYPES],
-                ({"name": f"lower_{det}", **PEAKLETS_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
+                ({"name": f"lower_{det}", **LOWER_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
             )
         )
     )
@@ -95,7 +97,7 @@ class Submitter:
         dict(
             zip(
                 [f"upper_{det}" for det in DETECTOR_DATA_TYPES],
-                ({"name": f"upper_{det}", **EVENTS_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
+                ({"name": f"upper_{det}", **UPPER_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
             )
         )
     )

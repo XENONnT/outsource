@@ -123,7 +123,7 @@ export OPENBLAS_NUM_THREADS=1
 export BLIS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export GOTO_NUM_THREADS=1
-export XLA_FLAGS=--xla_force_host_platform_device_count=1
+export XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
 
 echo "Processing:"
 time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --data_types $data_types $extraflags
