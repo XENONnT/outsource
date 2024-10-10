@@ -5,14 +5,15 @@ set -e
 run_id=$1
 context=$2
 xedocs_version=$3
-data_type=$4
-standalone_download=$5
+chunks_start=$4
+chunks_end=$5
 rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
-tar_filename=$9
+standalone_download=$9
+tar_filename=${10}
 args=( "$@" )
-chunks=${args[@]:9}
+data_types=${args[@]:10}
 
 echo $@
 echo $*
@@ -20,7 +21,7 @@ echo $*
 export HOME=$PWD
 
 echo "Processing chunks:"
-echo "$chunks"
+echo "$chunks_start to $chunks_end"
 
 input_path="input"
 mkdir -p $input_path
@@ -45,12 +46,6 @@ fi
 
 if [ "X$ignore_processed" = "Xtrue" ]; then
     extraflags="$extraflags --ignore_processed"
-fi
-
-chunksarg=""
-if [ -n "$chunks" ]
-then
-    chunksarg="--chunks $chunks"
 fi
 
 . /opt/XENONnT/setup.sh
@@ -128,9 +123,10 @@ export OPENBLAS_NUM_THREADS=1
 export BLIS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export GOTO_NUM_THREADS=1
+export XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
 
 echo "Processing:"
-time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --data_type $data_type --input_path $input_path --output_path $output_path $chunksarg $extraflags
+time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --data_types $data_types $extraflags
 
 echo "Removing inputs directory:"
 rm -r $input_path
@@ -138,15 +134,15 @@ rm -r $input_path
 echo "Here is what is in the output directory after processing:"
 ls -lah $output_path
 
-echo "We want to find and delete any records or records_nv if existing."
-find $output_path -type d \( -name "*-records-*" -o -name "*-records_nv-*" \) -exec rm -rf {} +
-
 echo
 echo "Total amount of data before tarballing: "`du -s --si $output_path | cut -f1`
 echo
 
 echo "We are tarballing the output directory:"
 tar czfv $tar_filename $output_path
+
+echo "Removing outputs directory:"
+rm -r $output_path
 
 echo
 echo "Job is done. Here is the contents of the directory now:"

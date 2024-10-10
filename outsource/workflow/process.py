@@ -1,45 +1,40 @@
-import argparse
 import os
-import sys
+import argparse
 import time
 import shutil
 import gc
 from utilix import uconfig
 from utilix.config import setup_logger
-import admix
-import strax
-import straxen
-import cutax
 
-from outsource.config import get_bottom_data_types
-from outsource.config import RECHUNK_DATA_TYPES, IGNORE_DATA_TYPES, BUDDY_DATA_TYPES, PRIORITY_RANK
+from outsource.meta import PER_CHUNK_DATA_TYPES
+from outsource.utils import get_context, get_to_save_data_types, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
 
-logger = setup_logger("outsource")
-straxen.Events.save_when = strax.SaveWhen.TARGET
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
+
+
+def get_chunk_number(st, run_id, data_type, chunks):
+    """Get chunk_number for per-chunk storage."""
+    root_data_type = per_chunk_storage_root_data_type(st, run_id, data_type)
+    if chunks:
+        assert root_data_type is not None
+        chunk_number = {root_data_type: chunks}
+    else:
+        assert root_data_type is None
+        chunk_number = None
+    return chunk_number
 
 
 def process(st, run_id, data_type, chunks):
     t0 = time.time()
 
-    if chunks:
-        assert data_type in RECHUNK_DATA_TYPES
-        bottoms = get_bottom_data_types(data_type)
-        assert len(bottoms) == 1
-        st.make(
-            run_id,
-            data_type,
-            chunk_number={bottoms[0]: chunks},
-            processor="single_thread",
-        )
-    else:
-        assert data_type not in RECHUNK_DATA_TYPES
-        st.make(
-            run_id,
-            data_type,
-            processor="single_thread",
-        )
+    st.make(
+        run_id,
+        data_type,
+        chunk_number=get_chunk_number(st, run_id, data_type, chunks),
+        processor="single_thread",
+    )
 
     process_time = time.time() - t0
     logger.info(f"Processing time for {data_type}: {process_time / 60:0.2f} minutes")
@@ -50,15 +45,16 @@ def main():
     parser.add_argument("run_id", type=int)
     parser.add_argument("--context", required=True)
     parser.add_argument("--xedocs_version", required=True)
-    parser.add_argument("--data_type", required=True)
+    parser.add_argument("--chunks_start", type=int, required=True)
+    parser.add_argument("--chunks_end", type=int, required=True)
     parser.add_argument("--input_path", required=True)
     parser.add_argument("--output_path", required=True)
+    parser.add_argument("--data_types", nargs="*", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--ignore_processed", action="store_true", dest="ignore_processed")
     parser.add_argument("--download_only", action="store_true", dest="download_only")
     parser.add_argument("--no_download", action="store_true", dest="no_download")
-    parser.add_argument("--chunks", nargs="*", type=int)
 
     args = parser.parse_args()
 
@@ -67,103 +63,57 @@ def main():
     output_path = args.output_path
 
     # Get context
-    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
     staging_dir = "./strax_data"
     if os.path.abspath(staging_dir) == os.path.abspath(input_path):
         raise ValueError("Input path cannot be the same as staging directory")
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):
         raise ValueError("Output path cannot be the same as staging directory")
-    st.storage = [
-        strax.DataDirectory(input_path, readonly=True),
-        strax.DataDirectory(output_path),
-        straxen.storage.RucioRemoteFrontend(
-            staging_dir=staging_dir,
-            download_heavy=True,
-            take_only=tuple(st.root_data_types),
-            rses_only=uconfig.getlist("Outsource", "raw_records_rse"),
-        ),
-    ]
-    if not args.ignore_processed:
-        st.storage + [
-            straxen.storage.RucioRemoteFrontend(
-                staging_dir=staging_dir,
-                download_heavy=True,
-                exclude=tuple(st.root_data_types),
-            ),
-        ]
-
-    # Add local frontend if we can
-    # This is a temporary hack
-    try:
-        st.storage.append(straxen.storage.RucioLocalFrontend())
-    except KeyError:
-        logger.info("No local RSE found")
+    st = get_context(
+        args.context,
+        args.xedocs_version,
+        input_path,
+        output_path,
+        staging_dir,
+        ignore_processed=args.ignore_processed,
+    )
 
     logger.info("Context is set up!")
 
     run_id = f"{args.run_id:06d}"
-    data_type = args.data_type  # eg. typically for tpc: peaklets/event_info
-
-    # Initialize plugin needed for processing this output type
-    plugin = st._plugin_class_registry[data_type]()
-
-    # Figure out what plugins we need to process/initialize
-    to_process = [data_type]
-    for buddies in BUDDY_DATA_TYPES:
-        if data_type in buddies:
-            to_process = list(buddies)
-    # Remove duplicates
-    to_process = list(set(to_process))
-
-    # Keep track of the data we can download now -- will be important for the upload step later
-    available_data_types = st.available_for_run(run_id)
-    available_data_types = available_data_types[
-        available_data_types.is_stored
-    ].target.values.tolist()
-
-    missing = set(plugin.depends_on) - set(available_data_types)
-    intermediates = missing.copy()
-    to_process = list(intermediates) + to_process
-
-    # Now we need to figure out what intermediate data we need to make
-    while len(intermediates) > 0:
-        new_intermediates = []
-        for _data_type in intermediates:
-            _plugin = st._get_plugins((_data_type,), run_id)[_data_type]
-            # Adding missing dependencies to to-process list
-            for dependency in _plugin.depends_on:
-                if dependency not in available_data_types:
-                    if dependency not in to_process:
-                        to_process = [dependency] + to_process
-                    new_intermediates.append(dependency)
-        intermediates = new_intermediates
-
-    # Remove any raw data
-    to_process = [data_type for data_type in to_process if data_type not in admix.utils.RAW_DTYPES]
-
-    missing = [d for d in to_process if d != data_type]
-    (f"Need to create intermediate data: {', '.join(missing)}")
-
-    logger.info(f"Available data: {available_data_types}")
+    data_types = args.data_types
+    # Sanity check
+    if (args.chunks_start != args.chunks_end or args.download_only) and len(data_types) != 1:
+        raise ValueError(
+            "Cannot process multiple data types with per-chunk storage. "
+            f"'--data_types' should be a single data type, got {data_types}."
+        )
+    if args.chunks_start == args.chunks_end:
+        chunks = None
+        chunk_number = None
+    else:
+        chunks = list(range(args.chunks_start, args.chunks_end))
+        chunk_number = {data_types[0]: chunks}
 
     if args.download_only:
-        sys.exit(0)
+        st.get_array(run_id, data_types, chunk_number=chunk_number)
+        return
 
-    # If to-process has anything in PRIORITY_RANK, we process them first
-    if len(set(PRIORITY_RANK) & set(to_process)) > 0:
-        # Remove any prioritized data_types that are not in to_process
-        filtered_priority_rank = [
-            data_type for data_type in PRIORITY_RANK if data_type in to_process
-        ]
-        # Remove the PRIORITY_RANK data_types from to_process,
-        # as low priority data_type which we don't rigorously care their order
-        to_process_low_priority = [dt for dt in to_process if dt not in filtered_priority_rank]
-        # Sort the priority by their dependencies
-        to_process = filtered_priority_rank + to_process_low_priority
+    data_types = get_to_save_data_types(st, data_types)
+    if chunks:
+        # Remove all data_types to be saved when processing the dependencies of PER_CHUNK_DATA_TYPES
+        per_chunk_dependencies = list(
+            set().union(*[st.get_dependencies(d) for d in PER_CHUNK_DATA_TYPES])
+        )
+    else:
+        # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
+        per_chunk_dependencies = PER_CHUNK_DATA_TYPES
+    data_types -= get_to_save_data_types(st, per_chunk_dependencies)
+    data_types = sorted(data_types, key=lambda x: st.tree_levels[x]["order"])
 
-    logger.info(f"To process: {to_process}")
-    for data_type in to_process:
-        process(st, run_id, data_type, args.chunks)
+    logger.info(f"To process: {data_types}")
+    for data_type in data_types:
+        logger.info(f"Processing: {data_type}")
+        process(st, run_id, data_type, chunks)
         gc.collect()
 
     logger.info("Done processing. Now check if we should upload to rucio")
@@ -175,30 +125,19 @@ def main():
     processed_data = os.listdir(output_path)
     logger.info(f"Processed data: {processed_data}")
 
-    for dirname in processed_data:
-        path = os.path.join(output_path, dirname)
+    if chunks:
+        logger.warning("Skipping upload since we used per-chunk storage")
+    if not args.rucio_upload:
+        logger.warning("Ignoring rucio upload")
+    else:
+        for dirname in processed_data:
+            path = os.path.join(output_path, dirname)
 
-        # Get rucio dataset
-        this_run, this_data_type, this_hash = dirname.split("-")
+            # Upload to rucio
+            upload_to_rucio(st, path, rundb_update=args.rundb_update)
 
-        # Remove data we do not want to upload
-        if this_data_type in IGNORE_DATA_TYPES:
-            logger.warning(f"Removing {this_data_type} instead of uploading")
+            # Cleanup the files we uploaded
             shutil.rmtree(path)
-            continue
-
-        if args.chunks:
-            logger.warning(f"Skipping upload since we used per-chunk storage")
-            continue
-
-        if not args.rucio_upload:
-            logger.warning("Ignoring rucio upload")
-            continue
-
-        upload_to_rucio(path, rundb_update=args.rundb_update)
-
-        # Cleanup the files we uploaded
-        shutil.rmtree(path)
 
     logger.info("ALL DONE!")
 
