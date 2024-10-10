@@ -1,15 +1,14 @@
 import argparse
-from utilix import xent_collection
+from utilix import xent_collection, uconfig
 from utilix.io import load_runlist
 from utilix.config import setup_logger
-import cutax
 
-from outsource.utils import get_runlist
+from outsource.utils import get_context, get_runlist
 from outsource.submitter import Submitter
 
 
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 coll = xent_collection()
-logger = setup_logger("outsource")
 
 
 def main():
@@ -87,7 +86,7 @@ def main():
     if not args.rucio_upload and args.rundb_update:
         raise RuntimeError("Cannot update RunDB without uploading to rucio.")
 
-    st = getattr(cutax.contexts, args.context)(xedocs_version=args.xedocs_version)
+    st = get_context(args.context, args.xedocs_version)
 
     if args.run and args.runlist:
         raise RuntimeError("Cannot pass both --run and --runlist. Please choose one.")
