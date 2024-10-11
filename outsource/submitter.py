@@ -732,11 +732,8 @@ class Submitter:
         summary = dict()
         for run_id in iterator:
             dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
-            summary[run_id] = dbcfg.data_types
-            self.logger.info(
-                f"Adding {dbcfg._run_id} to the workflow: \n"
-                f"{json.dumps(dbcfg.data_types, indent=4)}"
-            )
+            summary[dbcfg._run_id] = dbcfg.data_types
+            self.logger.info(f"Adding {dbcfg._run_id} to the workflow.")
 
             for detector in dbcfg.data_types:
                 # Check if this run_id needs to be processed
