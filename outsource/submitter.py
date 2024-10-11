@@ -735,7 +735,7 @@ class Submitter:
             summary[dbcfg._run_id] = dbcfg.data_types
             self.logger.info(f"Adding {dbcfg._run_id} to the workflow.")
 
-            for detector in dbcfg.data_types:
+            for detector in dbcfg.detectors:
                 # Check if this run_id needs to be processed
                 if not list(chain.from_iterable(dbcfg.data_types[detector].values())):
                     self.logger.debug(
