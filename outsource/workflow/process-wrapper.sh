@@ -117,20 +117,6 @@ echo
 # map -p5000 xenon-runsdb.grid.uchicago.edu
 # echo
 
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
-export OPENBLAS_NUM_THREADS=1
-export BLIS_NUM_THREADS=1
-export NUMEXPR_NUM_THREADS=1
-export GOTO_NUM_THREADS=1
-# Limiting CPU usage of TensorFlow
-export TF_NUM_INTRAOP_THREADS=1
-export TF_NUM_INTEROP_THREADS=1
-# For unknown reason, this does not work on limiting CPU usage of JAX
-export XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
-# But this works, from https://github.com/jax-ml/jax/discussions/22739
-export NPROC=1
-
 echo "Processing:"
 time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --data_types $data_types $extraflags
 

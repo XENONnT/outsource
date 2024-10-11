@@ -294,6 +294,21 @@ class Submitter:
         # Improve python logging / suppress depreciation warnings (from gfal2 for example)
         condorpool.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
         condorpool.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
+        condorpool.add_profiles(Namespace.ENV, MKL_NUM_THREADS="1")
+        condorpool.add_profiles(Namespace.ENV, OPENBLAS_NUM_THREADS="1")
+        condorpool.add_profiles(Namespace.ENV, BLIS_NUM_THREADS="1")
+        condorpool.add_profiles(Namespace.ENV, NUMEXPR_NUM_THREADS="1")
+        condorpool.add_profiles(Namespace.ENV, GOTO_NUM_THREADS="1")
+        # Limiting CPU usage of TensorFlow
+        condorpool.add_profiles(Namespace.ENV, TF_NUM_INTRAOP_THREADS="1")
+        condorpool.add_profiles(Namespace.ENV, TF_NUM_INTEROP_THREADS="1")
+        # For unknown reason, this does not work on limiting CPU usage of JAX
+        condorpool.add_profiles(
+            Namespace.ENV,
+            XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1",
+        )
+        # But this works, from https://github.com/jax-ml/jax/discussions/22739
+        condorpool.add_profiles(Namespace.ENV, NPROC="1")
 
         # staging site - davs
         staging_davs = Site("staging-davs")
@@ -683,7 +698,7 @@ class Submitter:
             )
 
             job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-            job.add_outputs(job_tar, stage_out=False)
+            job.add_outputs(job_tar, stage_out=True)
             job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
 
             # All strax jobs depend on the pre-flight or a download job,
