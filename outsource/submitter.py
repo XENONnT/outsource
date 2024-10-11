@@ -1,8 +1,7 @@
 import os
 import sys
+import json
 import getpass
-import time
-import shutil
 from itertools import chain
 from datetime import datetime
 import numpy as np
@@ -456,7 +455,6 @@ class Submitter:
     def add_higher_processing_job(
         self,
         workflow,
-        detector,
         label,
         data_types,
         dbcfg,
@@ -468,7 +466,7 @@ class Submitter:
         combinepy,
     ):
         """Add a processing job to the workflow."""
-        rses = set().union(*[dbcfg.dependencies_rses[detector][label][d] for d in data_types])
+        rses = set().union(*[v["rses"] for v in data_types.values()])
         if len(rses) == 0:
             self.logger.warning(
                 f"No data found as the dependency of {data_types}. "
@@ -527,7 +525,6 @@ class Submitter:
     def add_lower_processing_job(
         self,
         workflow,
-        detector,
         label,
         data_types,
         dbcfg,
@@ -543,8 +540,8 @@ class Submitter:
             raise RuntimeError(
                 f"Only one data type is allowed for lower processing, but got {data_types}."
             )
-        data_type = data_types[0]
-        rses = dbcfg.dependencies_rses[detector][label][data_type]
+        data_type = data_types.only_data_type
+        rses = data_types[data_types.only_data_type]["rses"]
         if len(rses) == 0:
             raise RuntimeError(f"No data found as the dependency of {dbcfg.key_for(data_type)}.")
 
@@ -730,11 +727,14 @@ class Submitter:
         runlist = set()
         for run_id in iterator:
             dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
-            self.logger.debug(f"Adding run_id {dbcfg._run_id} to the workflow.")
+            self.logger.info(
+                f"Adding {dbcfg._run_id} to the workflow: \n"
+                f"{json.dumps(dbcfg.data_types, indent=4)}"
+            )
 
-            for detector in dbcfg.detectors:
+            for detector in dbcfg.data_types:
                 # Check if this run_id needs to be processed
-                if not list(chain.from_iterable(dbcfg.needs_processed[detector].values())):
+                if not list(chain.from_iterable(dbcfg.data_types[detector].values())):
                     self.logger.debug(
                         f"Run {dbcfg._run_id} detector {detector} is already processed with "
                         f"context {self.context_name} xedocs_version {self.xedocs_version}."
@@ -743,10 +743,8 @@ class Submitter:
 
                 # Get data_types to process
                 combine_tar = None
-                for group, (label, data_types) in enumerate(
-                    dbcfg.needs_processed[detector].items()
-                ):
-                    if not data_types:
+                for group, (label, data_types) in enumerate(dbcfg.data_types[detector].items()):
+                    if not data_types.not_processed:
                         self.logger.debug(
                             f"Run {dbcfg._run_id} group {label} is already processed with "
                             f"context {self.context_name} xedocs_version {self.xedocs_version}."
@@ -755,18 +753,17 @@ class Submitter:
                     # Check that raw data exist for this run_id
                     if group == 0:
                         # There will be at most one in data_types
-                        data_type = dbcfg.depends_on(data_types[0])
+                        data_type = dbcfg.depends_on(data_types.only_data_type)
                         if not dbcfg.dependency_exists(data_type=data_type):
                             raise RuntimeError(
-                                f"Unable to find the raw data for {dbcfg.key_for(data_types[0])}."
+                                "Unable to find the raw data for "
+                                f"{dbcfg.key_for(data_types.only_data_type)}."
                             )
 
                     runlist |= {dbcfg.run_id}
-                    self.logger.debug(f"Adding {[dbcfg.key_for(d) for d in data_types]}.")
 
                     args = (
                         workflow,
-                        detector,
                         label,
                         data_types,
                         dbcfg,
@@ -813,19 +810,12 @@ class Submitter:
             **self.pegasus_config,
         )
 
-    def submit(self, force=False):
+    def submit(self):
         """Main interface to submitting a new workflow."""
 
         # Does workflow already exist?
         if os.path.exists(self.workflow_dir):
-            if force:
-                self.logger.warning(
-                    f"Overwriting workflow at {self.workflow_dir}. Press ctrl+C now to stop."
-                )
-                time.sleep(10)
-                shutil.rmtree(self.workflow_dir)
-            else:
-                raise RuntimeError(f"Workflow already exists at {self.workflow_dir}.")
+            raise RuntimeError(f"Workflow already exists at {self.workflow_dir}.")
 
         # Ensure we have a proxy with enough time left
         _validate_x509_proxy()
