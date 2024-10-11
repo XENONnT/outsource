@@ -140,7 +140,7 @@ class RunConfig:
         # Modify the data_types based on the mode
         self._led_mode(include_data_types)
 
-        ret = dict()
+        ret = {"submitted": []}
         # Here we must try to divide the include_data_types
         # into before and after the PER_CHUNK_DATA_TYPES
         for detector in self.detectors:
@@ -154,6 +154,7 @@ class RunConfig:
                 # If nothing to process
                 for label in data_types_group_labels:
                     ret[detector][label] = dict()
+                    ret[detector]["submitted"] = []
                 continue
             per_chunk_data_types = set(PER_CHUNK_DATA_TYPES) & set(possible_data_types)
             # Modify the data_types based on the mode again
@@ -207,6 +208,12 @@ class RunConfig:
                         key=lambda item: self.context.tree_levels[item[0]]["order"],
                     )
                 )
+            # Summarize the submitted data_types for a detector
+            ret["submitted"] += list(
+                set().union(*[v.not_processed for v in ret[detector].values()])
+            )
+            if len(ret["submitted"]) != len(set(ret["submitted"])):
+                raise ValueError("Why are there duplicated data_types in different detectors?")
         return ret
 
     def dependency_exists(self, data_type="raw_records"):
