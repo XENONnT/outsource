@@ -57,7 +57,7 @@ def main():
     parser.add_argument("--from", dest="number_from", type=int, help="Run number to start with")
     parser.add_argument("--to", dest="number_to", type=int, help="Run number to end with")
     parser.add_argument(
-        "--run", nargs="*", type=int, help="Space separated specific run number(s) to process"
+        "--run", nargs="*", type=int, help="Space separated specific run_id(s) to process"
     )
     parser.add_argument("--runlist", type=str, help="Path to a runlist file")
     parser.add_argument(
@@ -108,7 +108,7 @@ def main():
     )
     if set(_runlist) - set(runlist):
         logger.warning(
-            "The following run numbers were not processible "
+            "The following run_ids were not processible "
             f"after checking dependeicies in the RunDB: {set(_runlist) - set(runlist)}"
         )
     if not runlist:

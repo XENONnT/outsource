@@ -62,10 +62,10 @@ def get_runlist(
     Check if dependencies are available in RunDB.
     :param st: straxen context
     :param detector: detector to process
-    :param number_from: start run number
-    :param number_to: end run number
-    :param runlist: list of run numbers to process
-    :return: list of run numbers
+    :param number_from: start run_id
+    :param number_to: end run_id
+    :param runlist: list of run_ids to process
+    :return: list of run_ids
 
     """
     include_modes = uconfig.getlist("Outsource", "include_modes", fallback=[])
@@ -188,13 +188,13 @@ def get_runlist(
         raise ValueError("Nothing was found in RunDB for even the most basic requirement.")
 
     runlist_basic_has_raw = [r["number"] for r in cursor_basic_has_raw]
-    logger.warning(
-        "The following are the run numbers passing the basic queries and "
+    logger.info(
+        "The following are the run_ids passing the basic queries and "
         f"have raw data available: {runlist_basic_has_raw}"
     )
     runlist_basic_to_save = [r["number"] for r in cursor_basic_to_save]
-    logger.warning(
-        "The following are the run numbers passing the basic queries and "
+    logger.info(
+        "The following are the run_ids passing the basic queries and "
         f"have to be processed: {runlist_basic_to_save}"
     )
 

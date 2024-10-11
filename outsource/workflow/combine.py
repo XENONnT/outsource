@@ -17,7 +17,7 @@ def merge(st, run_id, data_type, chunk_number_group):
     """Merge per-chunk storage for a given data_type.
 
     :param st: straxen context
-    :param run_id: run number padded with 0s
+    :param run_id: run_id padded with 0s
     :param data_type: data_type to be merged
     :param chunk_number_group: list of chunk number to merge.
 
