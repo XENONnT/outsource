@@ -101,6 +101,8 @@ class Submitter:
         )
     )
 
+    user_installed_packages = False
+
     def __init__(
         self,
         runlist,
@@ -151,13 +153,17 @@ class Submitter:
         self.ignore_processed = ignore_processed
         self.rucio_upload = rucio_upload
         self.rundb_update = rundb_update
+        if not self.rucio_upload and self.rundb_update:
+            raise RuntimeError("Rucio upload must be enabled when updating the RunDB.")
         self.local_transfer = local_transfer
         self.debug = debug
 
         # Load from XENON_CONFIG
         self.work_dir = uconfig.get("Outsource", "work_dir")
 
-        # User can provide a name for the workflow, otherwise it will be the current time
+        # Need to know whether used self-installed packages before assigning the workflow_id
+        self._setup_packages()
+        # The current time will always be part of the workflow_id
         self._setup_workflow_id(workflow_id)
         # Pegasus workflow directory
         self.workflow_dir = os.path.join(self.work_dir, self.workflow_id)
@@ -254,6 +260,8 @@ class Submitter:
                 )
             else:
                 workflow_id = (self.image_tag, self.context_name, self.xedocs_version, now)
+        if self.user_installed_packages:
+            workflow_id = ("user", *workflow_id)
         self.workflow_id = "-".join(workflow_id)
 
     def _generate_sc(self):
@@ -361,11 +369,8 @@ class Submitter:
     def _generate_rc(self):
         return ReplicaCatalog()
 
-    def make_tarballs(self):
-        """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
-        tarballs = []
-        tarball_paths = []
-
+    def _setup_packages(self):
+        """Get the list of user-installed packages."""
         package_names = uconfig.getlist("Outsource", "user_install_package", fallback=[])
         if "cutax" not in package_names:
             raise RuntimeError(
@@ -395,10 +400,27 @@ class Submitter:
                     "because it is not in the official software environment. "
                     "Or uninstalled from the user-installed environment."
                 )
+        self.package_names = package_names
+        # Get a flag of whether there are user-installed packages
+        # to determine the workflow_id later
+        for package_name in self.package_names:
+            if Tarball.get_installed_git_repo(package_name):
+                self.user_installed_packages = True
+                break
+
+    def make_tarballs(self):
+        """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
+        tarballs = []
+        tarball_paths = []
+
         # Install the specified user-installed packages
-        for package_name in package_names:
+        for package_name in self.package_names:
             _tarball = Tarball(self.generated_dir, package_name)
             if Tarball.get_installed_git_repo(package_name):
+                if self.rucio_upload:
+                    raise RuntimeError(
+                        f"When using user_install_package, rucio_upload must be False!"
+                    )
                 _tarball.create_tarball()
                 tarball = File(_tarball.tarball_name)
                 tarball_path = _tarball.tarball_path
