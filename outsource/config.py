@@ -77,6 +77,22 @@ class RunConfig:
     def key_for(self, data_type):
         return self.context.key_for(self._run_id, data_type)
 
+    def _led_mode(self, data_types):
+        """Modify the data_types based on the mode.
+
+        LED calibration is special because its detector is still tpc but the mode is not the normal
+        tpc runs mode.
+
+        """
+        if self.mode in LED_MODES:
+            # If we are using LED data, only process those data_types
+            # For this context, see if we have that data yet
+            data_types = set(data_types) & set(LED_MODES[self.mode])
+        else:
+            # If we are not, don't process those data_types
+            data_types = set(data_types) - set().union(*LED_MODES.values())
+        return data_types
+
     def depends_on(self, data_type):
         """Get the data_type this one depends on.
 
@@ -107,16 +123,9 @@ class RunConfig:
                 f"It should include only subset of {all_possible_data_types}."
             )
 
-        if self.mode in LED_MODES:
-            # If we are using LED data, only process those data_types
-            # For this context, see if we have that data yet
-            include_data_types = set(include_data_types) & set(LED_MODES[self.mode])
-        else:
-            # If we are not, don't process those data_types
-            include_data_types = set(include_data_types) - set().union(*LED_MODES.values())
+        self._led_mode(include_data_types)
 
         ret = dict()
-        PER_CHUNK_DATA_TYPES
         # Here we must try to divide the include_data_types
         # into before and after the PER_CHUNK_DATA_TYPES
         for detector in self.detectors:
@@ -127,33 +136,33 @@ class RunConfig:
             # Possible data_types for this detector
             data_types = set(include_data_types) & set(possible_data_types)
             if not data_types:
+                # If nothing to process
                 for label in data_types_group_labels:
                     ret[detector][label] = []
                 continue
             per_chunk_data_types = set(PER_CHUNK_DATA_TYPES) & set(possible_data_types)
             # Modify the data_types based on the mode again
-            if self.mode in LED_MODES:
-                # If we are using LED data, only process those data_types
-                # For this context, see if we have that data yet
-                per_chunk_data_types = set(per_chunk_data_types) & set(LED_MODES[self.mode])
-            else:
-                # If we are not, don't process those data_types
-                per_chunk_data_types = set(per_chunk_data_types) - set().union(*LED_MODES.values())
+            per_chunk_data_types = self._led_mode(per_chunk_data_types)
+
+            # Sanity check of per-chunk data_type
+            if len(per_chunk_data_types) != 1:
+                raise ValueError("Why is there no per-chunk data_type deduced?")
+            root_data_type = per_chunk_storage_root_data_type(
+                self.context, self._run_id, list(per_chunk_data_types)[0]
+            )
+            if root_data_type is None:
+                raise ValueError("Why is there no root_data_type deduced?")
+
             # In reprocessing, group the data_types into lower and higher
-            # Lower is per-chunk storage, higher is not
+            # Lower is per-chunk storage, higher is not, they must be separated
             data_types_groups = [
                 per_chunk_data_types,
                 (per_chunk_data_types | data_types) - per_chunk_data_types,
             ]
-            # Sanity check of per-chunk data_types
-            if len(data_types_groups[0]) != 1:
-                raise ValueError("Why is there not one per_chunk_data_types deduced?")
-            root_data_type = per_chunk_storage_root_data_type(
-                self.context, self._run_id, list(data_types_groups[0])[0]
-            )
-            if root_data_type is None:
-                raise ValueError("Why is there no root_data_type deduced?")
-            for label, data_types_group in zip(data_types_group_labels, data_types_groups):
+
+            for group, (label, data_types_group) in enumerate(
+                zip(data_types_group_labels, data_types_groups)
+            ):
                 ret[detector][label] = []
                 for data_type in data_types_group:
                     if self.ignore_processed:
@@ -161,7 +170,7 @@ class RunConfig:
                         continue
                     mask_already_processed = []
                     # Expand the data_type to data_types that need to be saved
-                    _data_types = get_to_save_data_types(self.context, data_type)
+                    _data_types = get_to_save_data_types(self.context, data_type, rm_lower=group)
                     for _data_type in _data_types:
                         hash = self.key_for(_data_type).lineage_hash
                         rses = db.get_rses(self.run_id, _data_type, hash)

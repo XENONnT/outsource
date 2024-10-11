@@ -100,7 +100,7 @@ def get_runlist(
 
         # Check if the data_type is in the list of data_types to outsource
         possible_data_types = list(set(det_info["possible"]) & set(include_data_types))
-        to_save_data_types = get_to_save_data_types(st, possible_data_types)
+        to_save_data_types = get_to_save_data_types(st, possible_data_types, rm_lower=False)
 
         if not to_save_data_types:
             logger.warning(f"Skipping {det} data")
@@ -225,7 +225,7 @@ def get_possible_dependencies(st):
     return possible_dependencies
 
 
-def get_to_save_data_types(st, data_types):
+def get_to_save_data_types(st, data_types, rm_lower=False):
     """Get the data_types that should be saved, disregarding the storage.
 
     These are the expected data_types to be saved when running get_array.
@@ -236,6 +236,9 @@ def get_to_save_data_types(st, data_types):
         [k for k, v in plugins.items() if v.save_when[k] == strax.SaveWhen.ALWAYS]
     )
     possible_data_types -= st.root_data_types
+    if rm_lower:
+        # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
+        possible_data_types -= get_to_save_data_types(st, PER_CHUNK_DATA_TYPES, False)
     return possible_data_types
 
 
@@ -270,7 +273,7 @@ def per_chunk_storage_root_data_type(st, run_id, data_type):
         return None
 
 
-def get_processing_order(st, data_types, upper_level=None):
+def get_processing_order(st, data_types, rm_lower=False):
     """Instruction on which data need to be processed first to avoid duplicated computing.
 
     This function is different from the above. For example, event_pattern_fit depends on
@@ -286,10 +289,10 @@ def get_processing_order(st, data_types, upper_level=None):
     _data_types = set().union(*[st.get_dependencies(d) for d in strax.to_str_tuple(data_types)])
     # add back the directly called data_types
     _data_types |= set(strax.to_str_tuple(data_types))
-    if upper_level:
-        # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
-        _data_types -= get_processing_order(st, PER_CHUNK_DATA_TYPES, False)
     # Now we want to know which data_types are to be saved
-    _data_types &= get_to_save_data_types(st, tuple(_data_types))
+    _data_types &= get_to_save_data_types(st, tuple(_data_types), rm_lower=rm_lower)
+    if rm_lower:
+        # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
+        _data_types -= set(get_processing_order(st, PER_CHUNK_DATA_TYPES, False))
     _data_types = sorted(_data_types, key=lambda x: st.tree_levels[x]["order"])
     return _data_types

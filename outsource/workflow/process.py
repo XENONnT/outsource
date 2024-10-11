@@ -98,7 +98,7 @@ def main():
         return
 
     # Get the order of data_types in processing
-    data_types = get_processing_order(data_types)
+    data_types = get_processing_order(st, data_types, rm_lower=chunks is None)
 
     logger.info(f"To process: {data_types}")
     for data_type in data_types:
