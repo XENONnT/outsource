@@ -175,6 +175,10 @@ class Submitter:
         return os.path.join(self.generated_dir, "runlist.txt")
 
     @property
+    def summary(self):
+        return os.path.join(self.generated_dir, "summary.json")
+
+    @property
     def pegasus_config(self):
         """Pegasus configurations."""
         pconfig = {}
@@ -725,8 +729,10 @@ class Submitter:
 
         # Keep track of what runs we submit, useful for bookkeeping
         runlist = set()
+        summary = dict()
         for run_id in iterator:
             dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
+            summary[run_id] = dbcfg.data_types
             self.logger.info(
                 f"Adding {dbcfg._run_id} to the workflow: \n"
                 f"{json.dumps(dbcfg.data_types, indent=4)}"
@@ -791,6 +797,11 @@ class Submitter:
 
         # Save the runlist
         np.savetxt(self.runlist, list(runlist), fmt="%0d")
+
+        # Save the job summary
+        summary["include_data_types"] = uconfig.getlist("Outsource", "include_data_types")
+        with open(self.summary, mode="w") as f:
+            f.write(json.dumps(summary, indent=4))
 
         return workflow
 
