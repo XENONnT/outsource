@@ -6,8 +6,7 @@ import gc
 from utilix import uconfig
 from utilix.config import setup_logger
 
-from outsource.meta import PER_CHUNK_DATA_TYPES
-from outsource.utils import get_context, get_to_save_data_types, per_chunk_storage_root_data_type
+from outsource.utils import get_context, get_processing_order, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
 
@@ -98,17 +97,8 @@ def main():
         st.get_array(run_id, data_types, chunk_number=chunk_number)
         return
 
-    data_types = get_to_save_data_types(st, data_types)
-    if chunks:
-        # Remove all data_types to be saved when processing the dependencies of PER_CHUNK_DATA_TYPES
-        per_chunk_dependencies = list(
-            set().union(*[st.get_dependencies(d) for d in PER_CHUNK_DATA_TYPES])
-        )
-    else:
-        # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
-        per_chunk_dependencies = PER_CHUNK_DATA_TYPES
-    data_types -= get_to_save_data_types(st, per_chunk_dependencies)
-    data_types = sorted(data_types, key=lambda x: st.tree_levels[x]["order"])
+    # Get the order of data_types in processing
+    data_types = get_processing_order(data_types)
 
     logger.info(f"To process: {data_types}")
     for data_type in data_types:

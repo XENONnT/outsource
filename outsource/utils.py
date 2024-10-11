@@ -22,7 +22,7 @@ def get_context(
     staging_dir=None,
     ignore_processed=False,
 ):
-    """Get straxen context."""
+    """Get straxen context for given context name and xedocs_version."""
     st = getattr(cutax.contexts, context)(xedocs_version=xedocs_version)
     st.storage = []
     if input_path:
@@ -207,7 +207,15 @@ def get_runlist(
 
 
 def get_possible_dependencies(st):
-    """Expand the by-product of PER_CHUNK_DATA_TYPES."""
+    """Expand the by-product of PER_CHUNK_DATA_TYPES.
+
+    For example, "lone_hits" is not in PER_CHUNK_DATA_TYPES so can not be directly requested via
+    include_data_types in XENON_CONFIG. But it is a by-product of "peaklets" which is in
+    PER_CHUNK_DATA_TYPES. Sometimes a plugin can only depends on the by-product of
+    PER_CHUNK_DATA_TYPES like lone_hits. This function is to get all possible dependencies of
+    PER_CHUNK_DATA_TYPES.
+
+    """
     # Get the data_types in the same plugin of PER_CHUNK_DATA_TYPES
     possible_dependencies = chain.from_iterable(
         st._plugin_class_registry[d]().provides for d in PER_CHUNK_DATA_TYPES
@@ -218,7 +226,11 @@ def get_possible_dependencies(st):
 
 
 def get_to_save_data_types(st, data_types):
-    """Get the data_types that should be saved, disregarding the storage."""
+    """Get the data_types that should be saved, disregarding the storage.
+
+    These are the expected data_types to be saved when running get_array.
+
+    """
     plugins = st._get_plugins(strax.to_str_tuple(data_types), "0")
     possible_data_types = set(
         [k for k, v in plugins.items() if v.save_when[k] == strax.SaveWhen.ALWAYS]
@@ -239,7 +251,12 @@ def get_rse(st, data_type):
 
 
 def per_chunk_storage_root_data_type(st, run_id, data_type):
-    """Return root dependency if the data_type is per-chunk storage."""
+    """Return root dependency if the data_type is per-chunk storage.
+
+    A data_type is per-chunk storage if it is in PER_CHUNK_DATA_TYPES. The returned data_type is the
+    root data_type of the data_type. For exmaple, it will return "raw_records" for "peaklets".
+
+    """
     if data_type in st._get_plugins(PER_CHUNK_DATA_TYPES, "0"):
         # find the root data_type
         root_data_types = list(set(st.get_dependencies(data_type)) & st.root_data_types)
@@ -251,3 +268,28 @@ def per_chunk_storage_root_data_type(st, run_id, data_type):
         return root_data_types[0]
     else:
         return None
+
+
+def get_processing_order(st, data_types, upper_level=None):
+    """Instruction on which data need to be processed first to avoid duplicated computing.
+
+    This function is different from the above. For example, event_pattern_fit depends on
+    event_area_per_channel:
+    https://github.com/XENONnT/straxen/blob/764f14cbc16c8633e176ca8c0a93c589293c24e0/straxen/plugins/events/event_pattern_fit.py#L15.
+    event_area_per_channel is not always saved, but while processing event_area_per_channel,
+    event_n_channel will be saved. In this case, even though event_n_channel is lower than
+    event_pattern_fit, we should not directly process event_n_channel. Instead, we should
+    process event_area_per_channel first.
+
+    """
+    # Only consider the parents but not uncle and aunt
+    _data_types = set().union(*[st.get_dependencies(d) for d in strax.to_str_tuple(data_types)])
+    # add back the directly called data_types
+    _data_types |= set(strax.to_str_tuple(data_types))
+    if upper_level:
+        # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
+        _data_types -= get_processing_order(st, PER_CHUNK_DATA_TYPES, False)
+    # Now we want to know which data_types are to be saved
+    _data_types &= get_to_save_data_types(st, tuple(_data_types))
+    _data_types = sorted(_data_types, key=lambda x: st.tree_levels[x]["order"])
+    return _data_types
