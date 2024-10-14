@@ -324,6 +324,47 @@ class Submitter:
         )
         staging_davs.add_directories(scratch_dir)
 
+        # local site - this is the submit host
+        local = Site("local")
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
+        scratch_dir.add_file_servers(FileServer(f"file:///{self.scratch_dir}", Operation.ALL))
+        output_dir = Directory(Directory.LOCAL_STORAGE, path=self.outputs_dir)
+        output_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
+        local.add_directories(scratch_dir, output_dir)
+
+        local.add_profiles(Namespace.ENV, HOME=os.environ["HOME"])
+        local.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
+        local.add_profiles(
+            Namespace.ENV,
+            PATH=(
+                "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                f"{self.image_tag}/anaconda/envs/XENONnT_development/bin:"
+                "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                f"{self.image_tag}/anaconda/condabin:"
+                "/usr/bin:/bin"
+            ),
+        )
+        local.add_profiles(
+            Namespace.ENV,
+            LD_LIBRARY_PATH=(
+                "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                f"{self.image_tag}/anaconda/envs/XENONnT_development/lib64:"
+                "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                f"{self.image_tag}/anaconda/envs/XENONnT_development/lib"
+            ),
+        )
+        local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
+        local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
+        # local.add_profiles(
+        #     Namespace.ENV,
+        #     RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s",
+        # )
+        if not self.rucio_upload:
+            local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
+        # Improve python logging / suppress depreciation warnings (from gfal2 for example)
+        local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
+        local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
+
         if not self.local_transfer:
             output_dir_path = f"/xenon/output/{getpass.getuser()}/{self.workflow_id}"
             output_dir = Directory(Directory.LOCAL_STORAGE, path=output_dir_path)
@@ -334,50 +375,8 @@ class Submitter:
                 )
             )
             staging_davs.add_directories(output_dir)
-        else:
-            # local site - this is the submit host
-            local = Site("local")
-            scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
-            scratch_dir.add_file_servers(FileServer(f"file:///{self.scratch_dir}", Operation.ALL))
-            output_dir = Directory(Directory.LOCAL_STORAGE, path=self.outputs_dir)
-            output_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
-            local.add_directories(scratch_dir, output_dir)
 
-            local.add_profiles(Namespace.ENV, HOME=os.environ["HOME"])
-            local.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
-            local.add_profiles(
-                Namespace.ENV,
-                PATH=(
-                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                    f"{self.image_tag}/anaconda/envs/XENONnT_development/bin:"
-                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                    f"{self.image_tag}/anaconda/condabin:"
-                    "/usr/bin:/bin"
-                ),
-            )
-            local.add_profiles(
-                Namespace.ENV,
-                LD_LIBRARY_PATH=(
-                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                    f"{self.image_tag}/anaconda/envs/XENONnT_development/lib64:"
-                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                    f"{self.image_tag}/anaconda/envs/XENONnT_development/lib"
-                ),
-            )
-            local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
-            local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
-            # local.add_profiles(
-            #     Namespace.ENV,
-            #     RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s",
-            # )
-            if not self.rucio_upload:
-                local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
-            # Improve python logging / suppress depreciation warnings (from gfal2 for example)
-            local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
-            local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
-            sc.add_sites(local)
-
-        sc.add_sites(staging_davs, condorpool)
+        sc.add_sites(local, staging_davs, condorpool)
         return sc
 
     def _generate_tc(self):
