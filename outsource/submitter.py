@@ -198,7 +198,7 @@ class Submitter:
         # make sure we do start too many jobs at the same time
         pconfig["dagman.maxidle"] = uconfig.getint("Outsource", "dagman_maxidle", fallback=5_000)
         # total number of jobs cap
-        pconfig["dagman.maxjobs"] = uconfig.getint("Outsource", "dagman_maxjobs", fallback=300)
+        pconfig["dagman.maxjobs"] = uconfig.getint("Outsource", "dagman_maxjobs", fallback=5_000)
         # transfer parallelism
         pconfig["pegasus.transfer.threads"] = 1
 
