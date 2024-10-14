@@ -5,7 +5,6 @@ import getpass
 from itertools import chain
 from datetime import datetime
 import numpy as np
-from tqdm import tqdm
 import utilix
 from utilix import DB, uconfig
 from utilix.x509 import _validate_x509_proxy
@@ -511,7 +510,7 @@ class Submitter:
         rses = set().union(*[v["rses"] for v in data_types.values()])
         if len(rses) == 0:
             self.logger.warning(
-                f"No data found as the dependency of {data_types}. "
+                f"No data found as the dependency of {tuple(data_types)}. "
                 f"Hopefully those will be created by the workflow."
             )
 
@@ -580,7 +579,7 @@ class Submitter:
         """Add a per-chunk processing job to the workflow."""
         if len(data_types) != 1:
             raise RuntimeError(
-                f"Only one data type is allowed for lower processing, but got {data_types}."
+                f"Only one data type is allowed for lower processing, but got {tuple(data_types)}."
             )
         data_type = data_types.only_data_type
         rses = data_types[data_types.only_data_type]["rses"]
@@ -762,13 +761,10 @@ class Submitter:
         for tarball, tarball_path in zip(tarballs, tarball_paths):
             rc.add_replica("local", tarball, tarball_path)
 
-        # runs
-        iterator = self._runlist if len(self._runlist) == 1 else tqdm(self._runlist)
-
         # Keep track of what runs we submit, useful for bookkeeping
         runlist = set()
         summary = dict()
-        for run_id in iterator:
+        for run_id in self._runlist:
             dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
             summary[dbcfg._run_id] = dbcfg.data_types
             self.logger.info(f"Adding {dbcfg._run_id} to the workflow.")
