@@ -5,7 +5,6 @@ import getpass
 from itertools import chain
 from datetime import datetime
 import numpy as np
-from tqdm import tqdm
 import utilix
 from utilix import DB, uconfig
 from utilix.x509 import _validate_x509_proxy
@@ -324,6 +323,47 @@ class Submitter:
         )
         staging_davs.add_directories(scratch_dir)
 
+        # local site - this is the submit host
+        local = Site("local")
+        scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
+        scratch_dir.add_file_servers(FileServer(f"file:///{self.scratch_dir}", Operation.ALL))
+        output_dir = Directory(Directory.LOCAL_STORAGE, path=self.outputs_dir)
+        output_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
+        local.add_directories(scratch_dir, output_dir)
+
+        local.add_profiles(Namespace.ENV, HOME=os.environ["HOME"])
+        local.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
+        local.add_profiles(
+            Namespace.ENV,
+            PATH=(
+                "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                f"{self.image_tag}/anaconda/envs/XENONnT_development/bin:"
+                "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                f"{self.image_tag}/anaconda/condabin:"
+                "/usr/bin:/bin"
+            ),
+        )
+        local.add_profiles(
+            Namespace.ENV,
+            LD_LIBRARY_PATH=(
+                "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                f"{self.image_tag}/anaconda/envs/XENONnT_development/lib64:"
+                "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
+                f"{self.image_tag}/anaconda/envs/XENONnT_development/lib"
+            ),
+        )
+        local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
+        local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
+        # local.add_profiles(
+        #     Namespace.ENV,
+        #     RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s",
+        # )
+        if not self.rucio_upload:
+            local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
+        # Improve python logging / suppress depreciation warnings (from gfal2 for example)
+        local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
+        local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
+
         if not self.local_transfer:
             output_dir_path = f"/xenon/output/{getpass.getuser()}/{self.workflow_id}"
             output_dir = Directory(Directory.LOCAL_STORAGE, path=output_dir_path)
@@ -334,50 +374,8 @@ class Submitter:
                 )
             )
             staging_davs.add_directories(output_dir)
-        else:
-            # local site - this is the submit host
-            local = Site("local")
-            scratch_dir = Directory(Directory.SHARED_SCRATCH, path=self.scratch_dir)
-            scratch_dir.add_file_servers(FileServer(f"file:///{self.scratch_dir}", Operation.ALL))
-            output_dir = Directory(Directory.LOCAL_STORAGE, path=self.outputs_dir)
-            output_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
-            local.add_directories(scratch_dir, output_dir)
 
-            local.add_profiles(Namespace.ENV, HOME=os.environ["HOME"])
-            local.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
-            local.add_profiles(
-                Namespace.ENV,
-                PATH=(
-                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                    f"{self.image_tag}/anaconda/envs/XENONnT_development/bin:"
-                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                    f"{self.image_tag}/anaconda/condabin:"
-                    "/usr/bin:/bin"
-                ),
-            )
-            local.add_profiles(
-                Namespace.ENV,
-                LD_LIBRARY_PATH=(
-                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                    f"{self.image_tag}/anaconda/envs/XENONnT_development/lib64:"
-                    "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                    f"{self.image_tag}/anaconda/envs/XENONnT_development/lib"
-                ),
-            )
-            local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
-            local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
-            # local.add_profiles(
-            #     Namespace.ENV,
-            #     RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s",
-            # )
-            if not self.rucio_upload:
-                local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
-            # Improve python logging / suppress depreciation warnings (from gfal2 for example)
-            local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
-            local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
-            sc.add_sites(local)
-
-        sc.add_sites(staging_davs, condorpool)
+        sc.add_sites(local, staging_davs, condorpool)
         return sc
 
     def _generate_tc(self):
@@ -512,7 +510,7 @@ class Submitter:
         rses = set().union(*[v["rses"] for v in data_types.values()])
         if len(rses) == 0:
             self.logger.warning(
-                f"No data found as the dependency of {data_types}. "
+                f"No data found as the dependency of {tuple(data_types)}. "
                 f"Hopefully those will be created by the workflow."
             )
 
@@ -581,7 +579,7 @@ class Submitter:
         """Add a per-chunk processing job to the workflow."""
         if len(data_types) != 1:
             raise RuntimeError(
-                f"Only one data type is allowed for lower processing, but got {data_types}."
+                f"Only one data type is allowed for lower processing, but got {tuple(data_types)}."
             )
         data_type = data_types.only_data_type
         rses = data_types[data_types.only_data_type]["rses"]
@@ -763,13 +761,10 @@ class Submitter:
         for tarball, tarball_path in zip(tarballs, tarball_paths):
             rc.add_replica("local", tarball, tarball_path)
 
-        # runs
-        iterator = self._runlist if len(self._runlist) == 1 else tqdm(self._runlist)
-
         # Keep track of what runs we submit, useful for bookkeeping
         runlist = set()
         summary = dict()
-        for run_id in iterator:
+        for run_id in self._runlist:
             dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
             summary[dbcfg._run_id] = dbcfg.data_types
             self.logger.info(f"Adding {dbcfg._run_id} to the workflow.")
