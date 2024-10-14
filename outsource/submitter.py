@@ -226,6 +226,23 @@ class Submitter:
             return job
 
         job.add_profiles(Namespace.CONDOR, "request_cpus", cores)
+        # Environment variables to control the number of threads
+        job.add_profiles(Namespace.ENV, OMP_NUM_THREADS=f"{cores}")
+        job.add_profiles(Namespace.ENV, MKL_NUM_THREADS=f"{cores}")
+        job.add_profiles(Namespace.ENV, OPENBLAS_NUM_THREADS=f"{cores}")
+        job.add_profiles(Namespace.ENV, BLIS_NUM_THREADS=f"{cores}")
+        job.add_profiles(Namespace.ENV, NUMEXPR_NUM_THREADS=f"{cores}")
+        job.add_profiles(Namespace.ENV, GOTO_NUM_THREADS=f"{cores}")
+        # Limiting CPU usage of TensorFlow
+        job.add_profiles(Namespace.ENV, TF_NUM_INTRAOP_THREADS=f"{cores}")
+        job.add_profiles(Namespace.ENV, TF_NUM_INTEROP_THREADS=f"{cores}")
+        # For unknown reason, this does not work on limiting CPU usage of JAX
+        job.add_profiles(
+            Namespace.ENV,
+            XLA_FLAGS=f"--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads={cores}",
+        )
+        # But this works, from https://github.com/jax-ml/jax/discussions/22739
+        job.add_profiles(Namespace.ENV, NPROC=f"{cores}")
 
         # Increase memory/disk if the first attempt fails
         memory = (
