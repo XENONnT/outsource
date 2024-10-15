@@ -2,6 +2,7 @@
 PER_CHUNK_DATA_TYPES = [
     "peaklets",
     "hitlets_nv",
+    "hitlets_mv",
     "afterpulses",
     "led_calibration",
 ]
@@ -35,7 +36,7 @@ DETECTOR_DATA_TYPES = {
     },
     "muon_veto": {
         "raw": "raw_records_mv",
-        "possible": ["events_mv"],
+        "possible": ["hitlets_mv", "events_mv"],
     },
 }
 
