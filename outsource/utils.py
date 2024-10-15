@@ -1,3 +1,5 @@
+import sys
+import re
 from itertools import chain
 from copy import deepcopy
 from utilix import uconfig
@@ -6,6 +8,7 @@ from utilix.config import setup_logger
 import strax
 import straxen
 import cutax
+
 
 from outsource.meta import DETECTOR_DATA_TYPES, PER_CHUNK_DATA_TYPES
 
@@ -296,3 +299,23 @@ def get_processing_order(st, data_types, rm_lower=False):
         _data_types -= set(get_processing_order(st, PER_CHUNK_DATA_TYPES, False))
     _data_types = sorted(_data_types, key=lambda x: st.tree_levels[x]["order"])
     return _data_types
+
+
+def get_image_from_sys_executable():
+    """
+    Get the image name from sys.executable.
+    :return:
+    """
+    python_version = sys.executable
+    version_pattern = r"/releases/nT/(.+)/anaconda"
+    match = re.search(version_pattern, python_version)
+    if match:
+        version = match.group(1)
+    else:
+        logger.warning("Cannot find the version of the python executable, use development as default")
+        version = "development"
+
+    singularity_image = f"/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{version}"
+    logger.warning(f"Using singularity image: {singularity_image}")
+    return singularity_image
+

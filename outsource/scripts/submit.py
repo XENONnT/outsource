@@ -3,7 +3,7 @@ from utilix import xent_collection, uconfig
 from utilix.io import load_runlist
 from utilix.config import setup_logger
 
-from outsource.utils import get_context, get_runlist
+from outsource.utils import get_context, get_runlist, get_image_from_sys_executable
 from outsource.submitter import Submitter
 
 
@@ -19,7 +19,7 @@ def main():
     )
     parser.add_argument(
         "--image",
-        default="development",
+        default=get_image_from_sys_executable(),
         help=(
             "Singularity image. Accepts either a full path or a single name "
             "and assumes a format like this: "
