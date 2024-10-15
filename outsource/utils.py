@@ -76,7 +76,7 @@ def get_runlist(
     exclude_tags = uconfig.getlist("Outsource", "exclude_tags", fallback=[])
 
     min_run_number = uconfig.getint("Outsource", "min_run_number", fallback=1)
-    max_run_number = uconfig.getint("Outsource", "min_run_number", fallback=999999)
+    max_run_number = uconfig.getint("Outsource", "max_run_number", fallback=999999)
     if number_from is not None:
         min_run_number = max(number_from, min_run_number)
     if number_to is not None:
