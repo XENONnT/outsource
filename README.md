@@ -123,9 +123,9 @@ combine_memory = 60000
 combine_disk = 120000
 upper_memory = 60000
 upper_disk = 120000
-dagman_retry = 0
+dagman_retry = 2
 dagman_maxidle = 5000
-dagman_maxjobs = 300
+dagman_maxjobs = 5000
 ```
 
 ## Add a setup script

@@ -109,7 +109,7 @@ def main():
     if set(_runlist) - set(runlist):
         logger.warning(
             "The following run_ids were not processible "
-            f"after checking dependeicies in the RunDB: {set(_runlist) - set(runlist)}"
+            f"after checking dependeicies in the RunDB: {sorted(set(_runlist) - set(runlist))}"
         )
     if not runlist:
         raise RuntimeError(
