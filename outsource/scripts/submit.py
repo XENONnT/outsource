@@ -19,7 +19,6 @@ def main():
     )
     parser.add_argument(
         "--image",
-        default="development",
         help=(
             "Singularity image. Accepts either a full path or a single name "
             "and assumes a format like this: "
@@ -79,6 +78,9 @@ def main():
         help="Transfer data to local after processing",
     )
     args = parser.parse_args()
+
+    if "development" in args.image:
+        raise RuntimeError("Cannot use development images/container for processing!")
 
     if args.ignore_processed and args.rucio_upload:
         raise RuntimeError("Cannot upload to rucio in debug mode.")

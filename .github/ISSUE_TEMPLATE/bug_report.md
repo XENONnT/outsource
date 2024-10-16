@@ -10,5 +10,6 @@ assignees: ''
 **Describe the bug**
 
 **To Reproduce**
+Please include `Outsource` section of `XENON_CONFIG`. Do not include `RunDB` section because it is confidential.
 
 **Expected behavior**
