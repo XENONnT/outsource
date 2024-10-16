@@ -207,8 +207,7 @@ If you want to narrow down the list of runs to process, you can do one of severa
   - Specify things like `--detector`, the source and run mode can be controlled in file indicated by `XENON_CONFIG`, like `include_modes` and `exclude_sources`
 
 **One super important thing to keep in mind: you also specify the singularity image to run the jobs in**. This adds a significant possibility for mistakes, as the environment you submit jobs from (and thus do this query to find what needs to be processed) might not always be the same as the one that actually tries to do the processing.
-So it's super important that the image you pass with the `--image` flag corresponds to the same base_environment flag as the CVMFS environment you are in. Otherwise, you might run into problems of datatype hashes not matching and/or context names not being installed in the cutax version you are using.
-A nice feature would be to automatically get the tag from the environment itself so you don't have this problem (TODO: can someone work on it?).
+So it's super important that the image you pass with the `--image` flag corresponds to the same `base_environment` flag as the CVMFS environment you are in. Otherwise, you might run into problems of datatype hashes not matching and/or context names not being installed in the cutax version you are using.
 
 If it is your very first time submitting a workflow, maybe try submitting a single run in debug mode:
 
