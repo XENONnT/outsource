@@ -160,14 +160,15 @@ class RunConfig:
             # Modify the data_types based on the mode again
             per_chunk_data_types = self._led_mode(per_chunk_data_types)
 
-            # Sanity check of per-chunk data_type
-            if len(per_chunk_data_types) != 1:
-                raise ValueError("Why is there no per-chunk data_type deduced?")
-            root_data_type = per_chunk_storage_root_data_type(
-                self.context, self._run_id, list(per_chunk_data_types)[0]
-            )
-            if root_data_type is None:
-                raise ValueError("Why is there no root_data_type deduced?")
+            if DETECTOR_DATA_TYPES[detector]["per_chunk"]:
+                # Sanity check of per-chunk data_type
+                if len(per_chunk_data_types) != 1:
+                    raise ValueError("Why is there no per-chunk data_type deduced?")
+                root_data_type = per_chunk_storage_root_data_type(
+                    self.context, self._run_id, list(per_chunk_data_types)[0]
+                )
+                if root_data_type is None:
+                    raise ValueError("Why is there no root_data_type deduced?")
 
             # In reprocessing, group the data_types into lower and higher
             # Lower is per-chunk storage, higher is not, they must be separated
