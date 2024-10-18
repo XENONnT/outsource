@@ -446,7 +446,8 @@ class Submitter:
                 # Packages should not be non-editable user-installed
                 if Tarball.is_user_installed(package_name):
                     raise RuntimeError(
-                        f"You should install {package_name} in non-editable user-installed mode."
+                        f"You should not install {package_name} in "
+                        "non-editable user-installed mode."
                     )
                 # cutax is special because it is not installed in site-pacakges of the environment
                 if package_name == "cutax":
