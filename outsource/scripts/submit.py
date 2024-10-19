@@ -1,5 +1,6 @@
+import os
 import argparse
-from utilix import xent_collection, uconfig
+from utilix import xent_collection, uconfig, DB
 from utilix.io import load_runlist
 from utilix.config import setup_logger
 
@@ -77,7 +78,18 @@ def main():
         action="store_true",
         help="Transfer data to local after processing",
     )
+    parser.add_argument(
+        "--keep_dbtoken",
+        dest="keep_dbtoken",
+        action="store_true",
+        help="Do not renew .dbtoken",
+    )
     args = parser.parse_args()
+
+    if not args.keep_dbtoken:
+        os.remove(os.path.join(os.environ["HOME"], ".dbtoken"))
+        DB._instances = dict()
+        DB()
 
     if "development" in args.image:
         raise RuntimeError("Cannot use development images/container for processing!")
