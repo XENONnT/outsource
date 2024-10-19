@@ -88,6 +88,7 @@ def main():
 
     if not args.keep_dbtoken:
         os.remove(os.path.join(os.environ["HOME"], ".dbtoken"))
+        # Remove the cached DB instance and reinitialize it
         DB._instances = dict()
         DB()
 

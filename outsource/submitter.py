@@ -757,8 +757,9 @@ class Submitter:
         xenon_config = File(".xenon_config")
         rc.add_replica("local", ".xenon_config", f"file://{uconfig.config_path}")
 
-        # token needed for DB connection
+        # Token needed for DB connection
         token = File(".dbtoken")
+        # Avoid its change after the job submission
         shutil.copy(os.path.join(os.environ["HOME"], ".dbtoken"), self.generated_dir)
         rc.add_replica("local", ".dbtoken", f"file://{self.dbtoken}")
 
