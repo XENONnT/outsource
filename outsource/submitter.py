@@ -760,7 +760,7 @@ class Submitter:
         # Token needed for DB connection
         token = File(".dbtoken")
         # Avoid its change after the job submission
-        shutil.copy(os.path.join(os.environ["HOME"], ".dbtoken"), self.generated_dir)
+        shutil.copy(os.path.join(os.environ["HOME"], ".dbtoken"), self.dbtoken)
         rc.add_replica("local", ".dbtoken", f"file://{self.dbtoken}")
 
         tarballs, tarball_paths = self.make_tarballs()
