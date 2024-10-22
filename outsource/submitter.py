@@ -529,6 +529,12 @@ class Submitter:
         _key = "-".join(
             [dbcfg._run_id] + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in data_types]
         )
+        # Sometimes the filename can be too long
+        if len(_key) > 255 - len("untar--output.tar.gz.log"):
+            self.logger.warning(f"Filename {_key} is too long, will not include hash in it.")
+            _key = "-".join([dbcfg._run_id] + list(data_types))
+        if len(_key) > 255 - len("untar--output.tar.gz.log"):
+            raise RuntimeError(f"Filename {_key} is still too long.")
         job_tar = File(f"{_key}-output.tar.gz")
 
         # Add job
