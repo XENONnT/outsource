@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import shutil
 import getpass
 from itertools import chain
 from datetime import datetime
@@ -170,6 +171,10 @@ class Submitter:
         self.runs_dir = os.path.join(self.workflow_dir, "runs")
         self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
+
+    @property
+    def dbtoken(self):
+        return os.path.join(self.generated_dir, ".dbtoken")
 
     @property
     def workflow(self):
@@ -752,11 +757,11 @@ class Submitter:
         xenon_config = File(".xenon_config")
         rc.add_replica("local", ".xenon_config", f"file://{uconfig.config_path}")
 
-        # token needed for DB connection
+        # Token needed for DB connection
         token = File(".dbtoken")
-        rc.add_replica(
-            "local", ".dbtoken", "file://" + os.path.join(os.environ["HOME"], ".dbtoken")
-        )
+        # Avoid its change after the job submission
+        shutil.copy(os.path.join(os.environ["HOME"], ".dbtoken"), self.dbtoken)
+        rc.add_replica("local", ".dbtoken", f"file://{self.dbtoken}")
 
         tarballs, tarball_paths = self.make_tarballs()
         for tarball, tarball_path in zip(tarballs, tarball_paths):
