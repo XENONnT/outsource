@@ -84,6 +84,12 @@ def main():
         action="store_true",
         help="Do not renew .dbtoken",
     )
+    parser.add_argument(
+        "--stage_out_lower",
+        dest="stage_out_lower",
+        action="store_true",
+        help="Whether to stage out the results of lower level processing",
+    )
     args = parser.parse_args()
 
     if not args.keep_dbtoken:
@@ -142,6 +148,7 @@ def main():
         rundb_update=args.rundb_update,
         ignore_processed=args.ignore_processed,
         local_transfer=args.local_transfer,
+        stage_out_lower=args.stage_out_lower,
         debug=args.debug,
     )
 

@@ -54,6 +54,7 @@ def main():
     parser.add_argument("--ignore_processed", action="store_true", dest="ignore_processed")
     parser.add_argument("--download_only", action="store_true", dest="download_only")
     parser.add_argument("--no_download", action="store_true", dest="no_download")
+    parser.add_argument("--keep_raw_records", action="store_true", dest="keep_raw_records")
 
     args = parser.parse_args()
 
@@ -100,6 +101,9 @@ def main():
     # Get the order of data_types in processing
     data_types = get_processing_order(st, data_types, rm_lower=chunks is None)
 
+    if not data_types:
+        raise ValueError("No data types to process, something is wrong")
+
     logger.info(f"To process: {data_types}")
     for data_type in data_types:
         logger.info(f"Processing: {data_type}")
@@ -109,7 +113,8 @@ def main():
     logger.info("Done processing. Now check if we should upload to rucio")
 
     # Remove rucio directory
-    shutil.rmtree(staging_dir)
+    if not args.keep_raw_records:
+        shutil.rmtree(staging_dir)
 
     # Now loop over data_type we just made and upload the data
     processed_data = os.listdir(output_path)
