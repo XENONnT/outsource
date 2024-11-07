@@ -114,6 +114,7 @@ class Submitter:
         rundb_update=True,
         ignore_processed=False,
         local_transfer=False,
+        stage_out_lower=False,
         debug=True,
     ):
         self.logger = setup_logger(
@@ -156,6 +157,7 @@ class Submitter:
         if not self.rucio_upload and self.rundb_update:
             raise RuntimeError("Rucio upload must be enabled when updating the RunDB.")
         self.local_transfer = local_transfer
+        self.stage_out_lower = stage_out_lower
         self.debug = debug
 
         # Load from XENON_CONFIG
@@ -247,6 +249,7 @@ class Submitter:
         )
         # But this works, from https://github.com/jax-ml/jax/discussions/22739
         job.add_profiles(Namespace.ENV, NPROC=f"{cores}")
+        job.add_profiles(Namespace.ENV, TF_ENABLE_ONEDNN_OPTS="0")
 
         # Increase memory/disk if the first attempt fails
         memory = (
@@ -710,7 +713,7 @@ class Submitter:
             )
 
             job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-            job.add_outputs(job_tar, stage_out=False)
+            job.add_outputs(job_tar, stage_out=self.stage_out_lower)
             job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
 
             # All strax jobs depend on the pre-flight or a download job,

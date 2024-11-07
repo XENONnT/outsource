@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--output_path", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
+    parser.add_argument("--keep_raw_records", action="store_true", dest="keep_raw_records")
     parser.add_argument("--chunks", required=True, nargs="*", type=int)
 
     args = parser.parse_args()
@@ -68,7 +69,7 @@ def main():
     )
 
     # Check what data is in the output folder
-    data_types = [d.split("-")[1] for d in os.listdir(input_path)]
+    data_types = sorted(set([d.split("-")[1] for d in os.listdir(input_path)]))
 
     _chunks = [0] + args.chunks
     chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
@@ -79,7 +80,8 @@ def main():
         merge(st, run_id, data_type, chunk_number_group)
 
     # Remove rucio directory
-    shutil.rmtree(staging_dir)
+    if not args.keep_raw_records:
+        shutil.rmtree(staging_dir)
 
     if not args.rucio_upload:
         logger.warning("Ignoring rucio upload")
