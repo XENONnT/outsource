@@ -121,8 +121,8 @@ echo "Processing:"
 time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --data_types $data_types $extraflags
 
 echo "Moving auxiliary files to output directory"
-mv *.npy $output_path
-mv *.json $output_path
+[ -e *.npy ] && mv *.npy $output_path
+[ -e *.json ] && mv *.json $output_path
 [ -e $input_path/*.npy ] && mv $input_path/*.npy $output_path
 [ -e $input_path/*.json ] && mv $input_path/*.json $output_path
 
