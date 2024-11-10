@@ -81,6 +81,10 @@ echo
 echo "Combining:"
 time python3 combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path $chunksarg $extraflags
 
+echo "Moving auxiliary files to output directory"
+mv *.npy $output_path
+mv *.json $output_path
+
 echo "Removing inputs directory:"
 rm -r $input_path
 
@@ -91,8 +95,8 @@ echo
 echo "Total amount of data before tarballing: "`du -s --si $output_path | cut -f1`
 echo
 
-echo "We are tarballing the output directory:"
-tar czfv $tar_filename $output_path
+echo "We are tarballing the output directory and removing it:"
+tar czfv $tar_filename $output_path --remove-files
 
 echo
 echo "Job is done. Here is the contents of the directory now:"

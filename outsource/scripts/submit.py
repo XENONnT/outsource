@@ -85,6 +85,12 @@ def main():
         help="Do not renew .dbtoken",
     )
     parser.add_argument(
+        "--resources_test",
+        dest="resources_test",
+        action="store_true",
+        help="Whether to test the resources(memory, time, storage) usage of each job",
+    )
+    parser.add_argument(
         "--stage_out_lower",
         dest="stage_out_lower",
         action="store_true",
@@ -148,6 +154,7 @@ def main():
         rundb_update=args.rundb_update,
         ignore_processed=args.ignore_processed,
         local_transfer=args.local_transfer,
+        resources_test=args.resources_test,
         stage_out_lower=args.stage_out_lower,
         debug=args.debug,
     )

@@ -34,6 +34,7 @@ def process(st, run_id, data_type, chunks):
         chunk_number=get_chunk_number(st, run_id, data_type, chunks),
         processor="single_thread",
     )
+    gc.collect()
 
     process_time = time.time() - t0
     logger.info(f"Processing time for {data_type}: {process_time / 60:0.2f} minutes")
@@ -108,7 +109,6 @@ def main():
     for data_type in data_types:
         logger.info(f"Processing: {data_type}")
         process(st, run_id, data_type, chunks)
-        gc.collect()
 
     logger.info("Done processing. Now check if we should upload to rucio")
 
@@ -129,7 +129,8 @@ def main():
             path = os.path.join(output_path, dirname)
 
             # Upload to rucio
-            upload_to_rucio(st, path, rundb_update=args.rundb_update)
+            if os.path.isdir(path):
+                upload_to_rucio(st, path, args.rundb_update)
 
             # Cleanup the files we uploaded
             shutil.rmtree(path)

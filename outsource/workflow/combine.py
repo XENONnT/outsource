@@ -69,7 +69,15 @@ def main():
     )
 
     # Check what data is in the output folder
-    data_types = sorted(set([d.split("-")[1] for d in os.listdir(input_path)]))
+    data_types = sorted(
+        set(
+            [
+                d.split("-")[1]
+                for d in os.listdir(input_path)
+                if os.path.isdir(os.path.join(input_path, d))
+            ]
+        )
+    )
 
     _chunks = [0] + args.chunks
     chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
@@ -92,7 +100,9 @@ def main():
     logger.info(f"Combined data: {processed_data}")
 
     for dirname in processed_data:
-        upload_to_rucio(st, os.path.join(output_path, dirname), args.rundb_update)
+        path = os.path.join(output_path, dirname)
+        if os.path.isdir(path):
+            upload_to_rucio(st, path, args.rundb_update)
 
 
 if __name__ == "__main__":
