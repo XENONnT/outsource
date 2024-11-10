@@ -39,18 +39,6 @@ IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:
 COMBINE_WRAPPER = "combine-wrapper.sh"
 PROCESS_WRAPPER = "process-wrapper.sh"
 UNTAR_WRAPPER = "untar.sh"
-LOWER_MEMORY = uconfig.getint("Outsource", "lower_memory")
-LOWER_DISK = uconfig.getint("Outsource", "lower_disk")
-LOWER_CPUS = uconfig.getint("Outsource", "lower_cpus", fallback=1)
-COMBINE_MEMORY = uconfig.getint("Outsource", "combine_memory")
-COMBINE_DISK = uconfig.getint("Outsource", "combine_disk")
-COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
-UPPER_MEMORY = uconfig.getint("Outsource", "upper_memory")
-UPPER_DISK = uconfig.getint("Outsource", "upper_disk")
-UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
-LOWER_JOB_KWARGS = dict(cores=LOWER_CPUS, memory=LOWER_MEMORY, disk=LOWER_DISK)
-COMBINE_JOB_KWARGS = dict(cores=COMBINE_CPUS, memory=COMBINE_MEMORY, disk=COMBINE_DISK)
-UPPER_JOB_KWARGS = dict(cores=UPPER_CPUS, memory=UPPER_MEMORY, disk=UPPER_DISK)
 
 db = DB()
 
@@ -75,28 +63,6 @@ class Submitter:
             zip(
                 [f"upper_{det}" for det in DETECTOR_DATA_TYPES],
                 [PROCESS_WRAPPER] * len(DETECTOR_DATA_TYPES),
-            )
-        )
-    )
-
-    # Jobs details for a given datatype
-    _job_kwargs = {
-        "combine": {"name": "combine", **COMBINE_JOB_KWARGS},
-        "download": {"name": "download", **LOWER_JOB_KWARGS},
-    }
-    _job_kwargs.update(
-        dict(
-            zip(
-                [f"lower_{det}" for det in DETECTOR_DATA_TYPES],
-                ({"name": f"lower_{det}", **LOWER_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
-            )
-        )
-    )
-    _job_kwargs.update(
-        dict(
-            zip(
-                [f"upper_{det}" for det in DETECTOR_DATA_TYPES],
-                ({"name": f"upper_{det}", **UPPER_JOB_KWARGS} for det in DETECTOR_DATA_TYPES),
             )
         )
     )
@@ -220,7 +186,7 @@ class Submitter:
         pconfig["pegasus.integrity.checking"] = "none"
         return pconfig
 
-    def _job(self, name, run_on_submit_node=False, cores=1, memory=1_700, disk=1_000):
+    def _job(self, name, run_on_submit_node=False, cores=1, memory=2_000, disk=2_000):
         """Wrapper for a Pegasus job, also sets resource requirement profiles.
 
         Memory and disk in unit of MB.
@@ -254,16 +220,16 @@ class Submitter:
         job.add_profiles(Namespace.ENV, TF_ENABLE_ONEDNN_OPTS="0")
 
         # Increase memory/disk if the first attempt fails
-        memory = (
+        memory_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry == 0, {memory}, (DAGNodeRetry + 1)*{memory})"
+            f"DAGNodeRetry == 0, {int(memory)}, (DAGNodeRetry + 1)*{int(memory)})"
         )
         disk_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry == 0, {disk * 1_000}, (DAGNodeRetry + 1)*{disk * 1_000})"
+            f"DAGNodeRetry == 0, {int(disk * 1_000)}, (DAGNodeRetry + 1)*{int(disk * 1_000)})"
         )
         job.add_profiles(Namespace.CONDOR, "request_disk", disk_str)
-        job.add_profiles(Namespace.CONDOR, "request_memory", memory)
+        job.add_profiles(Namespace.CONDOR, "request_memory", memory_str)
 
         return job
 
@@ -508,7 +474,7 @@ class Submitter:
         self,
         workflow,
         label,
-        data_types,
+        level,
         dbcfg,
         installsh,
         processpy,
@@ -518,10 +484,10 @@ class Submitter:
         combinepy,
     ):
         """Add a processing job to the workflow."""
-        rses = set().union(*[v["rses"] for v in data_types.values()])
+        rses = set().union(*[v["rses"] for v in level["data_types"].values()])
         if len(rses) == 0:
             self.logger.warning(
-                f"No data found as the dependency of {tuple(data_types)}. "
+                f"No data found as the dependency of {tuple(level['data_types'])}. "
                 f"Hopefully those will be created by the workflow."
             )
 
@@ -532,18 +498,20 @@ class Submitter:
         # High level data.. we do it all on one job
         # output files
         _key = "-".join(
-            [dbcfg._run_id] + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in data_types]
+            [dbcfg._run_id] + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in level["data_types"]]
         )
         # Sometimes the filename can be too long
         if len(_key) > 255 - len("untar--output.tar.gz.log"):
             self.logger.warning(f"Filename {_key} is too long, will not include hash in it.")
-            _key = "-".join([dbcfg._run_id] + list(data_types))
+            _key = "-".join([dbcfg._run_id] + list(level["data_types"]))
         if len(_key) > 255 - len("untar--output.tar.gz.log"):
             raise RuntimeError(f"Filename {_key} is still too long.")
         job_tar = File(f"{_key}-output.tar.gz")
 
         # Add job
-        job = self._job(**self._job_kwargs[label])
+        job = self._job(
+            name=label, cores=level["cores"], memory=level["memory"], disk=level["disk"]
+        )
         # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
         job.add_profiles(Namespace.CONDOR, "requirements", requirements)
         job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
@@ -561,7 +529,7 @@ class Submitter:
             f"{self.ignore_processed}".lower(),
             "false" if not dbcfg.standalone_download else "no_download",
             job_tar,
-            *data_types,
+            *level["data_types"],
         )
 
         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
@@ -584,7 +552,7 @@ class Submitter:
         self,
         workflow,
         label,
-        data_types,
+        level,
         dbcfg,
         installsh,
         processpy,
@@ -594,12 +562,13 @@ class Submitter:
         combinepy,
     ):
         """Add a per-chunk processing job to the workflow."""
-        if len(data_types) != 1:
+        if len(level["data_types"]) != 1:
             raise RuntimeError(
-                f"Only one data type is allowed for lower processing, but got {tuple(data_types)}."
+                "Only one data type is allowed for lower processing, "
+                f"but got {tuple(level['data_types'])}."
             )
-        data_type = data_types.only_data_type
-        rses = data_types[data_types.only_data_type]["rses"]
+        data_type = level["data_types"].only_data_type
+        rses = level["data_types"][level["data_types"].only_data_type]["rses"]
         if len(rses) == 0:
             raise RuntimeError(f"No data found as the dependency of {dbcfg.key_for(data_type)}.")
 
@@ -607,23 +576,15 @@ class Submitter:
             dbcfg, rses, per_chunk=True
         )
 
-        # Add jobs, one for each input file
-        n_chunks = dbcfg.nchunks(data_type)
-
-        njobs = int(np.ceil(n_chunks / dbcfg.chunks_per_job))
-        chunks_list = []
-
-        # Loop over the chunks
-        for job_i in range(njobs):
-            chunks = list(range(n_chunks))[
-                dbcfg.chunks_per_job * job_i : dbcfg.chunks_per_job * (job_i + 1)
-            ]
-            chunks_list.append([chunks[0], chunks[-1] + 1])
-
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
         # only need combine job for low-level stuff
-        combine_job = self._job(**self._job_kwargs["combine"])
+        combine_job = self._job(
+            name="combine",
+            cores=level["combine_cores"],
+            memory=level["combine_memory"],
+            disk=level["combine_disk"],
+        )
         # combine jobs must happen in the US
         combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
         # priority is given in the order they were submitted
@@ -639,7 +600,7 @@ class Submitter:
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             combine_tar,
-            " ".join(map(str, [cs[-1] for cs in chunks_list])),
+            " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         )
 
         if self.local_transfer:
@@ -650,23 +611,28 @@ class Submitter:
             workflow.add_jobs(untar_job)
 
         # Loop over the chunks
-        for job_i in range(njobs):
-            self.logger.debug(f"Adding job for per-chunk processing: {chunks_list[job_i]}")
+        for job_i in range(len(level["chunks"])):
+            self.logger.debug(f"Adding job for per-chunk processing: {level['chunks'][job_i]}")
 
             # standalone_download is a special case where we download data
             # from rucio first, which is useful for testing and when using
             # dedicated clusters with storage
             if dbcfg.standalone_download:
                 download_tar = File(f"{dbcfg.key_for(data_type)}-download-{job_i:04d}.tar.gz")
-                download_job = self._job(**self._job_kwargs["download"])
+                download_job = self._job(
+                    name="download",
+                    cores=level["cores"],
+                    memory=level["memory"][job_i],
+                    disk=level["disk"][job_i],
+                )
                 download_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
                 download_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                 download_job.add_args(
                     dbcfg.run_id,
                     self.context_name,
                     self.xedocs_version,
-                    chunks_list[job_i][0],
-                    chunks_list[job_i][1],
+                    level["chunks"][job_i][0],
+                    level["chunks"][job_i][1],
                     f"{self.rucio_upload}".lower(),
                     f"{self.rundb_update}".lower(),
                     f"{self.ignore_processed}".lower(),
@@ -683,7 +649,12 @@ class Submitter:
             job_tar = File(f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz")
 
             # Add job
-            job = self._job(**self._job_kwargs[label])
+            job = self._job(
+                name=label,
+                cores=level["cores"],
+                memory=level["memory"][job_i],
+                disk=level["disk"][job_i],
+            )
             if desired_sites:
                 # Give a hint to glideinWMS for the sites we want
                 # (mostly useful for XENON VO in Europe).
@@ -704,8 +675,8 @@ class Submitter:
                 dbcfg.run_id,
                 self.context_name,
                 self.xedocs_version,
-                chunks_list[job_i][0],
-                chunks_list[job_i][1],
+                level["chunks"][job_i][0],
+                level["chunks"][job_i][1],
                 f"{self.rucio_upload}".lower(),
                 f"{self.rundb_update}".lower(),
                 f"{self.ignore_processed}".lower(),
@@ -798,7 +769,11 @@ class Submitter:
 
             for detector in dbcfg.detectors:
                 # Check if this run_id needs to be processed
-                if not list(chain.from_iterable(dbcfg.data_types[detector].values())):
+                if not list(
+                    chain.from_iterable(
+                        v["data_types"] for v in dbcfg.data_types[detector].values()
+                    )
+                ):
                     self.logger.debug(
                         f"Run {dbcfg._run_id} detector {detector} is already processed with "
                         f"context {self.context_name} xedocs_version {self.xedocs_version}."
@@ -807,8 +782,8 @@ class Submitter:
 
                 # Get data_types to process
                 combine_tar = None
-                for group, (label, data_types) in enumerate(dbcfg.data_types[detector].items()):
-                    if not data_types.not_processed:
+                for group, (label, level) in enumerate(dbcfg.data_types[detector].items()):
+                    if not level["data_types"].not_processed:
                         self.logger.debug(
                             f"Run {dbcfg._run_id} group {label} is already processed with "
                             f"context {self.context_name} xedocs_version {self.xedocs_version}."
@@ -817,11 +792,11 @@ class Submitter:
                     # Check that raw data exist for this run_id
                     if group == 0:
                         # There will be at most one in data_types
-                        data_type = dbcfg.depends_on(data_types.only_data_type)
+                        data_type = dbcfg.depends_on(level["data_types"].only_data_type)
                         if not dbcfg.dependency_exists(data_type=data_type):
                             raise RuntimeError(
                                 "Unable to find the raw data for "
-                                f"{dbcfg.key_for(data_types.only_data_type)}."
+                                f"{dbcfg.key_for(level['data_types'].only_data_type)}."
                             )
 
                     runlist |= {dbcfg.run_id}
@@ -829,7 +804,7 @@ class Submitter:
                     args = (
                         workflow,
                         label,
-                        data_types,
+                        level,
                         dbcfg,
                         installsh,
                         processpy,

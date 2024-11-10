@@ -29,16 +29,81 @@ DETECTOR_DATA_TYPES = {
             "afterpulses",
             "led_calibration",
         ],
+        "rate": {
+            "peaklets": 0.02,
+            "lone_hits": 0.10,
+            "merged_s2s": 0.01,
+            "peaks": 0.01,
+            "events": 0.001,
+            "led_cal": None,
+            "afterpulses": None,
+        },
+        "compression": {
+            "peaklets": 0.25,
+            "lone_hits": 0.35,
+            "merged_s2s": 0.25,
+            "peaks": 0.75,
+            "events": 0.60,
+            "led_cal": None,
+            "afterpulses": None,
+        },
+        "memory": {
+            "lower": [5.5, 1.0e3],
+            "combine": [0.0, 2.0e3],
+            "upper": [0.075, 3.5e3],
+        },
+        "redundancy": {
+            "disk": 1.05,
+            "memory": 1.05,
+        },
     },
     "neutron_veto": {
         "raw": "raw_records_nv",
         "per_chunk": True,
-        "possible": ["hitlets_nv", "events_nv", "ref_mon_nv"],
+        "possible": ["hitlets_nv", "events_nv"],
+        "rate": {
+            "lone_raw_record_statistics_nv": 0,
+            "raw_records_coin_nv": 0.10,
+            "hitlets_nv": 0.10,
+            "events_nv": 0.0003,
+        },
+        "compression": {
+            "lone_raw_record_statistics_nv": 0,
+            "raw_records_coin_nv": 0.35,
+            "hitlets_nv": 0.70,
+            "events_nv": 0.15,
+        },
+        "memory": {
+            "lower": [0.05, 7.0e3],
+            "combine": [0.0, 2.0e3],
+            "upper": [0.0, 4.0e3],
+        },
+        "redundancy": {
+            "disk": 1.05,
+            "memory": 1.05,
+        },
     },
     "muon_veto": {
         "raw": "raw_records_mv",
         "per_chunk": False,
         "possible": ["events_mv"],
+        "rate": {
+            "hitlets_mv": 0.30,
+            "events_mv": 0.003,
+        },
+        "compression": {
+            "hitlets_mv": 0.70,
+            "events_mv": 0.003,
+        },
+        "memory": {
+            "lower": [4.0, 1.0e3],
+            "combine": [0.0, 2.0e3],
+            "upper": [0.0, 4.0e3],
+        },
+        "redundancy": {
+            "disk": 1.05,
+            "memory": 1.05,
+        },
     },
 }
 

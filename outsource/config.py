@@ -1,5 +1,7 @@
 import time
 from itertools import chain
+from typing import Dict, Any
+import numpy as np
 from utilix import DB, uconfig, xent_collection
 import admix
 
@@ -10,6 +12,16 @@ from outsource.utils import (
     per_chunk_storage_root_data_type,
 )
 
+
+LOWER_DISK = uconfig.getint("Outsource", "lower_disk", fallback=None)
+LOWER_MEMORY = uconfig.getint("Outsource", "lower_memory", fallback=None)
+COMBINE_DISK = uconfig.getint("Outsource", "combine_disk", fallback=None)
+COMBINE_MEMORY = uconfig.getint("Outsource", "combine_memory", fallback=None)
+UPPER_DISK = uconfig.getint("Outsource", "upper_disk", fallback=None)
+UPPER_MEMORY = uconfig.getint("Outsource", "upper_memory", fallback=None)
+LOWER_CPUS = uconfig.getint("Outsource", "lower_cpus", fallback=1)
+COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
+UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
 
 db = DB()
 coll = xent_collection()
@@ -56,7 +68,7 @@ class RunConfig:
         "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
     }
 
-    chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=10)
+    chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=None)
 
     def __init__(self, context, run_id, ignore_processed=False, standalone_download=False):
         self.context = context
@@ -83,6 +95,9 @@ class RunConfig:
         # Get the data_type that need to be processed
         # and determine which rse the input data is on
         self.data_types = self.deduce_data_types()
+
+        # Get the resources needed for each job
+        self.resources_assignment()
 
     @property
     def _run_id(self):
@@ -153,8 +168,7 @@ class RunConfig:
             if not data_types:
                 # If nothing to process
                 for label in data_types_group_labels:
-                    ret[detector][label] = dict()
-                    ret[detector]["submitted"] = []
+                    ret[detector][label] = {"data_types": DataTypes()}
                 continue
             per_chunk_data_types = set(PER_CHUNK_DATA_TYPES) & set(possible_data_types)
             # Modify the data_types based on the mode again
@@ -180,42 +194,220 @@ class RunConfig:
             for group, (label, data_types_group) in enumerate(
                 zip(data_types_group_labels, data_types_groups)
             ):
-                ret[detector][label] = DataTypes()
+                ret[detector][label] = {"data_types": DataTypes()}
                 for data_type in data_types_group:
-                    ret[detector][label][data_type] = {"missing": [], "processed": [], "rses": []}
+                    ret[detector][label]["data_types"][data_type] = {
+                        "missing": [],
+                        "processed": [],
+                        "rses": [],
+                    }
                     # Expand the data_type to data_types that need to be saved
                     _data_types = get_to_save_data_types(self.context, data_type, rm_lower=group)
                     # Get Rucio Storage Elements of data_type that needed to be processed.
-                    input_data_type = self.depends_on(data_type)
-                    hash = self.key_for(input_data_type).lineage_hash
-                    ret[detector][label][data_type]["rses"] = list(
-                        set(db.get_rses(self.run_id, input_data_type, hash))
+                    depends_on = self.depends_on(data_type)
+                    hash = self.key_for(depends_on).lineage_hash
+                    ret[detector][label]["data_types"][data_type]["depends_on"] = depends_on
+                    ret[detector][label]["data_types"][data_type]["rses"] = list(
+                        set(db.get_rses(self.run_id, depends_on, hash))
                     )
                     if self.ignore_processed:
-                        ret[detector][label][data_type]["missing"] += list(_data_types)
+                        ret[detector][label]["data_types"][data_type]["missing"] += list(
+                            _data_types
+                        )
                         continue
                     for _data_type in _data_types:
                         hash = self.key_for(_data_type).lineage_hash
                         rses = db.get_rses(self.run_id, _data_type, hash)
                         # If this data is not on any rse, reprocess it, or we are asking for a rerun
                         if rses:
-                            ret[detector][label][data_type]["missing"].append(_data_type)
+                            ret[detector][label]["data_types"][data_type]["missing"].append(
+                                _data_type
+                            )
                         else:
-                            ret[detector][label][data_type]["processed"].append(_data_type)
+                            ret[detector][label]["data_types"][data_type]["processed"].append(
+                                _data_type
+                            )
 
-                ret[detector][label] = DataTypes(
+                ret[detector][label]["data_types"] = DataTypes(
                     sorted(
-                        ret[detector][label].items(),
+                        ret[detector][label]["data_types"].items(),
                         key=lambda item: self.context.tree_levels[item[0]]["order"],
                     )
                 )
             # Summarize the submitted data_types for a detector
             ret["submitted"] += list(
-                set().union(*[v.not_processed for v in ret[detector].values()])
+                set().union(*[v["data_types"].not_processed for v in ret[detector].values()])
             )
             if len(ret["submitted"]) != len(set(ret["submitted"])):
                 raise ValueError("Why are there duplicated data_types in different detectors?")
         return ret
+
+    def resources_assignment(self):
+        """Adaptively assign resources based on the size of data."""
+        data_kind_collection, data_type_collection = self.context.get_data_kinds()
+        for detector in self.detectors:
+            _detector: Dict[str, Any] = DETECTOR_DATA_TYPES[detector]
+            depends_on = set(
+                chain.from_iterable(
+                    [
+                        v["depends_on"]
+                        for v in self.data_types[detector][f"{_level}_{detector}"][
+                            "data_types"
+                        ].values()
+                    ]
+                    for _level in ["lower", "upper"]
+                )
+            )
+            if not depends_on:
+                continue
+
+            # Meta data of the dependency
+            depends_on &= self.context.root_data_types
+            if len(depends_on) != 1:
+                raise ValueError("Why is there no or more than one dependency deduced?")
+            depends_on = list(depends_on)[0]
+            data = self.dependency_exists(depends_on)
+
+            # Number of items of the dependency
+            files = self.list_files(depends_on, verbose=True)
+            compressed_sizes = (
+                np.array([f["bytes"] for f in files if "metadata" not in f["name"]]) / 1e6
+            )
+            compression_ratio = sum(compressed_sizes) / data["meta"]["size_mb"]
+            actual_sizes = compressed_sizes / compression_ratio
+            n_depends_on = actual_sizes * 1e6 / self.context.data_itemsize(depends_on)
+
+            # Which data_types will be saved and their itemsizes
+            missing_data_types = dict()
+            itemsizes = dict()
+            for _level in ["lower", "upper"]:
+                missing_data_types[_level] = set(
+                    chain.from_iterable(
+                        v["missing"]
+                        for v in self.data_types[detector][f"{_level}_{detector}"][
+                            "data_types"
+                        ].values()
+                    )
+                )
+                itemsizes[_level] = np.array(
+                    [
+                        self.context.data_itemsize(data_type)
+                        for data_type in missing_data_types[_level]
+                    ]
+                )
+
+            # Calculate the disk usage ratio in MB
+            # For one item in the dependency, how much disk space is needed in MB
+            ratios = dict()
+            for _level in ["lower", "upper"]:
+                ratios[_level] = []
+                for data_type in missing_data_types[_level]:
+                    data_kind = data_type_collection[data_type]
+                    ratios[_level].append(
+                        _detector["rate"].get(data_kind, 0)
+                        * _detector["compression"].get(data_kind, 0)
+                    )
+                ratios[_level] = np.array(ratios[_level])
+            # The lower level disk usage
+            disk_ratio = dict()
+            if self.data_types[detector][f"lower_{detector}"]["data_types"]:
+                disk_ratio["lower"] = (itemsizes["lower"] * ratios["lower"]).sum()
+                disk_ratio["lower"] += self.context.data_itemsize(depends_on) * compression_ratio
+                disk_ratio["upper"] = 0
+            else:
+                disk_ratio["lower"] = 0
+                disk_ratio["upper"] = self.context.data_itemsize(depends_on) * compression_ratio
+            # The upper level also needs to consider the disk usage of the lower level
+            disk_ratio["upper"] += (itemsizes["lower"] * ratios["lower"]).sum()
+            disk_ratio["upper"] += (itemsizes["upper"] * ratios["upper"]).sum()
+            # The combine level disk usage is just twice of the lower level w/o raw_records*
+            disk_ratio["combine"] = 2 * (itemsizes["lower"] * ratios["lower"]).sum()
+            for k in disk_ratio:
+                disk_ratio[k] /= 1e6
+
+            # Assign chunks to be calculated in lower jobs
+            n_chunks = len(compressed_sizes)
+            if self.chunks_per_job is None:
+                # If chunks_per_job is not set, assign chunks based on disk usage
+                rough_disk = uconfig.getint("Outsource", "rough_disk")
+                chunks_list = []
+                _chunk_i = 0
+                for chunk_i in range(1, n_chunks + 1):
+                    # We are aggressive here to use more than
+                    # rough_disk assigned because storage is cheap
+                    if (
+                        n_depends_on[_chunk_i:chunk_i].sum() * disk_ratio["lower"] > rough_disk
+                        or chunk_i == n_chunks
+                    ):
+                        chunks_list.append([_chunk_i, chunk_i])
+                        _chunk_i = chunk_i
+            else:
+                # If chunks_per_job is set, assign chunks based on chunks_per_job
+                njobs = int(np.ceil(n_chunks / self.chunks_per_job))
+                chunks_list = []
+                for job_i in range(njobs):
+                    chunks = list(range(n_chunks))[
+                        self.chunks_per_job * job_i : self.chunks_per_job * (job_i + 1)
+                    ]
+                    chunks_list.append([chunks[0], chunks[-1] + 1])
+
+            # Calculate the disk and memory requirement in MB
+            self.data_types[detector][f"lower_{detector}"]["chunks"] = chunks_list
+
+            self.data_types[detector][f"lower_{detector}"]["cores"] = LOWER_CPUS
+            self.data_types[detector][f"lower_{detector}"]["combine_cores"] = COMBINE_CPUS
+            self.data_types[detector][f"upper_{detector}"]["cores"] = UPPER_CPUS
+
+            if LOWER_DISK is not None:
+                self.data_types[detector][f"lower_{detector}"]["disk"] = np.full(
+                    len(chunks_list), LOWER_DISK, dtype=float
+                )
+            else:
+                self.data_types[detector][f"lower_{detector}"]["disk"] = np.array(
+                    [n_depends_on[c[0] : c[-1]].sum() * disk_ratio["lower"] for c in chunks_list]
+                )
+            if LOWER_MEMORY is not None:
+                self.data_types[detector][f"lower_{detector}"]["memory"] = np.full(
+                    len(chunks_list), LOWER_MEMORY, dtype=float
+                )
+            else:
+                self.data_types[detector][f"lower_{detector}"]["memory"] = np.polyval(
+                    _detector["memory"]["lower"],
+                    [actual_sizes[c[0] : c[-1]].max() for c in chunks_list],
+                )
+            if UPPER_DISK is not None:
+                self.data_types[detector][f"upper_{detector}"]["disk"] = UPPER_DISK
+            else:
+                self.data_types[detector][f"upper_{detector}"]["disk"] = (
+                    n_depends_on.sum() * disk_ratio["upper"]
+                )
+            if UPPER_MEMORY is not None:
+                self.data_types[detector][f"upper_{detector}"]["memory"] = UPPER_MEMORY
+            else:
+                self.data_types[detector][f"upper_{detector}"]["memory"] = np.polyval(
+                    _detector["memory"]["upper"], actual_sizes.sum()
+                )
+            if COMBINE_DISK is not None:
+                self.data_types[detector][f"lower_{detector}"]["combine_disk"] = COMBINE_DISK
+            else:
+                self.data_types[detector][f"lower_{detector}"]["combine_disk"] = (
+                    n_depends_on.sum() * disk_ratio["combine"]
+                )
+            if COMBINE_MEMORY is not None:
+                self.data_types[detector][f"lower_{detector}"]["combine_memory"] = COMBINE_MEMORY
+            else:
+                self.data_types[detector][f"lower_{detector}"]["combine_memory"] = np.polyval(
+                    _detector["memory"]["combine"], actual_sizes.sum()
+                )
+            for md in ["disk", "memory"]:
+                for label in self.data_types[detector]:
+                    for prefix in ["", "combine_"]:
+                        if prefix + md not in self.data_types[detector][label]:
+                            continue
+                        self.data_types[detector][label][prefix + md] *= _detector["redundancy"][md]
+                        self.data_types[detector][label][prefix + md] = self.data_types[detector][
+                            label
+                        ][prefix + md].tolist()
 
     def dependency_exists(self, data_type="raw_records"):
         """Returns a boolean for whether the dependency exists in rucio and is accessible.
@@ -232,15 +424,18 @@ class RunConfig:
                 and data["location"] in uconfig.getlist("Outsource", "raw_records_rse")
                 and "TAPE" not in data["location"]
             ):
-                return True
+                return data
         return False
+
+    def list_files(self, data_type, verbose=False):
+        hash = self.key_for(data_type).lineage_hash
+        did = f"xnt_{self._run_id}:{data_type}-{hash}"
+        files = admix.rucio.list_files(did, verbose=verbose)
+        return files
 
     def nchunks(self, data_type):
         # Get the data_type this one depends on
-        data_type = self.depends_on(data_type)
-        hash = self.key_for(data_type).lineage_hash
-        did = f"xnt_{self._run_id}:{data_type}-{hash}"
-        files = admix.rucio.list_files(did)
+        files = self.list_files(self.depends_on(data_type))
         # Subtract 1 for metadata
         return len(files) - 1
 

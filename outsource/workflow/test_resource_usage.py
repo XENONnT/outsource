@@ -5,12 +5,17 @@ import json
 import time
 import numpy as np
 from memory_profiler import memory_usage
+
+from utilix import uconfig
+from utilix.config import setup_logger
 import outsource
 from outsource.workflow.process import main as process_main
 from outsource.workflow.process import get_chunk_number, process
 from outsource.workflow.combine import main as combine_main
 from outsource.workflow.combine import merge
 
+
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("run_id", type=int)
@@ -60,10 +65,11 @@ else:
     outsource.workflow.process.process = wrapper(outsource.workflow.process.process)
     mem = memory_usage(proc=process_main, interval=0.1, timestamps=True)
     prefix = "process"
+mem = np.array(mem)
 
 
 def get_sizes(directory):
-    sizes = {}
+    sizes = dict()
     for dirpath, dirnames, filenames in os.walk(os.path.abspath(directory), followlinks=False):
         dirpath = os.path.abspath(dirpath)
         for filename in filenames:
@@ -85,7 +91,9 @@ def get_sizes(directory):
 storage_usage = get_sizes("./")
 
 if time_usage:
-    np.save(f"{args.run_id:06d}_{prefix}_memory_usage_{suffix}.npy", np.array(mem))
+    logger.info(f"Max memory usage: {mem[:, 0].max():.1f} MB")
+    logger.info(f"Max storage usage: {storage_usage[os.path.abspath('./')] / 1e6:.1f} MB")
+    np.save(f"{args.run_id:06d}_{prefix}_memory_usage_{suffix}.npy", mem)
     with open(f"{args.run_id:06d}_{prefix}_time_usage_{suffix}.json", mode="w") as f:
         f.write(json.dumps(time_usage, indent=4))
     with open(f"{args.run_id:06d}_{prefix}_storage_usage_{suffix}.json", mode="w") as f:
