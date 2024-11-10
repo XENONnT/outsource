@@ -114,6 +114,7 @@ class Submitter:
         rundb_update=True,
         ignore_processed=False,
         local_transfer=False,
+        resources_test=False,
         stage_out_lower=False,
         debug=True,
     ):
@@ -157,6 +158,7 @@ class Submitter:
         if not self.rucio_upload and self.rundb_update:
             raise RuntimeError("Rucio upload must be enabled when updating the RunDB.")
         self.local_transfer = local_transfer
+        self.resources_test = resources_test
         self.stage_out_lower = stage_out_lower
         self.debug = debug
 
@@ -750,9 +752,19 @@ class Submitter:
 
         # scripts some exectuables might need
         processpy = File("process.py")
-        rc.add_replica("local", "process.py", f"file://{base_dir}/workflow/process.py")
+        if self.resources_test:
+            rc.add_replica(
+                "local", "process.py", f"file://{base_dir}/workflow/test_resource_usage.py"
+            )
+        else:
+            rc.add_replica("local", "process.py", f"file://{base_dir}/workflow/process.py")
         combinepy = File("combine.py")
-        rc.add_replica("local", "combine.py", f"file://{base_dir}/workflow/combine.py")
+        if self.resources_test:
+            rc.add_replica(
+                "local", "combine.py", f"file://{base_dir}/workflow/test_resource_usage.py"
+            )
+        else:
+            rc.add_replica("local", "combine.py", f"file://{base_dir}/workflow/combine.py")
 
         # script to install packages
         installsh = File("install.sh")
