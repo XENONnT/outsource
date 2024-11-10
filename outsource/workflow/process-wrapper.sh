@@ -123,8 +123,8 @@ time python3 process.py $run_id --context $context --xedocs_version $xedocs_vers
 echo "Moving auxiliary files to output directory"
 mv *.npy $output_path
 mv *.json $output_path
-mv $input_path/*.npy $output_path
-mv $input_path/*.json $output_path
+[ -e $input_path/*.npy ] && mv $input_path/*.npy $output_path
+[ -e $input_path/*.json ] && mv $input_path/*.json $output_path
 
 echo "Removing inputs directory:"
 rm -r $input_path
