@@ -185,6 +185,7 @@ optional arguments:
   --rundb_update        Update RunDB after processing
   --local_transfer      Transfer data to local after processing
   --keep_dbtoken        Do not renew .dbtoken
+  --resources_test      Whether to test the resources(memory, time, storage) usage of each job
   --stage_out_lower     Whether to stage out the results of lower level processing
 ```
 
