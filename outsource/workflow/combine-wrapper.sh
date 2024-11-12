@@ -82,8 +82,10 @@ echo "Combining:"
 time python3 combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path $chunksarg $extraflags
 
 echo "Moving auxiliary files to output directory"
-[ -e *.npy ] && mv *.npy $output_path
-[ -e *.json ] && mv *.json $output_path
+if ls $input_path/*.npy >/dev/null 2>&1; then mv $input_path/*.npy $output_path; fi
+if ls $input_path/*.json >/dev/null 2>&1; then mv $input_path/*.json $output_path; fi
+if ls *.npy >/dev/null 2>&1; then mv *.npy $output_path; fi
+if ls *.json >/dev/null 2>&1; then mv *.json $output_path; fi
 
 echo "Removing inputs directory:"
 rm -r $input_path
