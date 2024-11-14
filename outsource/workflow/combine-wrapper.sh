@@ -65,10 +65,10 @@ echo
 run_id_pad=`printf %06d $run_id`
 
 # The rest of the arguments are the inputs
-for TAR in $(ls $run_id_pad*-output*.tar.gz)
+for tarball in $(ls $run_id_pad*-output*.tar.gz)
 do
-    tar -xzf $TAR -C $input_path --strip-components=1
-    rm $TAR
+    tar -xzf $tarball -C $input_path --strip-components=1
+    rm $tarball
 done
 
 echo "What is in the input directory:"
@@ -98,7 +98,8 @@ echo "Total amount of data before tarballing: "`du -s --si $output_path | cut -f
 echo
 
 echo "We are tarballing the output directory and removing it:"
-tar czfv $tar_filename $output_path --remove-files
+tar czfv $tar_filename $output_path
+# tar czfv $tar_filename $output_path --remove-files
 
 echo
 echo "Job is done. Here is the contents of the directory now:"

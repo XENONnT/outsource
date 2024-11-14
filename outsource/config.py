@@ -308,20 +308,21 @@ class RunConfig:
                         * _detector["compression"].get(data_kind, 0)
                     )
                 ratios[_level] = np.array(ratios[_level])
+            # coefficients = [1, 1, 1, 2]  # if we remove tarred folder while tarring
+            coefficients = [2, 0.5, 2, 1.5]  # if we do not remove tarred folder while tarring
             # The lower level disk usage
             disk_ratio = dict()
-            if self.data_types[detector][f"lower_{detector}"]["data_types"]:
-                disk_ratio["lower"] = (itemsizes["lower"] * ratios["lower"]).sum()
-                disk_ratio["lower"] += self.context.data_itemsize(depends_on) * compression_ratio
-                disk_ratio["upper"] = 0
-            else:
-                disk_ratio["lower"] = 0
-                disk_ratio["upper"] = self.context.data_itemsize(depends_on) * compression_ratio
+            disk_ratio["lower"] = coefficients[0] * (itemsizes["lower"] * ratios["lower"]).sum()
             # The upper level also needs to consider the disk usage of the lower level
-            disk_ratio["upper"] += (itemsizes["lower"] * ratios["lower"]).sum()
-            disk_ratio["upper"] += (itemsizes["upper"] * ratios["upper"]).sum()
-            # The combine level disk usage is just twice of the lower level w/o raw_records*
-            disk_ratio["combine"] = 2 * (itemsizes["lower"] * ratios["lower"]).sum()
+            disk_ratio["upper"] = coefficients[1] * disk_ratio["lower"]
+            disk_ratio["upper"] += coefficients[2] * (itemsizes["upper"] * ratios["upper"]).sum()
+            # The combine level disk usage is replica of the lower level w/o raw_records*
+            disk_ratio["combine"] = coefficients[3] * (itemsizes["lower"] * ratios["lower"]).sum()
+            # The raw_records* disk usage is calculated in the last
+            if self.data_types[detector][f"lower_{detector}"]["data_types"]:
+                disk_ratio["lower"] += self.context.data_itemsize(depends_on) * compression_ratio
+            else:
+                disk_ratio["upper"] += self.context.data_itemsize(depends_on) * compression_ratio
             for k in disk_ratio:
                 disk_ratio[k] /= 1e6
 
