@@ -32,7 +32,6 @@ def process(st, run_id, data_type, chunks):
         run_id,
         data_type,
         chunk_number=get_chunk_number(st, run_id, data_type, chunks),
-        processor="single_thread",
     )
     gc.collect()
 

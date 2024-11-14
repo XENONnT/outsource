@@ -88,7 +88,7 @@ echo "Checking if we have any downloaded input tarballs:"
 if [ "X$standalone_download" = "Xno-download" ]; then
     for tarball in $(ls $run_id_pad*-download*.tar.gz)
     do
-        echo "Untarr downloaded input : $tarball:"
+        echo "Untar downloaded input : $tarball:"
         tar -xzf $tarball -C $input_path --strip-components=1
         rm $tarball
     done
@@ -99,7 +99,7 @@ echo
 echo "Checking if we have any processed input tarballs:"
 for tarball in $(ls $run_id_pad*-output*.tar.gz)
 do
-    echo "Untarr input: $tarball:"
+    echo "Untar input: $tarball:"
     tar -xzf $tarball -C $input_path --strip-components=1
     rm $tarball
 done
@@ -137,7 +137,8 @@ echo "Total amount of data before tarballing: "`du -s --si $output_path | cut -f
 echo
 
 echo "We are tarballing the output directory and removing it:"
-tar czfv $tar_filename $output_path --remove-files
+tar czfv $tar_filename $output_path
+# tar czfv $tar_filename $output_path --remove-files
 
 echo
 echo "Job is done. Here is the contents of the directory now:"
