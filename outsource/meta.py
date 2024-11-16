@@ -22,7 +22,7 @@ DETECTOR_DATA_TYPES = {
             "veto_proximity",
             "event_ambience",
             "event_shadow",
-            "event_se_density",
+            "event_se_score",
             "cuts_basic",
             "peak_s1_positions_cnn",
             "peak_basics_he",
