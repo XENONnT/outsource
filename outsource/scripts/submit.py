@@ -73,12 +73,6 @@ def main():
         help="Update RunDB after processing",
     )
     parser.add_argument(
-        "--local_transfer",
-        dest="local_transfer",
-        action="store_true",
-        help="Transfer data to local after processing",
-    )
-    parser.add_argument(
         "--keep_dbtoken",
         dest="keep_dbtoken",
         action="store_true",
@@ -95,6 +89,18 @@ def main():
         dest="stage_out_lower",
         action="store_true",
         help="Whether to stage out the results of lower level processing",
+    )
+    parser.add_argument(
+        "--stage_out_combine",
+        dest="stage_out_combine",
+        action="store_true",
+        help="Whether to stage out the results of combine jobs",
+    )
+    parser.add_argument(
+        "--stage_out_upper",
+        dest="stage_out_upper",
+        action="store_true",
+        help="Whether to stage out the results of upper level processing",
     )
     args = parser.parse_args()
 
@@ -153,9 +159,10 @@ def main():
         rucio_upload=args.rucio_upload,
         rundb_update=args.rundb_update,
         ignore_processed=args.ignore_processed,
-        local_transfer=args.local_transfer,
         resources_test=args.resources_test,
         stage_out_lower=args.stage_out_lower,
+        stage_out_combine=args.stage_out_combine,
+        stage_out_upper=args.stage_out_upper,
         debug=args.debug,
     )
 
