@@ -76,13 +76,14 @@ class Submitter:
         xedocs_version,
         image,
         workflow_id=None,
-        rucio_upload=True,
-        rundb_update=True,
+        rucio_upload=False,
+        rundb_update=False,
         ignore_processed=False,
-        local_transfer=False,
         resources_test=False,
         stage_out_lower=False,
-        debug=True,
+        stage_out_combine=False,
+        stage_out_upper=False,
+        debug=False,
     ):
         self.logger = setup_logger(
             "outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING")
@@ -123,9 +124,11 @@ class Submitter:
         self.rundb_update = rundb_update
         if not self.rucio_upload and self.rundb_update:
             raise RuntimeError("Rucio upload must be enabled when updating the RunDB.")
-        self.local_transfer = local_transfer
         self.resources_test = resources_test
         self.stage_out_lower = stage_out_lower
+        self.stage_out_combine = stage_out_combine
+        self.stage_out_upper = stage_out_upper
+        self.local_transfer = self.stage_out_lower | self.stage_out_combine | self.stage_out_upper
         self.debug = debug
 
         # Load from XENON_CONFIG
@@ -533,13 +536,13 @@ class Submitter:
         )
 
         job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-        job.add_outputs(job_tar, stage_out=not self.rucio_upload)
+        job.add_outputs(job_tar, stage_out=self.stage_out_upper)
         job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
 
         # If there are multiple levels to the workflow, need to
         # have current process-wrapper.sh depend on previous combine-wrapper.sh
 
-        if self.local_transfer:
+        if self.stage_out_upper:
             untar_job = self._job("untar", run_on_submit_node=True)
             untar_job.add_inputs(job_tar)
             untar_job.add_args(job_tar, self.outputs_dir)
@@ -591,7 +594,7 @@ class Submitter:
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
         combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
-        combine_job.add_outputs(combine_tar, stage_out=not self.rucio_upload)
+        combine_job.add_outputs(combine_tar, stage_out=self.stage_out_combine)
         combine_job.set_stdout(File(f"{combine_tar}.log"), stage_out=True)
         combine_job.add_args(
             dbcfg.run_id,
@@ -603,7 +606,7 @@ class Submitter:
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         )
 
-        if self.local_transfer:
+        if self.stage_out_combine:
             untar_job = self._job("untar", run_on_submit_node=True)
             untar_job.add_inputs(combine_tar)
             untar_job.add_args(combine_tar, self.outputs_dir)

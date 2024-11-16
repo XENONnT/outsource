@@ -187,21 +187,21 @@ def get_runlist(
     if not runlist_basic:
         raise ValueError("Nothing was found in RunDB for even the most basic requirement.")
 
-    runlist_basic_has_raw = [r["number"] for r in cursor_basic_has_raw]
+    runlist_basic_has_raw = sorted(r["number"] for r in cursor_basic_has_raw)
     logger.info(
         "The following are the run_ids passing the basic queries and "
         f"have raw data available: {runlist_basic_has_raw}"
     )
-    runlist_basic_to_save = [r["number"] for r in cursor_basic_to_save]
+    runlist_basic_to_save = sorted(r["number"] for r in cursor_basic_to_save)
     logger.info(
         "The following are the run_ids passing the basic queries and "
         f"have to be processed: {runlist_basic_to_save}"
     )
 
     if ignore_processed:
-        runlist = list(set(runlist_basic_has_raw))
+        runlist = sorted(set(runlist_basic_has_raw))
     else:
-        runlist = list(set(runlist_basic_to_save) & set(runlist_basic_has_raw))
+        runlist = sorted(set(runlist_basic_to_save) & set(runlist_basic_has_raw))
 
     return runlist
 
