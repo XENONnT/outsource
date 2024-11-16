@@ -155,8 +155,9 @@ After installation and setting up the environment, it is time to submit jobs. Th
 [whoami@ap23 ~]$ outsource --help
 usage: Outsource [-h] --context CONTEXT --xedocs_version XEDOCS_VERSION [--image IMAGE]
                  [--detector {all,tpc,muon_veto,neutron_veto}] [--workflow_id WORKFLOW_ID] [--ignore_processed] [--debug]
-                 [--from NUMBER_FROM] [--to NUMBER_TO] [--run [RUN ...]] [--runlist RUNLIST] [--rucio_upload] [--rundb_update]
-                 [--local_transfer] [--keep_dbtoken] [--stage_out_lower]
+                 [--from NUMBER_FROM] [--to NUMBER_TO] [--run [RUN ...]] [--runlist RUNLIST] [--rucio_upload]
+                 [--rundb_update] [--keep_dbtoken] [--resources_test] [--stage_out_lower] [--stage_out_combine]
+                 [--stage_out_upper]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -166,22 +167,24 @@ optional arguments:
   --image IMAGE         Singularity image. Accepts either a full path or a single name and assumes a format like this:
                         /cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:{image}
   --detector {all,tpc,muon_veto,neutron_veto}
-                        Detector to focus on. If 'all' (default) will consider all three detectors. Otherwise pass a single one of
-                        'tpc', 'neutron_veto', 'muon_veto'. Pairs of detectors not yet supported.
+                        Detector to focus on. If 'all' (default) will consider all three detectors. Otherwise pass a
+                        single one of 'tpc', 'neutron_veto', 'muon_veto'. Pairs of detectors not yet supported.
   --workflow_id WORKFLOW_ID
                         Custom workflow_id of workflow. If not passed, inferred from today's date.
   --ignore_processed    Ignore runs that have already been processed
-  --debug               Debug mode. Does not automatically submit the workflow, and jobs do not update RunDB nor upload to rucio.
+  --debug               Debug mode. Does not automatically submit the workflow, and jobs do not update RunDB nor upload
+                        to rucio.
   --from NUMBER_FROM    Run number to start with
   --to NUMBER_TO        Run number to end with
   --run [RUN ...]       Space separated specific run_id(s) to process
   --runlist RUNLIST     Path to a runlist file
   --rucio_upload        Upload data to rucio after processing
   --rundb_update        Update RunDB after processing
-  --local_transfer      Transfer data to local after processing
   --keep_dbtoken        Do not renew .dbtoken
   --resources_test      Whether to test the resources(memory, time, storage) usage of each job
   --stage_out_lower     Whether to stage out the results of lower level processing
+  --stage_out_combine   Whether to stage out the results of combine jobs
+  --stage_out_upper     Whether to stage out the results of upper level processing
 ```
 
 This script requires at minimum the name of context (which must reside in the cutax version installed in the environment you are in). If no other arguments are passed, this script will try to find all data that can be processed, and process it. Some inputs from the configuration file at environmental variable `XENON_CONFIG` are also used, specifically:
