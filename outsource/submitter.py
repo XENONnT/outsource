@@ -463,15 +463,8 @@ class Submitter:
                     f"{rses} and the specified raw_records_rses {raw_records_rses}"
                 )
 
-        sites_expression, desired_sites = dbcfg._determine_target_sites(rses)
-        self.logger.debug(f"Site expression from RSEs list: {sites_expression}")
-        self.logger.debug(
-            "XENON_DESIRED_Sites from RSEs list "
-            f"(mostly used for European sites): {desired_sites}"
-        )
-
-        requirements, requirements_us = dbcfg.get_requirements(rses)
-        return desired_sites, requirements, requirements_us
+        desired_sites, requirements = dbcfg.get_requirements(rses)
+        return desired_sites, requirements
 
     def add_higher_processing_job(
         self,
@@ -494,9 +487,7 @@ class Submitter:
                 f"Hopefully those will be created by the workflow."
             )
 
-        desired_sites, requirements, requirements_us = self.get_rse_sites(
-            dbcfg, rses, per_chunk=False
-        )
+        desired_sites, requirements = self.get_rse_sites(dbcfg, rses, per_chunk=False)
 
         # High level data.. we do it all on one job
         # output files
@@ -575,9 +566,7 @@ class Submitter:
         if len(rses) == 0:
             raise RuntimeError(f"No data found as the dependency of {dbcfg.key_for(data_type)}.")
 
-        desired_sites, requirements, requirements_us = self.get_rse_sites(
-            dbcfg, rses, per_chunk=True
-        )
+        desired_sites, requirements = self.get_rse_sites(dbcfg, rses, per_chunk=True)
 
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
@@ -588,8 +577,20 @@ class Submitter:
             memory=level["combine_memory"],
             disk=level["combine_disk"],
         )
-        # combine jobs must happen in the US
-        combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_us)
+        if desired_sites:
+            # Give a hint to glideinWMS for the sites we want
+            # (mostly useful for XENON VO in Europe).
+            # Glideinwms is the provisioning system.
+            # It starts pilot jobs (glideins) at sites when you
+            # have idle jobs in the queue.
+            # Most of the jobs you run to the OSPool (Open Science Pool),
+            # but you do have a few sites where you have allocations at,
+            # and those are labeled XENON VO (Virtual Organization).
+            # The "+" has to be used by non-standard HTCondor attributes.
+            # The attribute has to have double quotes,
+            # otherwise HTCondor will try to evaluate it as an expression.
+            combine_job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
+        combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
         # priority is given in the order they were submitted
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
@@ -628,6 +629,10 @@ class Submitter:
                     memory=level["memory"][job_i],
                     disk=level["disk"][job_i],
                 )
+                if desired_sites:
+                    download_job.add_profiles(
+                        Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"'
+                    )
                 download_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
                 download_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
                 download_job.add_args(
@@ -659,17 +664,6 @@ class Submitter:
                 disk=level["disk"][job_i],
             )
             if desired_sites:
-                # Give a hint to glideinWMS for the sites we want
-                # (mostly useful for XENON VO in Europe).
-                # Glideinwms is the provisioning system.
-                # It starts pilot jobs (glideins) at sites when you
-                # have idle jobs in the queue.
-                # Most of the jobs you run to the OSPool (Open Science Pool),
-                # but you do have a few sites where you have allocations at,
-                # and those are labeled XENON VO (Virtual Organization).
-                # The "+" has to be used by non-standard HTCondor attributes.
-                # The attribute has to have double quotes,
-                # otherwise HTCondor will try to evaluate it as an expression.
                 job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
             job.add_profiles(Namespace.CONDOR, "requirements", requirements)
             job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
