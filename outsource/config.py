@@ -51,19 +51,19 @@ class RunConfig:
     """
 
     # Data availability to site selection map.
-    # desired_sites mean condor will try to run the job on those sites
+    # site mean condor will try to run the job on those sites
     rse_site_map = {
         "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
         "UC_DALI_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
         "UC_MIDWAY_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
-        "CCIN2P3_USERDISK": {"desired_sites": "CCIN2P3", "expr": 'GLIDEIN_Site == "CCIN2P3"'},
+        "CCIN2P3_USERDISK": {"site": "CCIN2P3", "expr": 'GLIDEIN_Site == "CCIN2P3"'},
         "CNAF_TAPE_USERDISK": {},
         "CNAF_USERDISK": {},
         "LNGS_USERDISK": {},
-        "NIKHEF2_USERDISK": {"desired_sites": "NIKHEF", "expr": 'GLIDEIN_Site == "NIKHEF"'},
-        "NIKHEF_USERDISK": {"desired_sites": "NIKHEF", "expr": 'GLIDEIN_Site == "NIKHEF"'},
-        "SURFSARA_USERDISK": {"desired_sites": "SURFsara", "expr": 'GLIDEIN_Site == "SURFsara"'},
-        "WEIZMANN_USERDISK": {"desired_sites": "Weizmann", "expr": 'GLIDEIN_Site == "Weizmann"'},
+        "NIKHEF2_USERDISK": {"site": "NIKHEF", "expr": 'GLIDEIN_Site == "NIKHEF"'},
+        "NIKHEF_USERDISK": {"site": "NIKHEF", "expr": 'GLIDEIN_Site == "NIKHEF"'},
+        "SURFSARA_USERDISK": {"site": "SURFsara", "expr": 'GLIDEIN_Site == "SURFsara"'},
+        "WEIZMANN_USERDISK": {"site": "Weizmann", "expr": 'GLIDEIN_Site == "Weizmann"'},
         "SDSC_USERDISK": {"expr": 'GLIDEIN_ResourceName == "SDSC-Expanse"'},
         "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
     }
@@ -444,9 +444,6 @@ class RunConfig:
         requirements_base = "HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org"
         requirements_base += " && PORT_2880 && PORT_8000 && PORT_27017"
         requirements_base += ' && (Microarch >= "x86_64-v3")'
-        requirements_base_us = requirements_base + ' && GLIDEIN_Country == "US"'
-        if uconfig.getboolean("Outsource", "us_only", fallback=False):
-            requirements_base = requirements_base_us
 
         # hs06_test_run limits the run_id to a set of compute nodes
         # at UChicago with a known HS06 factor
@@ -458,6 +455,12 @@ class RunConfig:
         this_site_only = uconfig.get("Outsource", "this_site_only", fallback="")
         if this_site_only:
             requirements_base += f' && GLIDEIN_ResourceName == "{this_site_only}"'
+
+        requirements_base_us = requirements_base + ' && GLIDEIN_Country == "US"'
+        # if we are only using US sites
+        if uconfig.getboolean("Outsource", "us_only", fallback=False):
+            requirements_base = requirements_base_us
+
         self.requirements_base = requirements_base
         self.requirements_base_us = requirements_base_us
 
@@ -474,20 +477,6 @@ class RunConfig:
             exprs.append(f'GLIDEIN_Site =!= "{site}"')
         return " && ".join(exprs)
 
-    def get_requirements(self, rses):
-        # Determine the job requirements based on the data locations
-        sites_expression, desired_sites = self._determine_target_sites(rses)
-        requirements = self.requirements_base if len(rses) > 0 else self.requirements_base_us
-        if sites_expression:
-            requirements += f" && ({sites_expression})"
-        # US nodes
-        requirements_us = self.requirements_base_us
-        # Add excluded nodes
-        if self._exclude_sites:
-            requirements += f" && ({self._exclude_sites})"
-            requirements_us += f" && ({self._exclude_sites})"
-        return requirements, requirements_us
-
     def _determine_target_sites(self, rses):
         """Given a list of RSEs, limit the runs for sites for those locations."""
 
@@ -497,8 +486,8 @@ class RunConfig:
             if rse in self.rse_site_map:
                 if "expr" in self.rse_site_map[rse]:
                     exprs.append(self.rse_site_map[rse]["expr"])
-                if "desired_sites" in self.rse_site_map[rse]:
-                    sites.append(self.rse_site_map[rse]["desired_sites"])
+                if "site" in self.rse_site_map[rse]:
+                    sites.append(self.rse_site_map[rse]["site"])
         exprs = list(set(exprs))
         sites = list(set(sites))
 
@@ -509,3 +498,17 @@ class RunConfig:
         final_expr = " || ".join(exprs)
         desired_sites = ",".join(sites)
         return final_expr, desired_sites
+
+    def get_requirements(self, rses):
+        # Determine the job requirements based on the data locations
+        sites_expression, desired_sites = self._determine_target_sites(rses)
+        if len(rses) > 0:
+            requirements = self.requirements_base
+        else:
+            requirements = self.requirements_base_us
+        if sites_expression:
+            requirements += f" && ({sites_expression})"
+        # Add excluded nodes
+        if self._exclude_sites:
+            requirements += f" && ({self._exclude_sites})"
+        return desired_sites, requirements
