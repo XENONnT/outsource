@@ -35,7 +35,7 @@ DETECTOR_DATA_TYPES = {
             "merged_s2s": 0.01,
             "peaks": 0.01,
             "events": 0.001,
-            "led_cal": None,
+            "led_cal": 1.0,
             "afterpulses": None,
         },
         "compression": {
@@ -44,11 +44,11 @@ DETECTOR_DATA_TYPES = {
             "merged_s2s": 0.25,
             "peaks": 0.75,
             "events": 0.60,
-            "led_cal": None,
+            "led_cal": 0.30,
             "afterpulses": None,
         },
         "memory": {
-            "lower": [5.5, 1.0e3],
+            "lower": [6.0, 1.0e3],
             "combine": [0.0, 2.0e3],
             "upper": [0.075, 3.5e3],
         },
