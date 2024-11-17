@@ -153,7 +153,7 @@ class RunConfig:
             )
 
         # Modify the data_types based on the mode
-        self._led_mode(include_data_types)
+        include_data_types = self._led_mode(include_data_types)
 
         ret = {"submitted": []}
         # Here we must try to divide the include_data_types
