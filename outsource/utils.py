@@ -35,7 +35,7 @@ def get_context(
                 staging_dir=staging_dir,
                 download_heavy=True,
                 take_only=tuple(st.root_data_types),
-                rses_only=uconfig.getlist("Outsource", "raw_records_rse"),
+                rses_only=uconfig.getlist("Outsource", "raw_records_rses"),
             )
         )
         if not ignore_processed:
@@ -131,7 +131,7 @@ def get_runlist(
                 "type": det_info["raw"],
                 "host": "rucio-catalogue",
                 "status": "transferred",
-                "location": {"$in": uconfig.getlist("Outsource", "raw_records_rse")},
+                "location": {"$in": uconfig.getlist("Outsource", "raw_records_rses")},
             }
         }
         to_save_data_type_query = [
@@ -189,12 +189,12 @@ def get_runlist(
 
     runlist_basic_has_raw = sorted(r["number"] for r in cursor_basic_has_raw)
     logger.info(
-        "The following are the run_ids passing the basic queries and "
+        f"The following are the {len(runlist_basic_has_raw)} run_ids passing the basic queries and "
         f"have raw data available: {runlist_basic_has_raw}"
     )
     runlist_basic_to_save = sorted(r["number"] for r in cursor_basic_to_save)
     logger.info(
-        "The following are the run_ids passing the basic queries and "
+        f"The following are the {len(runlist_basic_to_save)} run_ids passing the basic queries and "
         f"have to be processed: {runlist_basic_to_save}"
     )
 
