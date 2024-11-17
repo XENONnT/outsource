@@ -422,7 +422,7 @@ class RunConfig:
                 data["type"] == data_type
                 and data["host"] == "rucio-catalogue"
                 and data["status"] == "transferred"
-                and data["location"] in uconfig.getlist("Outsource", "raw_records_rse")
+                and data["location"] in uconfig.getlist("Outsource", "raw_records_rses")
                 and "TAPE" not in data["location"]
             ):
                 return data

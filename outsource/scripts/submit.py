@@ -139,10 +139,11 @@ def main():
         number_to=args.number_to,
         ignore_processed=args.ignore_processed,
     )
-    if set(_runlist) - set(runlist):
+    missing_runlist = set(_runlist) - set(runlist)
+    if missing_runlist:
         logger.warning(
-            "The following run_ids were not processible "
-            f"after checking dependeicies in the RunDB: {sorted(set(_runlist) - set(runlist))}"
+            f"The following {len(missing_runlist)} run_ids were not processible "
+            f"after checking dependeicies in the RunDB: {sorted(missing_runlist)}"
         )
     if not runlist:
         raise RuntimeError(

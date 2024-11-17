@@ -448,14 +448,14 @@ class Submitter:
 
     def get_rse_sites(self, dbcfg, rses, per_chunk=False):
         """Get the desired sites and requirements for the data_type."""
-        raw_records_rses = uconfig.getlist("Outsource", "raw_records_rse")
+        raw_records_rses = uconfig.getlist("Outsource", "raw_records_rses")
         # For standalone downloads, only target US
         if dbcfg.standalone_download:
             rses = raw_records_rses
 
         if per_chunk:
             # For low level data, we only want to run_id on sites
-            # that we specified for raw_records_rse
+            # that we specified for raw_records_rses
             rses = list(set(rses) & set(raw_records_rses))
             if not len(rses):
                 raise RuntimeError(
