@@ -16,6 +16,7 @@ DETECTOR_DATA_TYPES = {
             "peaklets",
             "event_ms_naive",
             "event_info_double",
+            "event_info",
             "event_position_uncertainty",
             "event_top_bottom_params",
             "event_pattern_fit",
