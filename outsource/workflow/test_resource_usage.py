@@ -88,7 +88,10 @@ def get_sizes(directory):
     return sizes
 
 
-storage_usage = get_sizes("./")
+storage_usage = {
+    "input": get_sizes("./input"),
+    "output": get_sizes("./output"),
+}
 
 if time_usage:
     logger.info(f"Max memory usage: {mem[:, 0].max():.1f} MB")
