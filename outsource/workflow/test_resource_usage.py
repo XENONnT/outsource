@@ -88,14 +88,16 @@ def get_sizes(directory):
     return sizes
 
 
-storage_usage = {
-    "input": get_sizes("./input"),
-    "output": get_sizes("./output"),
-}
+io_list = ["input", "output"]
+storage_usage = dict()
+for io in io_list:
+    storage_usage[io] = get_sizes(f"./{io}")
 
 if time_usage:
-    max_storage = storage_usage["input"][os.path.abspath("./input")]
-    max_storage += storage_usage["output"][os.path.abspath("./output")]
+    max_storage = 0.0
+    for io in io_list:
+        if os.path.abspath(f"./{io}") in storage_usage[io]:
+            max_storage += storage_usage[io][os.path.abspath(f"./{io}")]
     logger.info(f"Max memory usage: {mem[:, 0].max():.1f} MB")
     logger.info(f"Max storage usage: {max_storage / 1e6:.1f} MB")
     np.save(f"{prefix}_memory_usage_{suffix}.npy", mem)
