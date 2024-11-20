@@ -28,10 +28,14 @@ suffix = "_".join(os.environ["PEGASUS_DAG_JOB_ID"].split("_")[:-1])
 
 if "--chunks" in sys.argv:
     only_combine = True
+    assert "combine" in suffix
 else:
     only_combine = False
     if args.chunks_start >= 0:
+        assert "lower" in suffix
         suffix += f"_{args.chunks_start}_{args.chunks_end}"
+    else:
+        assert "upper" in suffix
 
 time_usage = dict()
 

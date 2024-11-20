@@ -81,12 +81,7 @@ def main():
 
     run_id = f"{args.run_id:06d}"
     data_types = args.data_types
-    # Sanity check
-    if (args.chunks_start != args.chunks_end or args.download_only) and len(data_types) != 1:
-        raise ValueError(
-            "Cannot process multiple data types with per-chunk storage. "
-            f"'--data_types' should be a single data type, got {data_types}."
-        )
+
     if args.chunks_start == args.chunks_end:
         chunks = None
         chunk_number = None

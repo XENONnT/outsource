@@ -206,8 +206,10 @@ def get_runlist(
     return runlist
 
 
-def get_possible_dependencies(st):
+def get_possible_dependencies(st, lower=False):
     """Expand the by-product of PER_CHUNK_DATA_TYPES.
+
+    If lower is True, directly return the root_data_types, which are `raw_records_*`.
 
     For example, "lone_hits" is not in PER_CHUNK_DATA_TYPES so can not be directly requested via
     include_data_types in XENON_CONFIG. But it is a by-product of "peaklets" which is in
@@ -216,6 +218,9 @@ def get_possible_dependencies(st):
     PER_CHUNK_DATA_TYPES.
 
     """
+    if lower:
+        return st.root_data_types
+
     # Get the data_types in the same plugin of PER_CHUNK_DATA_TYPES
     possible_dependencies = chain.from_iterable(
         st._plugin_class_registry[d]().provides for d in PER_CHUNK_DATA_TYPES

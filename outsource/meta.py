@@ -1,6 +1,9 @@
 # These data_types need per-chunk storage, so don't upload to rucio here!
 PER_CHUNK_DATA_TYPES = [
     "peaklets",
+    "peaklet_classification",
+    "peaklet_positions_cnf",
+    "peaklet_positions_mlp",
     "hitlets_nv",
     "afterpulses",
     "led_calibration",
@@ -14,6 +17,9 @@ DETECTOR_DATA_TYPES = {
         "per_chunk": True,
         "possible": [
             "peaklets",
+            "peaklet_classification",
+            "peaklet_positions_cnf",
+            "peaklet_positions_mlp",
             "event_ms_naive",
             "event_info_double",
             "event_info",
