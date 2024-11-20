@@ -94,8 +94,10 @@ storage_usage = {
 }
 
 if time_usage:
+    max_storage = storage_usage["input"][os.path.abspath("./input")]
+    max_storage += storage_usage["output"][os.path.abspath("./output")]
     logger.info(f"Max memory usage: {mem[:, 0].max():.1f} MB")
-    logger.info(f"Max storage usage: {storage_usage[os.path.abspath('./')] / 1e6:.1f} MB")
+    logger.info(f"Max storage usage: {max_storage / 1e6:.1f} MB")
     np.save(f"{prefix}_memory_usage_{suffix}.npy", mem)
     with open(f"{prefix}_time_usage_{suffix}.json", mode="w") as f:
         f.write(json.dumps(time_usage, indent=4))
