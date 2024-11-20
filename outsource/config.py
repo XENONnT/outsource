@@ -38,10 +38,6 @@ class DataTypes(dict):
     def not_processed(self):
         return [key for key in self if self[key]["missing"]]
 
-    @property
-    def only_data_type(self):
-        return list(self.keys())[0]
-
 
 class RunConfig:
     """The configuration of how a run will be processed.
@@ -122,21 +118,16 @@ class RunConfig:
             data_types = set(data_types) - set().union(*LED_MODES.values())
         return data_types
 
-    def depends_on(self, data_type):
+    def depends_on(self, data_type, lower=False):
         """Get the data_type this one depends on.
 
         The result will be either data_type in same level of PER_CHUNK_DATA_TYPES or the
         root_data_types.
 
         """
-        possible_dependencies = get_possible_dependencies(self.context)
+        possible_dependencies = get_possible_dependencies(self.context, lower=lower)
         # Get the highest data_type in the possible dependencies
-        data_types = sorted(
-            self.context.get_dependencies(data_type) & (possible_dependencies),
-            key=lambda x: self.context.tree_levels[x]["level"],
-            reverse=True,
-        )
-        return data_types[0]
+        return list(self.context.get_dependencies(data_type) & possible_dependencies)
 
     def deduce_data_types(self):
         """Returns the data_types we need to process and why they need to be processed."""
@@ -176,13 +167,12 @@ class RunConfig:
 
             if DETECTOR_DATA_TYPES[detector]["per_chunk"]:
                 # Sanity check of per-chunk data_type
-                if len(per_chunk_data_types) != 1:
-                    raise ValueError("Why is there no per-chunk data_type deduced?")
-                root_data_type = per_chunk_storage_root_data_type(
-                    self.context, self._run_id, list(per_chunk_data_types)[0]
-                )
-                if root_data_type is None:
-                    raise ValueError("Why is there no root_data_type deduced?")
+                for per_chunk_data_type in per_chunk_data_types:
+                    root_data_type = per_chunk_storage_root_data_type(
+                        self.context, self._run_id, per_chunk_data_type
+                    )
+                    if root_data_type is None:
+                        raise ValueError("Why is there no root_data_type deduced?")
 
             # In reprocessing, group the data_types into lower and higher
             # Lower is per-chunk storage, higher is not, they must be separated
@@ -204,11 +194,14 @@ class RunConfig:
                     # Expand the data_type to data_types that need to be saved
                     _data_types = get_to_save_data_types(self.context, data_type, rm_lower=group)
                     # Get Rucio Storage Elements of data_type that needed to be processed.
-                    depends_on = self.depends_on(data_type)
-                    hash = self.key_for(depends_on).lineage_hash
+                    depends_on = self.depends_on(data_type, lower=not group)
                     ret[detector][label]["data_types"][data_type]["depends_on"] = depends_on
+                    _rses = []
+                    for _depends_on in depends_on:
+                        hash = self.key_for(_depends_on).lineage_hash
+                        _rses.append(set(db.get_rses(self.run_id, _depends_on, hash)))
                     ret[detector][label]["data_types"][data_type]["rses"] = list(
-                        set(db.get_rses(self.run_id, depends_on, hash))
+                        set.intersection(*_rses)
                     )
                     if self.ignore_processed:
                         ret[detector][label]["data_types"][data_type]["missing"] += list(
@@ -247,22 +240,17 @@ class RunConfig:
         data_kind_collection, data_type_collection = self.context.get_data_kinds()
         for detector in self.detectors:
             _detector: Dict[str, Any] = DETECTOR_DATA_TYPES[detector]
-            depends_on = set(
-                chain.from_iterable(
-                    [
-                        v["depends_on"]
-                        for v in self.data_types[detector][f"{_level}_{detector}"][
-                            "data_types"
-                        ].values()
-                    ]
-                    for _level in ["lower", "upper"]
-                )
-            )
+            depends_on = []
+            for _level in ["lower", "upper"]:
+                for v in self.data_types[detector][f"{_level}_{detector}"]["data_types"].values():
+                    depends_on += v["depends_on"]
+            depends_on = set(depends_on)
             if not depends_on:
                 continue
 
             # Meta data of the dependency
-            depends_on &= self.context.root_data_types
+            # raw_records_aqmon is special because per-chunk processing is not needed
+            depends_on &= self.context.root_data_types - set(("raw_records_aqmon",))
             if len(depends_on) != 1:
                 raise ValueError("Why is there no or more than one dependency deduced?")
             depends_on = list(depends_on)[0]
@@ -437,7 +425,7 @@ class RunConfig:
 
     def nchunks(self, data_type):
         # Get the data_type this one depends on
-        files = self.list_files(self.depends_on(data_type))
+        files = self.list_files(self.depends_on(data_type, lower=True))
         # Subtract 1 for metadata
         return len(files) - 1
 

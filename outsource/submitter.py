@@ -466,6 +466,20 @@ class Submitter:
         desired_sites, requirements = dbcfg.get_requirements(rses)
         return desired_sites, requirements
 
+    def get_key(self, dbcfg, level):
+        """Get the key for the output files and check the file name."""
+        # output files
+        _key = "-".join(
+            [dbcfg._run_id] + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in level["data_types"]]
+        )
+        # Sometimes the filename can be too long
+        if len(_key) > 255 - len("untar--output.tar.gz.log"):
+            self.logger.warning(f"Filename {_key} is too long, will not include hash in it.")
+            _key = "-".join([dbcfg._run_id] + list(level["data_types"]))
+        if len(_key) > 255 - len("untar--output.tar.gz.log"):
+            raise RuntimeError(f"Filename {_key} is still too long.")
+        return _key
+
     def add_higher_processing_job(
         self,
         workflow,
@@ -480,7 +494,7 @@ class Submitter:
         combinepy,
     ):
         """Add a processing job to the workflow."""
-        rses = set().union(*[v["rses"] for v in level["data_types"].values()])
+        rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
         if len(rses) == 0:
             self.logger.warning(
                 f"No data found as the dependency of {tuple(level['data_types'])}. "
@@ -490,16 +504,7 @@ class Submitter:
         desired_sites, requirements = self.get_rse_sites(dbcfg, rses, per_chunk=False)
 
         # High level data.. we do it all on one job
-        # output files
-        _key = "-".join(
-            [dbcfg._run_id] + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in level["data_types"]]
-        )
-        # Sometimes the filename can be too long
-        if len(_key) > 255 - len("untar--output.tar.gz.log"):
-            self.logger.warning(f"Filename {_key} is too long, will not include hash in it.")
-            _key = "-".join([dbcfg._run_id] + list(level["data_types"]))
-        if len(_key) > 255 - len("untar--output.tar.gz.log"):
-            raise RuntimeError(f"Filename {_key} is still too long.")
+        _key = self.get_key(dbcfg, level)
         job_tar = File(f"{_key}-output.tar.gz")
 
         # Add job
@@ -556,15 +561,11 @@ class Submitter:
         combinepy,
     ):
         """Add a per-chunk processing job to the workflow."""
-        if len(level["data_types"]) != 1:
-            raise RuntimeError(
-                "Only one data type is allowed for lower processing, "
-                f"but got {tuple(level['data_types'])}."
-            )
-        data_type = level["data_types"].only_data_type
-        rses = level["data_types"][level["data_types"].only_data_type]["rses"]
+        rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
         if len(rses) == 0:
-            raise RuntimeError(f"No data found as the dependency of {dbcfg.key_for(data_type)}.")
+            raise RuntimeError(
+                f"No data found as the dependency of {level['data_types'].not_processed}."
+            )
 
         desired_sites, requirements = self.get_rse_sites(dbcfg, rses, per_chunk=True)
 
@@ -594,7 +595,8 @@ class Submitter:
         # priority is given in the order they were submitted
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
-        combine_tar = File(f"{dbcfg.key_for(data_type)}-output.tar.gz")
+        _key = self.get_key(dbcfg, level)
+        combine_tar = File(f"{_key}-output.tar.gz")
         combine_job.add_outputs(combine_tar, stage_out=self.stage_out_combine)
         combine_job.set_stdout(File(f"{combine_tar}.log"), stage_out=True)
         combine_job.add_args(
@@ -622,7 +624,7 @@ class Submitter:
             # from rucio first, which is useful for testing and when using
             # dedicated clusters with storage
             if dbcfg.standalone_download:
-                download_tar = File(f"{dbcfg.key_for(data_type)}-download-{job_i:04d}.tar.gz")
+                download_tar = File(f"{_key}-download-{job_i:04d}.tar.gz")
                 download_job = self._job(
                     name="download",
                     cores=level["cores"],
@@ -646,7 +648,7 @@ class Submitter:
                     f"{self.ignore_processed}".lower(),
                     "download_only",
                     download_tar,
-                    data_type,
+                    *level["data_types"],
                 )
                 download_job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
                 download_job.add_outputs(download_tar, stage_out=False)
@@ -654,7 +656,7 @@ class Submitter:
                 workflow.add_jobs(download_job)
 
             # output files
-            job_tar = File(f"{dbcfg.key_for(data_type)}-output-{job_i:04d}.tar.gz")
+            job_tar = File(f"{_key}-output-{job_i:04d}.tar.gz")
 
             # Add job
             job = self._job(
@@ -679,7 +681,7 @@ class Submitter:
                 f"{self.ignore_processed}".lower(),
                 "false" if not dbcfg.standalone_download else "no_download",
                 job_tar,
-                data_type,
+                *level["data_types"],
             )
 
             job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
@@ -789,12 +791,14 @@ class Submitter:
                     # Check that raw data exist for this run_id
                     if group == 0:
                         # There will be at most one in data_types
-                        data_type = dbcfg.depends_on(level["data_types"].only_data_type)
-                        if not dbcfg.dependency_exists(data_type=data_type):
-                            raise RuntimeError(
-                                "Unable to find the raw data for "
-                                f"{dbcfg.key_for(level['data_types'].only_data_type)}."
-                            )
+                        data_types = list(level["data_types"].keys())
+                        for data_type in data_types:
+                            depends_on = dbcfg.depends_on(data_type, lower=not group)
+                            for _depends_on in depends_on:
+                                if not dbcfg.dependency_exists(data_type=_depends_on):
+                                    raise RuntimeError(
+                                        f"Unable to find the raw data for {data_types}."
+                                    )
 
                     runlist |= {dbcfg.run_id}
 
