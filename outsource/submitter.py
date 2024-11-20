@@ -494,7 +494,7 @@ class Submitter:
         combinepy,
     ):
         """Add a processing job to the workflow."""
-        rses = set().union(*[v["rses"] for v in level["data_types"].values()])
+        rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
         if len(rses) == 0:
             self.logger.warning(
                 f"No data found as the dependency of {tuple(level['data_types'])}. "

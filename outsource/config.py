@@ -250,7 +250,8 @@ class RunConfig:
                 continue
 
             # Meta data of the dependency
-            depends_on &= self.context.root_data_types
+            # raw_records_aqmon is special because per-chunk processing is not needed
+            depends_on &= self.context.root_data_types - set(("raw_records_aqmon",))
             if len(depends_on) != 1:
                 raise ValueError("Why is there no or more than one dependency deduced?")
             depends_on = list(depends_on)[0]
