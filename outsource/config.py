@@ -417,15 +417,16 @@ class RunConfig:
 
         """
 
-        for data in self.run_data:
-            if (
-                data["type"] == data_type
-                and data["host"] == "rucio-catalogue"
-                and data["status"] == "transferred"
-                and data["location"] in uconfig.getlist("Outsource", "raw_records_rses")
-                and "TAPE" not in data["location"]
-            ):
-                return data
+        for rse in uconfig.getlist("Outsource", "raw_records_rses"):
+            for data in self.run_data:
+                if (
+                    data["type"] == data_type
+                    and data["host"] == "rucio-catalogue"
+                    and data["status"] == "transferred"
+                    and data["location"] == rse
+                    and "TAPE" not in data["location"]
+                ):
+                    return data
         return False
 
     def list_files(self, data_type, verbose=False):
