@@ -4,7 +4,7 @@ import json
 import shutil
 import getpass
 from itertools import chain
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
 import utilix
 from utilix import DB, uconfig
@@ -241,7 +241,7 @@ class Submitter:
         # Determine a unique id for the workflow. If none passed, looks at the runlist.
         # If only one run_id is provided, use the run_id of that object + current time.
         # If more than one is provided, use current time.
-        now = datetime.now().strftime("%Y%m%d%H%M")
+        now = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
         if workflow_id:
             workflow_id = (workflow_id, now)
         else:
