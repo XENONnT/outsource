@@ -63,12 +63,10 @@ def wrapper(func):
 
 if only_combine:
     outsource.workflow.combine.merge = wrapper(outsource.workflow.combine.merge)
-    mem = memory_usage(proc=combine_main, interval=0.1, timestamps=True)
-    prefix = f"{args.run_id:06d}_combine"
+    mem = memory_usage(proc=combine_main, interval=1, timestamps=True)
 else:
     outsource.workflow.process.process = wrapper(outsource.workflow.process.process)
-    mem = memory_usage(proc=process_main, interval=0.1, timestamps=True)
-    prefix = f"{args.run_id:06d}_process"
+    mem = memory_usage(proc=process_main, interval=1, timestamps=True)
 mem = np.array(mem)
 
 
@@ -104,6 +102,7 @@ if time_usage:
             max_storage += storage_usage[io][os.path.abspath(f"./{io}")]
     logger.info(f"Max memory usage: {mem[:, 0].max():.1f} MB")
     logger.info(f"Max storage usage: {max_storage / 1e6:.1f} MB")
+    prefix = f"{args.run_id:06d}"
     np.save(f"{prefix}_memory_usage_{suffix}.npy", mem)
     with open(f"{prefix}_time_usage_{suffix}.json", mode="w") as f:
         f.write(json.dumps(time_usage, indent=4))
