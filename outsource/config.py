@@ -48,7 +48,8 @@ class RunConfig:
     """
 
     # Data availability to site selection map.
-    # site mean condor will try to run the job on those sites
+    # This puts constraints on the sites that can be used for 
+    # processing based on the input RSE for raw_records.
     rse_site_map = {
         "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
         "UC_DALI_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
@@ -57,9 +58,9 @@ class RunConfig:
         "CNAF_TAPE_USERDISK": {},
         "CNAF_USERDISK": {},
         "LNGS_USERDISK": {},
-        "NIKHEF2_USERDISK": {"site": "NIKHEF", "expr": 'GLIDEIN_Site == "NIKHEF"'},
-        "NIKHEF_USERDISK": {"site": "NIKHEF", "expr": 'GLIDEIN_Site == "NIKHEF"'},
-        "SURFSARA_USERDISK": {"site": "SURFsara", "expr": 'GLIDEIN_Site == "SURFsara"'},
+        "NIKHEF2_USERDISK": {"site": "NIKHEF", "expr": 'GLIDEIN_Country == "NL"'},
+        "NIKHEF_USERDISK": {"site": "NIKHEF", "expr": 'GLIDEIN_Country == "NL"'},
+        "SURFSARA_USERDISK": {"site": "SURFsara", "expr": 'GLIDEIN_Country == "NL"'},
         "WEIZMANN_USERDISK": {"site": "Weizmann", "expr": 'GLIDEIN_Site == "Weizmann"'},
         "SDSC_USERDISK": {"expr": 'GLIDEIN_ResourceName == "SDSC-Expanse"'},
         "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
