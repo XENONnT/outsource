@@ -53,7 +53,7 @@ class RunConfig:
 
 
     # Define an expression to give higher priority to EU sites
-    eu_hig_rank = '((GLIDEIN_Site == "NL") * 99999)'
+    eu_hig_rank = '((GLIDEIN_Site == "NL") * 99999) + ((GLIDEIN_Site == "FR") * 999)'
 
     rse_site_map = {
         # These are US sites
