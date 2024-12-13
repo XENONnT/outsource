@@ -51,28 +51,26 @@ class RunConfig:
     # This puts constraints on the sites that can be used for
     # processing based on the input RSE for raw_records.
 
-
     # Define an expression to give higher priority to EU sites
     eu_hig_rank = '((GLIDEIN_Site == "NL") * 99999) + ((GLIDEIN_Site == "FR") * 999)'
 
     rse_site_map = {
         # These are US sites
-        "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'}, # DISK
-        "UC_DALI_USERDISK": {"expr": 'GLIDEIN_Country == "US"'}, # DISK
-        "UC_MIDWAY_USERDISK": {"expr": 'GLIDEIN_Country == "US"'}, # DISK
-        "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'}, # DISK
-
+        "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
+        "UC_DALI_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
+        "UC_MIDWAY_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
+        "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
         # These are European sites
         # Paris, FR
-        "CCIN2P3_USERDISK": {'rank': eu_hig_rank}, # TAPE
-        "CCIN2P32_USERDISK": {'rank': eu_hig_rank}, # DISK
+        "CCIN2P3_USERDISK": {"rank": eu_hig_rank},  # TAPE
+        "CCIN2P32_USERDISK": {"rank": eu_hig_rank},  # DISK
         # Amsterdam, NL
-        "NIKHEF2_USERDISK": {'rank': eu_hig_rank}, # DISK
-        "SURFSARA_USERDISK": {'rank': eu_hig_rank}, # TAPE
-        "SURFSARA2_USERDISK": {'rank': eu_hig_rank}, # DISK
+        "NIKHEF2_USERDISK": {"rank": eu_hig_rank},  # DISK
+        "SURFSARA_USERDISK": {"rank": eu_hig_rank},  # TAPE
+        "SURFSARA2_USERDISK": {"rank": eu_hig_rank},  # DISK
         # Bologna, IT
-        "CNAF_USERDISK": {'rank': eu_hig_rank}, # DISK
-        "CNAF_TAPE3_USERDISK": {'rank': eu_hig_rank}, # TAPE
+        "CNAF_USERDISK": {"rank": eu_hig_rank},  # DISK
+        "CNAF_TAPE3_USERDISK": {"rank": eu_hig_rank},  # TAPE
     }
 
     chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=None)
