@@ -5,7 +5,8 @@ import numpy as np
 from utilix import DB, uconfig, xent_collection
 import admix
 
-from outsource.meta import PER_CHUNK_DATA_TYPES, DETECTOR_DATA_TYPES, LED_MODES
+from outsource.meta import get_clean_per_chunk_data_types, get_clean_detector_data_types, LED_MODES
+
 from outsource.utils import (
     get_possible_dependencies,
     get_to_save_data_types,
@@ -72,6 +73,9 @@ class RunConfig:
         self.ignore_processed = ignore_processed
         self.standalone_download = standalone_download
 
+        self._per_chunk_data_types = get_clean_per_chunk_data_types(self.context)
+        self._detector_data_types = get_clean_detector_data_types(self.context)
+
         # Default job priority - workflows will be given priority
         # in the order they were submitted.
         self.priority = 2250000000 - int(time.time())
@@ -121,7 +125,7 @@ class RunConfig:
     def depends_on(self, data_type, lower=False):
         """Get the data_type this one depends on.
 
-        The result will be either data_type in same level of PER_CHUNK_DATA_TYPES or the
+        The result will be either data_type in same level of _per_chunk_data_types or the
         root_data_types.
 
         """
@@ -134,7 +138,7 @@ class RunConfig:
         # Do we need to process? read from XENON_CONFIG
         include_data_types = uconfig.getlist("Outsource", "include_data_types")
         all_possible_data_types = set(
-            chain.from_iterable(v["possible"] for v in DETECTOR_DATA_TYPES.values())
+            chain.from_iterable(v["possible"] for v in self._detector_data_types.values())
         )
         excluded_data_types = set(include_data_types) - all_possible_data_types
         if excluded_data_types:
@@ -148,12 +152,12 @@ class RunConfig:
 
         ret = {"submitted": []}
         # Here we must try to divide the include_data_types
-        # into before and after the PER_CHUNK_DATA_TYPES
+        # into before and after the _per_chunk_data_types
         for detector in self.detectors:
             ret[detector] = dict()
             # There are two group labels for the data_types
             data_types_group_labels = [f"lower_{detector}", f"upper_{detector}"]
-            possible_data_types = DETECTOR_DATA_TYPES[detector]["possible"]
+            possible_data_types = self._detector_data_types[detector]["possible"]
             # Possible data_types for this detector
             data_types = set(include_data_types) & set(possible_data_types)
             if not data_types:
@@ -161,11 +165,12 @@ class RunConfig:
                 for label in data_types_group_labels:
                     ret[detector][label] = {"data_types": DataTypes()}
                 continue
-            per_chunk_data_types = set(PER_CHUNK_DATA_TYPES) & set(possible_data_types)
+
+            per_chunk_data_types = set(self._per_chunk_data_types) & set(possible_data_types)
             # Modify the data_types based on the mode again
             per_chunk_data_types = self._led_mode(per_chunk_data_types)
 
-            if DETECTOR_DATA_TYPES[detector]["per_chunk"]:
+            if self._detector_data_types[detector]["per_chunk"]:
                 # Sanity check of per-chunk data_type
                 for per_chunk_data_type in per_chunk_data_types:
                     root_data_type = per_chunk_storage_root_data_type(
@@ -239,7 +244,7 @@ class RunConfig:
         """Adaptively assign resources based on the size of data."""
         data_kind_collection, data_type_collection = self.context.get_data_kinds()
         for detector in self.detectors:
-            _detector: Dict[str, Any] = DETECTOR_DATA_TYPES[detector]
+            _detector: Dict[str, Any] = self._detector_data_types[detector]
             depends_on = []
             for _level in ["lower", "upper"]:
                 for v in self.data_types[detector][f"{_level}_{detector}"]["data_types"].values():
@@ -394,9 +399,12 @@ class RunConfig:
                         if prefix + md not in self.data_types[detector][label]:
                             continue
                         self.data_types[detector][label][prefix + md] *= _detector["redundancy"][md]
-                        self.data_types[detector][label][prefix + md] = self.data_types[detector][
-                            label
-                        ][prefix + md].tolist()
+                        _data_types = self.data_types[detector][label][prefix + md]
+                        if isinstance(_data_types, float):
+                            self.data_types[detector][label][prefix + md] = _data_types
+                        else:
+                            self.data_types[detector][label][prefix + md] = _data_types.tolist()
+
 
     def dependency_exists(self, data_type="raw_records"):
         """Returns a boolean for whether the dependency exists in rucio and is accessible.
