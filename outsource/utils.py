@@ -272,7 +272,7 @@ def per_chunk_storage_root_data_type(st, run_id, data_type):
     per_chunk_data_types = get_clean_per_chunk_data_types(st)
 
     # First filter on the existing and registered data_types
-    per_chunk_data_types = [d for d in per_chunk_data_types if d in st._plugin_class_registry]    
+    per_chunk_data_types = [d for d in per_chunk_data_types if d in st._plugin_class_registry]
 
     if data_type in st._get_plugins(per_chunk_data_types, "0"):
         # find the root data_type

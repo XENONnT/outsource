@@ -124,15 +124,12 @@ LED_MODES = {
 
 
 def get_clean_per_chunk_data_types(context):
-    """
-    Remove data_types that are not registered at all
-    """
+    """Remove data_types that are not registered at all."""
     return [dt for dt in PER_CHUNK_DATA_TYPES if dt in context._plugin_class_registry]
 
+
 def get_clean_detector_data_types(context):
-    """
-    Remove data_types that are not registered at all from the list of possible data_types
-    """
+    """Remove data_types that are not registered at all from the list of possible data_types."""
 
     clean_detector_data_types = {}
     for detector, detector_dict in DETECTOR_DATA_TYPES.items():

@@ -48,7 +48,7 @@ class RunConfig:
     """
 
     # Data availability to site selection map.
-    # This puts constraints on the sites that can be used for 
+    # This puts constraints on the sites that can be used for
     # processing based on the input RSE for raw_records.
     rse_site_map = {
         "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
@@ -405,7 +405,6 @@ class RunConfig:
                             self.data_types[detector][label][prefix + md] = _data_types
                         else:
                             self.data_types[detector][label][prefix + md] = _data_types.tolist()
-
 
     def dependency_exists(self, data_type="raw_records"):
         """Returns a boolean for whether the dependency exists in rucio and is accessible.

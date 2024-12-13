@@ -573,7 +573,9 @@ class Submitter:
             )
 
         desired_sites, requirements = self.get_rse_sites(dbcfg, rses, per_chunk=True)
-        desired_sites_for_us, requirements_for_us = self.get_rse_sites(dbcfg, ["UC_OSG_USERDISK"], per_chunk=False)
+        desired_sites_for_us, requirements_for_us = self.get_rse_sites(
+            dbcfg, ["UC_OSG_USERDISK"], per_chunk=False
+        )
 
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
