@@ -573,17 +573,9 @@ class Submitter:
             )
 
         desired_sites, requirements, site_ranks = self.get_rse_sites(dbcfg, rses, per_chunk=True)
-        desired_sites_for_us, requirements_for_us, site_ranks_us = self.get_rse_sites(dbcfg, ["UC_OSG_USERDISK"], per_chunk=False)
-
-        print("@" * 80)
-        print("@" * 80)
-        print("@" * 80)
-        print(f"desired_sites: {desired_sites}")
-        print(f"requirements: {requirements}")
-        print(f"site_ranks: {site_ranks}")
-        print("@" * 80)
-        print("@" * 80)
-        print("@" * 80)
+        desired_sites_for_us, requirements_for_us, site_ranks_us = self.get_rse_sites(
+            dbcfg, ["UC_OSG_USERDISK"], per_chunk=False
+        )
 
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
