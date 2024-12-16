@@ -54,7 +54,7 @@ class RunConfig:
 
     # Define an expression to give higher priority to EU sites
     eu_high_rank = '((GLIDEIN_Site == "NL") * 999)'
-    eu_high_rank += ' + ((GLIDEIN_Site == "SURFsara")*999)'
+    eu_high_rank += ' + ((GLIDEIN_Site == "SURFsara") * 999)'
     eu_high_rank += ' + ((GLIDEIN_Site == "FR") * 9)'
     eu_high_rank += ' + ((GLIDEIN_Site == "IT") * 9)'
 
