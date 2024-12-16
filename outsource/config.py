@@ -399,12 +399,10 @@ class RunConfig:
                     for prefix in ["", "combine_"]:
                         if prefix + md not in self.data_types[detector][label]:
                             continue
-                        self.data_types[detector][label][prefix + md] *= _detector["redundancy"][md]
-                        _data_types = self.data_types[detector][label][prefix + md]
-                        if isinstance(_data_types, float):
-                            self.data_types[detector][label][prefix + md] = _data_types
-                        else:
-                            self.data_types[detector][label][prefix + md] = _data_types.tolist()
+                        usage = np.array(self.data_types[detector][label][prefix + md])
+                        self.data_types[detector][label][prefix + md] = (
+                            usage * _detector["redundancy"][md]
+                        ).tolist()
 
     def dependency_exists(self, data_type="raw_records"):
         """Returns a boolean for whether the dependency exists in rucio and is accessible.
