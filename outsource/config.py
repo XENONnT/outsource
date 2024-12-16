@@ -73,23 +73,22 @@ class RunConfig:
         # These are US sites
         # We only send these to US sites
         # Chicago, IL
-        "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'}, # DISK
-        "UC_DALI_USERDISK": {"expr": 'GLIDEIN_Country == "US"'}, # DISK
-        "UC_MIDWAY_USERDISK": {"expr": 'GLIDEIN_Country == "US"'}, # DISK
+        "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
+        "UC_DALI_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
+        "UC_MIDWAY_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
         # San Diego, CA
-        "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'}, # DISK
-
+        "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
         # These are European sites
         # Paris, FR
-        "CCIN2P3_USERDISK": {'rank': eu_high_rank, 'expr': eu_separate_requriements}, # TAPE
-        "CCIN2P32_USERDISK": {'rank': eu_high_rank, 'expr': eu_separate_requriements}, # DISK
+        "CCIN2P3_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # TAPE
+        "CCIN2P32_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # DISK
         # Amsterdam, NL
-        "NIKHEF2_USERDISK": {'rank': eu_high_rank, 'expr': eu_separate_requriements}, # DISK
-        "SURFSARA_USERDISK": {'rank': eu_high_rank, 'expr': eu_separate_requriements}, # TAPE
-        "SURFSARA2_USERDISK": {'rank': eu_high_rank, 'expr': eu_separate_requriements}, # DISK
+        "NIKHEF2_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # DISK
+        "SURFSARA_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # TAPE
+        "SURFSARA2_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # DISK
         # Bologna, IT
-        "CNAF_USERDISK": {'rank': eu_high_rank, 'expr': eu_separate_requriements}, # DISK
-        "CNAF_TAPE3_USERDISK": {'rank': eu_high_rank, 'expr': eu_separate_requriements}, # TAPE
+        "CNAF_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # DISK
+        "CNAF_TAPE3_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # TAPE
     }
 
     chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=None)
