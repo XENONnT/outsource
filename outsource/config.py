@@ -520,7 +520,7 @@ class RunConfig:
             sites.append("NONE")
 
         final_expr = " || ".join(exprs)
-        desired_sites = ",".join(sites)
+        desired_sites = ", ".join(sites)
         ranks = " + ".join(ranks)
         return final_expr, desired_sites, ranks
 
