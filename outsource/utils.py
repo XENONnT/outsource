@@ -7,7 +7,7 @@ import strax
 import straxen
 import cutax
 
-from outsource.meta import DETECTOR_DATA_TYPES, PER_CHUNK_DATA_TYPES
+from outsource.meta import get_clean_detector_data_types, get_clean_per_chunk_data_types
 
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
@@ -92,8 +92,8 @@ def get_runlist(
     basic_queries = []
     basic_queries_has_raw = []
     basic_queries_to_save = []
-
-    for det, det_info in DETECTOR_DATA_TYPES.items():
+    detector_data_types = get_clean_detector_data_types(st)
+    for det, det_info in detector_data_types.items():
         if detector != "all" and detector != det:
             logger.warning(f"Skipping {det} data")
             continue
@@ -222,8 +222,9 @@ def get_possible_dependencies(st, lower=False):
         return st.root_data_types
 
     # Get the data_types in the same plugin of PER_CHUNK_DATA_TYPES
+    per_chunk_data_types = get_clean_per_chunk_data_types(st)
     possible_dependencies = chain.from_iterable(
-        st._plugin_class_registry[d]().provides for d in PER_CHUNK_DATA_TYPES
+        st._plugin_class_registry[d]().provides for d in per_chunk_data_types
     )
     # Add the root_data_types because PER_CHUNK_DATA_TYPES depends on them
     possible_dependencies = set(possible_dependencies) | st.root_data_types
@@ -241,9 +242,10 @@ def get_to_save_data_types(st, data_types, rm_lower=False):
         [k for k, v in plugins.items() if v.save_when[k] == strax.SaveWhen.ALWAYS]
     )
     possible_data_types -= st.root_data_types
+    per_chunk_data_types = get_clean_per_chunk_data_types(st)
     if rm_lower:
         # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
-        possible_data_types -= get_to_save_data_types(st, PER_CHUNK_DATA_TYPES, False)
+        possible_data_types -= get_to_save_data_types(st, per_chunk_data_types, False)
     return possible_data_types
 
 
@@ -265,7 +267,14 @@ def per_chunk_storage_root_data_type(st, run_id, data_type):
     root data_type of the data_type. For exmaple, it will return "raw_records" for "peaklets".
 
     """
-    if data_type in st._get_plugins(PER_CHUNK_DATA_TYPES, "0"):
+
+    # Filter out the data_types that are not in the registered plugins
+    per_chunk_data_types = get_clean_per_chunk_data_types(st)
+
+    # First filter on the existing and registered data_types
+    per_chunk_data_types = [d for d in per_chunk_data_types if d in st._plugin_class_registry]
+
+    if data_type in st._get_plugins(per_chunk_data_types, "0"):
         # find the root data_type
         root_data_types = list(set(st.get_dependencies(data_type)) & st.root_data_types)
         if len(root_data_types) > 1:
@@ -298,6 +307,7 @@ def get_processing_order(st, data_types, rm_lower=False):
     _data_types &= get_to_save_data_types(st, tuple(_data_types), rm_lower=rm_lower)
     if rm_lower:
         # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
-        _data_types -= set(get_processing_order(st, PER_CHUNK_DATA_TYPES, False))
+        per_chunk_data_types = get_clean_per_chunk_data_types(st)
+        _data_types -= set(get_processing_order(st, per_chunk_data_types, False))
     _data_types = sorted(_data_types, key=lambda x: st.tree_levels[x]["order"])
     return _data_types

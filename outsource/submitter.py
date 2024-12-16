@@ -234,6 +234,11 @@ class Submitter:
         job.add_profiles(Namespace.CONDOR, "request_disk", disk_str)
         job.add_profiles(Namespace.CONDOR, "request_memory", memory_str)
 
+        # Stream output and error
+        # Allows to see the output of the job in real time
+        job.add_profiles(Namespace.CONDOR, "stream_output", "True")
+        job.add_profiles(Namespace.CONDOR, "stream_error", "True")
+
         return job
 
     def _setup_workflow_id(self, workflow_id):
@@ -438,7 +443,7 @@ class Submitter:
                     tarball = File(_tarball.tarball_name)
                     tarball_path = (
                         "/ospool/uc-shared/project/xenon/xenonnt/software"
-                        f"/cutax/v{cutax.__version__}.tar.gz"
+                        f"/cutax/v{cutax.__version__.replace('.', '-')}.tar.gz"
                     )
                 else:
                     continue
@@ -463,8 +468,8 @@ class Submitter:
                     f"{rses} and the specified raw_records_rses {raw_records_rses}"
                 )
 
-        desired_sites, requirements = dbcfg.get_requirements(rses)
-        return desired_sites, requirements
+        desired_sites, requirements, site_ranks = dbcfg.get_requirements(rses)
+        return desired_sites, requirements, site_ranks
 
     def get_key(self, dbcfg, level):
         """Get the key for the output files and check the file name."""
@@ -501,7 +506,7 @@ class Submitter:
                 f"Hopefully those will be created by the workflow."
             )
 
-        desired_sites, requirements = self.get_rse_sites(dbcfg, rses, per_chunk=False)
+        desired_sites, requirements, site_ranks = self.get_rse_sites(dbcfg, rses, per_chunk=False)
 
         # High level data.. we do it all on one job
         _key = self.get_key(dbcfg, level)
@@ -567,7 +572,10 @@ class Submitter:
                 f"No data found as the dependency of {level['data_types'].not_processed}."
             )
 
-        desired_sites, requirements = self.get_rse_sites(dbcfg, rses, per_chunk=True)
+        desired_sites, requirements, site_ranks = self.get_rse_sites(dbcfg, rses, per_chunk=True)
+        desired_sites_for_us, requirements_for_us, site_ranks_us = self.get_rse_sites(
+            dbcfg, ["UC_OSG_USERDISK"], per_chunk=False
+        )
 
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
@@ -578,20 +586,8 @@ class Submitter:
             memory=level["combine_memory"],
             disk=level["combine_disk"],
         )
-        if desired_sites:
-            # Give a hint to glideinWMS for the sites we want
-            # (mostly useful for XENON VO in Europe).
-            # Glideinwms is the provisioning system.
-            # It starts pilot jobs (glideins) at sites when you
-            # have idle jobs in the queue.
-            # Most of the jobs you run to the OSPool (Open Science Pool),
-            # but you do have a few sites where you have allocations at,
-            # and those are labeled XENON VO (Virtual Organization).
-            # The "+" has to be used by non-standard HTCondor attributes.
-            # The attribute has to have double quotes,
-            # otherwise HTCondor will try to evaluate it as an expression.
-            combine_job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
-        combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
+
+        combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_for_us)
         # priority is given in the order they were submitted
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
@@ -669,6 +665,8 @@ class Submitter:
                 job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
             job.add_profiles(Namespace.CONDOR, "requirements", requirements)
             job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
+            # This allows us to set higher priority for EU sites when we have data in EU
+            job.add_profiles(Namespace.CONDOR, "rank", site_ranks)
 
             job.add_args(
                 dbcfg.run_id,
