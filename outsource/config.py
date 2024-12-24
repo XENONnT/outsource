@@ -2,6 +2,7 @@ import time
 from itertools import chain
 from typing import Dict, Any
 import numpy as np
+from utilix.config import setup_logger
 from utilix import DB, uconfig, xent_collection
 import admix
 
@@ -25,7 +26,9 @@ COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
 UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
 
 MAX_MEMORY = 30_000
+MIN_DISK = 200
 
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 db = DB()
 coll = xent_collection()
 
@@ -417,6 +420,13 @@ class RunConfig:
                                 f"Memory usage {usage.max()} is too high for "
                                 f"{detector} {label} {prefix + md}!"
                             )
+                        if md == "disk" and usage.max() < MIN_DISK:
+                            logger.warning(
+                                f"Disk usage {usage.max()} is too low for "
+                                f"{detector} {label} {prefix + md}! "
+                                f"Will be set to {MIN_DISK}."
+                            )
+                            usage = np.maximum(usage, MIN_DISK)
                         self.data_types[detector][label][prefix + md] = (
                             usage * _detector["redundancy"][md]
                         ).tolist()
