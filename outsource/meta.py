@@ -117,9 +117,18 @@ DETECTOR_DATA_TYPES = {
 
 # LED calibration modes have particular data_type we care about
 LED_MODES = {
-    "tpc_pmtap": ["afterpulses"],
-    "tpc_pmtgain": ["led_calibration"],
-    "tpc_commissioning_pmtap": ["afterpulses"],
+    "tpc_pmtap": {
+        "possible": ["afterpulses"],
+        "memory": None,
+    },
+    "tpc_pmtgain": {
+        "possible": ["led_calibration"],
+        "memory": [7.0, 0.8e3],
+    },
+    "tpc_commissioning_pmtap": {
+        "possible": ["afterpulses"],
+        "memory": None,
+    },
 }
 
 
