@@ -55,7 +55,7 @@ DETECTOR_DATA_TYPES = {
             "afterpulses": None,
         },
         "memory": {
-            "lower": [6.0, 1.0e3],
+            "lower": [3.2, 1.2e3],
             "combine": [0.0, 2.0e3],
             "upper": [0.075, 3.5e3],
         },

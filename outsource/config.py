@@ -25,6 +25,8 @@ COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
 UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
 EU_SEPARATE = uconfig.getboolean("Outsource", "eu_separate", fallback=False)
 
+MAX_MEMORY = 30_000
+
 db = DB()
 coll = xent_collection()
 
@@ -425,6 +427,11 @@ class RunConfig:
                         if prefix + md not in self.data_types[detector][label]:
                             continue
                         usage = np.array(self.data_types[detector][label][prefix + md])
+                        if md == "memory" and usage.max() > MAX_MEMORY:
+                            raise ValueError(
+                                f"Memory usage {usage.max()} is too high for "
+                                f"{detector} {label} {prefix + md}!"
+                            )
                         self.data_types[detector][label][prefix + md] = (
                             usage * _detector["redundancy"][md]
                         ).tolist()
