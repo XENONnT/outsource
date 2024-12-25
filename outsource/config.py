@@ -25,8 +25,8 @@ LOWER_CPUS = uconfig.getint("Outsource", "lower_cpus", fallback=1)
 COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
 UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
 
-MAX_MEMORY = 30_000
-MIN_DISK = 200
+MAX_MEMORY = 30_000  # in MB
+MIN_DISK = 200  # in MB
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 db = DB()
@@ -420,7 +420,7 @@ class RunConfig:
                                 f"Memory usage {usage.max()} is too high for "
                                 f"{detector} {label} {prefix + md}!"
                             )
-                        if md == "disk" and usage.max() < MIN_DISK:
+                        if md == "disk" and usage.min() < MIN_DISK:
                             logger.warning(
                                 f"Disk usage {usage.max()} is too low for "
                                 f"{detector} {label} {prefix + md}! "
