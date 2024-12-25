@@ -2,6 +2,7 @@ import time
 from itertools import chain
 from typing import Dict, Any
 import numpy as np
+from utilix.config import setup_logger
 from utilix import DB, uconfig, xent_collection
 import admix
 
@@ -25,8 +26,10 @@ COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
 UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
 EU_SEPARATE = uconfig.getboolean("Outsource", "eu_separate", fallback=False)
 
-MAX_MEMORY = 30_000
+MAX_MEMORY = 30_000  # in MB
+MIN_DISK = 200  # in MB
 
+logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 db = DB()
 coll = xent_collection()
 
@@ -134,6 +137,10 @@ class RunConfig:
     def key_for(self, data_type):
         return self.context.key_for(self._run_id, data_type)
 
+    @property
+    def is_led_mode(self):
+        return self.mode in LED_MODES
+
     def _led_mode(self, data_types):
         """Modify the data_types based on the mode.
 
@@ -141,13 +148,13 @@ class RunConfig:
         tpc runs mode.
 
         """
-        if self.mode in LED_MODES:
+        if self.is_led_mode:
             # If we are using LED data, only process those data_types
             # For this context, see if we have that data yet
-            data_types = set(data_types) & set(LED_MODES[self.mode])
+            data_types = set(data_types) & set(LED_MODES[self.mode]["possible"])
         else:
             # If we are not, don't process those data_types
-            data_types = set(data_types) - set().union(*LED_MODES.values())
+            data_types = set(data_types) - set().union(*[v["possible"] for v in LED_MODES.values()])
         return data_types
 
     def depends_on(self, data_type, lower=False):
@@ -393,8 +400,13 @@ class RunConfig:
                     len(chunks_list), LOWER_MEMORY, dtype=float
                 )
             else:
+                # If we are in LED mode, use the memory usage from the mode
+                if self.is_led_mode:
+                    coefficients = LED_MODES[self.mode]["memory"]
+                else:
+                    coefficients = _detector["memory"]["lower"]
                 self.data_types[detector][f"lower_{detector}"]["memory"] = np.polyval(
-                    _detector["memory"]["lower"],
+                    coefficients,
                     [actual_sizes[c[0] : c[-1]].max() for c in chunks_list],
                 )
             if UPPER_DISK is not None:
@@ -432,6 +444,13 @@ class RunConfig:
                                 f"Memory usage {usage.max()} is too high for "
                                 f"{detector} {label} {prefix + md}!"
                             )
+                        if md == "disk" and usage.min() < MIN_DISK:
+                            logger.warning(
+                                f"Disk usage {usage.max()} is too low for "
+                                f"{detector} {label} {prefix + md}! "
+                                f"Will be set to {MIN_DISK}."
+                            )
+                            usage = np.maximum(usage, MIN_DISK)
                         self.data_types[detector][label][prefix + md] = (
                             usage * _detector["redundancy"][md]
                         ).tolist()
