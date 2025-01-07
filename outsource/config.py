@@ -247,6 +247,10 @@ class RunConfig:
             ret["submitted"] += list(
                 set().union(*[v["data_types"].not_processed for v in ret[detector].values()])
             )
+            ret["submitted"] = sorted(
+                ret["submitted"],
+                key=lambda item: self.context.tree_levels[item]["order"],
+            )
             if len(ret["submitted"]) != len(set(ret["submitted"])):
                 raise ValueError("Why are there duplicated data_types in different detectors?")
         return ret

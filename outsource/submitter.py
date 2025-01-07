@@ -29,7 +29,7 @@ from Pegasus.api import (
 
 from outsource.config import RunConfig
 from outsource.meta import DETECTOR_DATA_TYPES
-from outsource.utils import get_context
+from outsource.utils import get_context, get_to_save_data_types
 
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -835,10 +835,29 @@ class Submitter:
         workflow.write(file=self.workflow)
 
         # Save the runlist
-        np.savetxt(self.runlist, list(runlist), fmt="%0d")
+        np.savetxt(self.runlist, sorted(runlist), fmt="%0d")
 
         # Save the job summary
-        summary["include_data_types"] = uconfig.getlist("Outsource", "include_data_types")
+        summary["include_data_types"] = sorted(
+            uconfig.getlist("Outsource", "include_data_types"),
+            key=lambda item: self.context.tree_levels[item]["order"],
+        )
+        summary["save_data_types"] = sorted(
+            get_to_save_data_types(
+                self.context,
+                list(
+                    set().union(
+                        *[v.get("submitted", []) for v in summary.values() if isinstance(v, dict)]
+                    )
+                ),
+                rm_lower=False,
+            ),
+            key=lambda item: self.context.tree_levels[item]["order"],
+        )
+        summary["save_data_types"] = [
+            "-".join(str(self.context.key_for("0", d)).split("-")[1:])
+            for d in summary["save_data_types"]
+        ]
         with open(self.summary, mode="w") as f:
             f.write(json.dumps(summary, indent=4))
 
