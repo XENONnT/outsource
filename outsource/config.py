@@ -271,6 +271,10 @@ class RunConfig:
             ret["submitted"] += list(
                 set().union(*[v["data_types"].not_processed for v in ret[detector].values()])
             )
+            ret["submitted"] = sorted(
+                ret["submitted"],
+                key=lambda item: self.context.tree_levels[item]["order"],
+            )
             if len(ret["submitted"]) != len(set(ret["submitted"])):
                 raise ValueError("Why are there duplicated data_types in different detectors?")
         return ret
@@ -439,6 +443,7 @@ class RunConfig:
                         if prefix + md not in self.data_types[detector][label]:
                             continue
                         usage = np.array(self.data_types[detector][label][prefix + md])
+                        usage *= _detector["redundancy"][md]
                         if md == "memory" and usage.max() > MAX_MEMORY:
                             raise ValueError(
                                 f"Memory usage {usage.max()} is too high for "
@@ -451,9 +456,7 @@ class RunConfig:
                                 f"Will be set to {MIN_DISK}."
                             )
                             usage = np.maximum(usage, MIN_DISK)
-                        self.data_types[detector][label][prefix + md] = (
-                            usage * _detector["redundancy"][md]
-                        ).tolist()
+                        self.data_types[detector][label][prefix + md] = usage.tolist()
 
     def dependency_exists(self, data_type="raw_records"):
         """Returns a boolean for whether the dependency exists in rucio and is accessible.
