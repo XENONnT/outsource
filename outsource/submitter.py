@@ -150,6 +150,10 @@ class Submitter:
         return os.path.join(self.generated_dir, ".dbtoken")
 
     @property
+    def xenon_config(self):
+        return os.path.join(self.generated_dir, ".xenon_config")
+
+    @property
     def workflow(self):
         return os.path.join(self.generated_dir, "workflow.yml")
 
@@ -494,7 +498,7 @@ class Submitter:
         installsh,
         processpy,
         xenon_config,
-        token,
+        dbtoken,
         tarballs,
         combinepy,
     ):
@@ -536,7 +540,7 @@ class Submitter:
             *level["data_types"],
         )
 
-        job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
+        job.add_inputs(installsh, processpy, xenon_config, dbtoken, *tarballs)
         job.add_outputs(job_tar, stage_out=self.stage_out_upper)
         job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
 
@@ -561,7 +565,7 @@ class Submitter:
         installsh,
         processpy,
         xenon_config,
-        token,
+        dbtoken,
         tarballs,
         combinepy,
     ):
@@ -599,7 +603,7 @@ class Submitter:
         combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
         # priority is given in the order they were submitted
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
-        combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
+        combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *tarballs)
         _key = self.get_key(dbcfg, level)
         combine_tar = File(f"{_key}-output.tar.gz")
         combine_job.add_outputs(combine_tar, stage_out=self.stage_out_combine)
@@ -655,7 +659,7 @@ class Submitter:
                     download_tar,
                     *level["data_types"],
                 )
-                download_job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
+                download_job.add_inputs(installsh, processpy, xenon_config, dbtoken, *tarballs)
                 download_job.add_outputs(download_tar, stage_out=False)
                 download_job.set_stdout(File(f"{download_tar}.log"), stage_out=True)
                 workflow.add_jobs(download_job)
@@ -689,7 +693,7 @@ class Submitter:
                 *level["data_types"],
             )
 
-            job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
+            job.add_inputs(installsh, processpy, xenon_config, dbtoken, *tarballs)
             job.add_outputs(job_tar, stage_out=self.stage_out_lower)
             job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
 
@@ -751,10 +755,12 @@ class Submitter:
 
         # Add common data files to the replica catalog
         xenon_config = File(".xenon_config")
-        rc.add_replica("local", ".xenon_config", f"file://{uconfig.config_path}")
+        # Avoid its change after the job submission
+        shutil.copy(uconfig.config_path, self.xenon_config)
+        rc.add_replica("local", ".xenon_config", f"file://{self.xenon_config}")
 
         # Token needed for DB connection
-        token = File(".dbtoken")
+        dbtoken = File(".dbtoken")
         # Avoid its change after the job submission
         shutil.copy(os.path.join(os.environ["HOME"], ".dbtoken"), self.dbtoken)
         rc.add_replica("local", ".dbtoken", f"file://{self.dbtoken}")
@@ -815,7 +821,7 @@ class Submitter:
                         installsh,
                         processpy,
                         xenon_config,
-                        token,
+                        dbtoken,
                         tarballs,
                         combinepy,
                     )
