@@ -79,6 +79,7 @@ class Submitter:
         rucio_upload=False,
         rundb_update=False,
         ignore_processed=False,
+        stage=False,
         resources_test=False,
         stage_out_lower=False,
         stage_out_combine=False,
@@ -120,6 +121,7 @@ class Submitter:
         self.context = get_context(context_name, self.xedocs_version)
 
         self.ignore_processed = ignore_processed
+        self.stage = stage
         self.rucio_upload = rucio_upload
         self.rundb_update = rundb_update
         if not self.rucio_upload and self.rundb_update:
@@ -535,6 +537,7 @@ class Submitter:
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             f"{self.ignore_processed}".lower(),
+            f"{self.stage}".lower(),
             "false" if not dbcfg.standalone_download else "no_download",
             job_tar,
             *level["data_types"],
@@ -614,6 +617,7 @@ class Submitter:
             self.xedocs_version,
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
+            f"{self.stage}".lower(),
             combine_tar,
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         )
@@ -655,6 +659,7 @@ class Submitter:
                     f"{self.rucio_upload}".lower(),
                     f"{self.rundb_update}".lower(),
                     f"{self.ignore_processed}".lower(),
+                    f"{self.stage}".lower(),
                     "download_only",
                     download_tar,
                     *level["data_types"],
@@ -688,6 +693,7 @@ class Submitter:
                 f"{self.rucio_upload}".lower(),
                 f"{self.rundb_update}".lower(),
                 f"{self.ignore_processed}".lower(),
+                f"{self.stage}".lower(),
                 "false" if not dbcfg.standalone_download else "no_download",
                 job_tar,
                 *level["data_types"],

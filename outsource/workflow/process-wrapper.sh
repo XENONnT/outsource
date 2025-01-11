@@ -10,10 +10,11 @@ chunks_end=$5
 rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
-standalone_download=$9
-tar_filename=${10}
+stage=$9
+standalone_download=$10
+tar_filename=${11}
 args=( "$@" )
-data_types=${args[@]:10}
+data_types=${args[@]:11}
 
 echo $@
 echo $*
@@ -46,6 +47,10 @@ fi
 
 if [ "X$ignore_processed" = "Xtrue" ]; then
     extraflags="$extraflags --ignore_processed"
+fi
+
+if [ "X$stage" = "Xtrue" ]; then
+    extraflags="$extraflags --stage"
 fi
 
 . /opt/XENONnT/setup.sh

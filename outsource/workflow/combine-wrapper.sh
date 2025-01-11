@@ -7,9 +7,10 @@ context=$2
 xedocs_version=$3
 rucio_upload=$4
 rundb_update=$5
-tar_filename=$6
+stage=$6
+tar_filename=$7
 args=( "$@" )
-chunks=${args[@]:6}
+chunks=${args[@]:7}
 
 echo $@
 echo $*
@@ -23,11 +24,14 @@ mkdir -p $output_path
 
 extraflags=""
 
+if [ "X$rucio_upload" = "Xtrue" ]; then
+    extraflags="$extraflags --rucio_upload"
+fi
 if [ "X$rundb_update" = "Xtrue" ]; then
     extraflags="$extraflags --rundb_update"
 fi
-if [ "X$rucio_upload" = "Xtrue" ]; then
-    extraflags="$extraflags --rucio_upload"
+if [ "X$stage" = "Xtrue" ]; then
+    extraflags="$extraflags --stage"
 fi
 
 chunksarg="--chunks $chunks"
