@@ -10,10 +10,9 @@ chunks_end=$5
 rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
-standalone_download=$9
-tar_filename=${10}
+tar_filename=$9
 args=( "$@" )
-data_types=${args[@]:10}
+data_types=${args[@]:9}
 
 echo $@
 echo $*
@@ -29,12 +28,6 @@ output_path="output"
 mkdir -p $output_path
 
 extraflags=""
-
-if [ "X$standalone_download" = "Xdownload-only" ]; then
-    extraflags="$extraflags --download_only"
-elif [ "X$standalone_download" = "Xno-download" ]; then
-    extraflags="$extraflags --no_download"
-fi
 
 if [ "X$rucio_upload" = "Xtrue" ]; then
     extraflags="$extraflags --rucio_upload"
@@ -85,14 +78,12 @@ run_id_pad=`printf %06d $run_id`
 
 # We are given a tarball from the previous download job
 echo "Checking if we have any downloaded input tarballs:"
-if [ "X$standalone_download" = "Xno-download" ]; then
-    for tarball in $(ls $run_id_pad*-download*.tar.gz)
-    do
-        echo "Untar downloaded input : $tarball:"
-        tar -xzf $tarball -C $input_path --strip-components=1
-        rm $tarball
-    done
-fi
+for tarball in $(ls $run_id_pad*-download*.tar.gz)
+do
+    echo "Untar downloaded input : $tarball:"
+    tar -xzf $tarball -C $input_path --strip-components=1
+    rm $tarball
+done
 echo
 
 # See if we have any input tarballs
