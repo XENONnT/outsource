@@ -81,7 +81,7 @@ echo
 
 run_id_pad=`printf %06d $run_id`
 
-# We are given a tarball from the previous download job
+# We are given a tarball from the previous job
 echo "Checking if we have any downloaded input tarballs:"
 for tarball in $(ls $run_id_pad*-download*.tar.gz)
 do
