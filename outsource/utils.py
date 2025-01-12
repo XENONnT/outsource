@@ -21,6 +21,7 @@ def get_context(
     output_path=None,
     staging_dir=None,
     ignore_processed=False,
+    stage=False,
 ):
     """Get straxen context for given context name and xedocs_version."""
     st = getattr(cutax.contexts, context)(xedocs_version=xedocs_version)
@@ -34,6 +35,7 @@ def get_context(
             straxen.storage.RucioRemoteFrontend(
                 staging_dir=staging_dir,
                 download_heavy=True,
+                stage=stage,
                 take_only=tuple(st.root_data_types),
                 rses_only=uconfig.getlist("Outsource", "raw_records_rses"),
             )
@@ -43,6 +45,7 @@ def get_context(
                 straxen.storage.RucioRemoteFrontend(
                     staging_dir=staging_dir,
                     download_heavy=True,
+                    stage=stage,
                     exclude=tuple(st.root_data_types),
                 )
             )

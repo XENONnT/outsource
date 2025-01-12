@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--output_path", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
+    parser.add_argument("--stage", action="store_true", dest="stage")
     parser.add_argument("--keep_raw_records", action="store_true", dest="keep_raw_records")
     parser.add_argument("--chunks", required=True, nargs="*", type=int)
 
@@ -66,6 +67,7 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=True,
+        stage=args.stage,
     )
 
     # Check what data is in the output folder

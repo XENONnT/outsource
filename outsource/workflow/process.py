@@ -52,6 +52,7 @@ def main():
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--ignore_processed", action="store_true", dest="ignore_processed")
+    parser.add_argument("--stage", action="store_true", dest="stage")
     parser.add_argument("--keep_raw_records", action="store_true", dest="keep_raw_records")
 
     args = parser.parse_args()
@@ -73,6 +74,7 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=args.ignore_processed,
+        stage=args.stage,
     )
 
     logger.info("Context is set up!")

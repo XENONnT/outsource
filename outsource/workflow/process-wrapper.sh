@@ -10,9 +10,10 @@ chunks_end=$5
 rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
-tar_filename=$9
+stage=$9
+tar_filename=${10}
 args=( "$@" )
-data_types=${args[@]:9}
+data_types=${args[@]:10}
 
 echo $@
 echo $*
@@ -39,6 +40,10 @@ fi
 
 if [ "X$ignore_processed" = "Xtrue" ]; then
     extraflags="$extraflags --ignore_processed"
+fi
+
+if [ "X$stage" = "Xtrue" ]; then
+    extraflags="$extraflags --stage"
 fi
 
 . /opt/XENONnT/setup.sh
@@ -76,7 +81,7 @@ echo
 
 run_id_pad=`printf %06d $run_id`
 
-# We are given a tarball from the previous download job
+# We are given a tarball from the previous job
 echo "Checking if we have any downloaded input tarballs:"
 for tarball in $(ls $run_id_pad*-download*.tar.gz)
 do

@@ -47,6 +47,12 @@ def main():
         help="Ignore runs that have already been processed",
     )
     parser.add_argument(
+        "--stage",
+        dest="stage",
+        action="store_true",
+        help="Stage data before downloading",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help=(
@@ -160,6 +166,7 @@ def main():
         rucio_upload=args.rucio_upload,
         rundb_update=args.rundb_update,
         ignore_processed=args.ignore_processed,
+        stage=args.stage,
         resources_test=args.resources_test,
         stage_out_lower=args.stage_out_lower,
         stage_out_combine=args.stage_out_combine,
