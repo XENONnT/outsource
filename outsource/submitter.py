@@ -47,7 +47,6 @@ class Submitter:
     # Transformation map (high level name -> script)
     _transformations_map = {
         "combine": COMBINE_WRAPPER,
-        "download": PROCESS_WRAPPER,
         "untar": UNTAR_WRAPPER,
     }
     _transformations_map.update(
@@ -79,6 +78,7 @@ class Submitter:
         rucio_upload=False,
         rundb_update=False,
         ignore_processed=False,
+        stage=False,
         resources_test=False,
         stage_out_lower=False,
         stage_out_combine=False,
@@ -120,6 +120,7 @@ class Submitter:
         self.context = get_context(context_name, self.xedocs_version)
 
         self.ignore_processed = ignore_processed
+        self.stage = stage
         self.rucio_upload = rucio_upload
         self.rundb_update = rundb_update
         if not self.rucio_upload and self.rundb_update:
@@ -148,6 +149,10 @@ class Submitter:
     @property
     def dbtoken(self):
         return os.path.join(self.generated_dir, ".dbtoken")
+
+    @property
+    def xenon_config(self):
+        return os.path.join(self.generated_dir, ".xenon_config")
 
     @property
     def workflow(self):
@@ -454,9 +459,6 @@ class Submitter:
     def get_rse_sites(self, dbcfg, rses, per_chunk=False):
         """Get the desired sites and requirements for the data_type."""
         raw_records_rses = uconfig.getlist("Outsource", "raw_records_rses")
-        # For standalone downloads, only target US
-        if dbcfg.standalone_download:
-            rses = raw_records_rses
 
         if per_chunk:
             # For low level data, we only want to run_id on sites
@@ -494,7 +496,7 @@ class Submitter:
         installsh,
         processpy,
         xenon_config,
-        token,
+        dbtoken,
         tarballs,
         combinepy,
     ):
@@ -531,12 +533,12 @@ class Submitter:
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             f"{self.ignore_processed}".lower(),
-            "false" if not dbcfg.standalone_download else "no_download",
+            f"{self.stage}".lower(),
             job_tar,
             *level["data_types"],
         )
 
-        job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
+        job.add_inputs(installsh, processpy, xenon_config, dbtoken, *tarballs)
         job.add_outputs(job_tar, stage_out=self.stage_out_upper)
         job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
 
@@ -561,7 +563,7 @@ class Submitter:
         installsh,
         processpy,
         xenon_config,
-        token,
+        dbtoken,
         tarballs,
         combinepy,
     ):
@@ -590,7 +592,7 @@ class Submitter:
         combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_for_us)
         # priority is given in the order they were submitted
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
-        combine_job.add_inputs(installsh, combinepy, xenon_config, token, *tarballs)
+        combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *tarballs)
         _key = self.get_key(dbcfg, level)
         combine_tar = File(f"{_key}-output.tar.gz")
         combine_job.add_outputs(combine_tar, stage_out=self.stage_out_combine)
@@ -601,6 +603,7 @@ class Submitter:
             self.xedocs_version,
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
+            f"{self.stage}".lower(),
             combine_tar,
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         )
@@ -615,41 +618,6 @@ class Submitter:
         # Loop over the chunks
         for job_i in range(len(level["chunks"])):
             self.logger.debug(f"Adding job for per-chunk processing: {level['chunks'][job_i]}")
-
-            # standalone_download is a special case where we download data
-            # from rucio first, which is useful for testing and when using
-            # dedicated clusters with storage
-            if dbcfg.standalone_download:
-                download_tar = File(f"{_key}-download-{job_i:04d}.tar.gz")
-                download_job = self._job(
-                    name="download",
-                    cores=level["cores"],
-                    memory=level["memory"][job_i],
-                    disk=level["disk"][job_i],
-                )
-                if desired_sites:
-                    download_job.add_profiles(
-                        Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"'
-                    )
-                download_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
-                download_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
-                download_job.add_args(
-                    dbcfg.run_id,
-                    self.context_name,
-                    self.xedocs_version,
-                    level["chunks"][job_i][0],
-                    level["chunks"][job_i][1],
-                    f"{self.rucio_upload}".lower(),
-                    f"{self.rundb_update}".lower(),
-                    f"{self.ignore_processed}".lower(),
-                    "download_only",
-                    download_tar,
-                    *level["data_types"],
-                )
-                download_job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
-                download_job.add_outputs(download_tar, stage_out=False)
-                download_job.set_stdout(File(f"{download_tar}.log"), stage_out=True)
-                workflow.add_jobs(download_job)
 
             # output files
             job_tar = File(f"{_key}-output-{job_i:04d}.tar.gz")
@@ -677,19 +645,14 @@ class Submitter:
                 f"{self.rucio_upload}".lower(),
                 f"{self.rundb_update}".lower(),
                 f"{self.ignore_processed}".lower(),
-                "false" if not dbcfg.standalone_download else "no_download",
+                f"{self.stage}".lower(),
                 job_tar,
                 *level["data_types"],
             )
 
-            job.add_inputs(installsh, processpy, xenon_config, token, *tarballs)
+            job.add_inputs(installsh, processpy, xenon_config, dbtoken, *tarballs)
             job.add_outputs(job_tar, stage_out=self.stage_out_lower)
             job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
-
-            # All strax jobs depend on the pre-flight or a download job,
-            # but pre-flight jobs have been outdated so it is not necessary.
-            if dbcfg.standalone_download:
-                job.add_inputs(download_tar)
 
             workflow.add_jobs(job)
 
@@ -744,10 +707,12 @@ class Submitter:
 
         # Add common data files to the replica catalog
         xenon_config = File(".xenon_config")
-        rc.add_replica("local", ".xenon_config", f"file://{uconfig.config_path}")
+        # Avoid its change after the job submission
+        shutil.copy(uconfig.config_path, self.xenon_config)
+        rc.add_replica("local", ".xenon_config", f"file://{self.xenon_config}")
 
         # Token needed for DB connection
-        token = File(".dbtoken")
+        dbtoken = File(".dbtoken")
         # Avoid its change after the job submission
         shutil.copy(os.path.join(os.environ["HOME"], ".dbtoken"), self.dbtoken)
         rc.add_replica("local", ".dbtoken", f"file://{self.dbtoken}")
@@ -808,7 +773,7 @@ class Submitter:
                         installsh,
                         processpy,
                         xenon_config,
-                        token,
+                        dbtoken,
                         tarballs,
                         combinepy,
                     )

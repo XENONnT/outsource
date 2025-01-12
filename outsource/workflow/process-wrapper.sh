@@ -10,7 +10,7 @@ chunks_end=$5
 rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
-standalone_download=$9
+stage=$9
 tar_filename=${10}
 args=( "$@" )
 data_types=${args[@]:10}
@@ -30,12 +30,6 @@ mkdir -p $output_path
 
 extraflags=""
 
-if [ "X$standalone_download" = "Xdownload-only" ]; then
-    extraflags="$extraflags --download_only"
-elif [ "X$standalone_download" = "Xno-download" ]; then
-    extraflags="$extraflags --no_download"
-fi
-
 if [ "X$rucio_upload" = "Xtrue" ]; then
     extraflags="$extraflags --rucio_upload"
 fi
@@ -46,6 +40,10 @@ fi
 
 if [ "X$ignore_processed" = "Xtrue" ]; then
     extraflags="$extraflags --ignore_processed"
+fi
+
+if [ "X$stage" = "Xtrue" ]; then
+    extraflags="$extraflags --stage"
 fi
 
 . /opt/XENONnT/setup.sh
@@ -83,16 +81,14 @@ echo
 
 run_id_pad=`printf %06d $run_id`
 
-# We are given a tarball from the previous download job
+# We are given a tarball from the previous job
 echo "Checking if we have any downloaded input tarballs:"
-if [ "X$standalone_download" = "Xno-download" ]; then
-    for tarball in $(ls $run_id_pad*-download*.tar.gz)
-    do
-        echo "Untar downloaded input : $tarball:"
-        tar -xzf $tarball -C $input_path --strip-components=1
-        rm $tarball
-    done
-fi
+for tarball in $(ls $run_id_pad*-download*.tar.gz)
+do
+    echo "Untar downloaded input : $tarball:"
+    tar -xzf $tarball -C $input_path --strip-components=1
+    rm $tarball
+done
 echo
 
 # See if we have any input tarballs

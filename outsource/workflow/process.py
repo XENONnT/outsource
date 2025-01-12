@@ -52,8 +52,7 @@ def main():
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--ignore_processed", action="store_true", dest="ignore_processed")
-    parser.add_argument("--download_only", action="store_true", dest="download_only")
-    parser.add_argument("--no_download", action="store_true", dest="no_download")
+    parser.add_argument("--stage", action="store_true", dest="stage")
     parser.add_argument("--keep_raw_records", action="store_true", dest="keep_raw_records")
 
     args = parser.parse_args()
@@ -75,6 +74,7 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=args.ignore_processed,
+        stage=args.stage,
     )
 
     logger.info("Context is set up!")
@@ -84,14 +84,8 @@ def main():
 
     if args.chunks_start == args.chunks_end:
         chunks = None
-        chunk_number = None
     else:
         chunks = list(range(args.chunks_start, args.chunks_end))
-        chunk_number = {data_types[0]: chunks}
-
-    if args.download_only:
-        st.get_array(run_id, data_types, chunk_number=chunk_number)
-        return
 
     # Get the order of data_types in processing
     data_types = get_processing_order(st, data_types, rm_lower=chunks is None)

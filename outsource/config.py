@@ -98,11 +98,10 @@ class RunConfig:
 
     chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=None)
 
-    def __init__(self, context, run_id, ignore_processed=False, standalone_download=False):
+    def __init__(self, context, run_id, ignore_processed=False):
         self.context = context
         self.run_id = run_id
         self.ignore_processed = ignore_processed
-        self.standalone_download = standalone_download
 
         self._per_chunk_data_types = get_clean_per_chunk_data_types(self.context)
         self._detector_data_types = get_clean_detector_data_types(self.context)
