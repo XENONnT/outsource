@@ -74,7 +74,7 @@ DETECTOR_DATA_TYPES = {
         "keep_chunks": straxen.nVETORecorder.takes_config["keep_n_chunks_for_monitoring"].default,
         "rate": {
             "lone_raw_record_statistics_nv": [0, 0],
-            "raw_records_coin_nv": [1.0, 0.2],
+            "raw_records_coin_nv": [1.0, 0.02],
             "hitlets_nv": [1.05, 0.025],
             "events_nv": [0.0025, 0.0025],
         },
