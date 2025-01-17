@@ -303,6 +303,15 @@ class RunConfig:
                     ]
                 )
 
+            keep_chunks = _detector.get("keep_chunks", 0)
+            repeats = [
+                min(keep_chunks, len(n_depends_on)),
+                max(keep_chunks, len(n_depends_on)) - keep_chunks,
+            ]
+            if keep_chunks == 0:
+                repeats = repeats[1:]
+            assert sum(repeats) == len(n_depends_on)
+
             # Calculate the disk usage ratio in MB
             # For one item in the dependency, how much disk space is needed in MB
             ratios = dict()
@@ -311,20 +320,28 @@ class RunConfig:
                 for data_type in missing_data_types[_level]:
                     data_kind = data_type_collection[data_type]
                     ratios[_level].append(
-                        _detector["rate"].get(data_kind, 0)
+                        np.repeat(
+                            _detector["rate"].get(data_kind, [0, 0] if keep_chunks else 0), repeats
+                        )
                         * _detector["compression"].get(data_kind, 0)
                     )
-                ratios[_level] = np.array(ratios[_level])
+                ratios[_level] = np.array(ratios[_level]).T
             # coefficients = [1, 1, 1, 2]  # if we remove tarred folder while tarring
             coefficients = [2, 0.5, 2, 1.5]  # if we do not remove tarred folder while tarring
             # The lower level disk usage
             disk_ratio = dict()
-            disk_ratio["lower"] = coefficients[0] * (itemsizes["lower"] * ratios["lower"]).sum()
+            disk_ratio["lower"] = coefficients[0] * (ratios["lower"] * itemsizes["lower"]).sum(
+                axis=1
+            )
             # The upper level also needs to consider the disk usage of the lower level
             disk_ratio["upper"] = coefficients[1] * disk_ratio["lower"]
-            disk_ratio["upper"] += coefficients[2] * (itemsizes["upper"] * ratios["upper"]).sum()
+            disk_ratio["upper"] += coefficients[2] * (ratios["upper"] * itemsizes["upper"]).sum(
+                axis=1
+            )
             # The combine level disk usage is replica of the lower level w/o raw_records*
-            disk_ratio["combine"] = coefficients[3] * (itemsizes["lower"] * ratios["lower"]).sum()
+            disk_ratio["combine"] = coefficients[3] * (ratios["lower"] * itemsizes["lower"]).sum(
+                axis=1
+            )
             # The raw_records* disk usage is calculated in the last
             if self.data_types[detector][f"lower_{detector}"]["data_types"]:
                 disk_ratio["lower"] += self.context.data_itemsize(depends_on) * compression_ratio
@@ -343,10 +360,10 @@ class RunConfig:
                 for chunk_i in range(1, n_chunks + 1):
                     # We are aggressive here to use more than
                     # rough_disk assigned because storage is cheap
+                    sl = slice(_chunk_i, chunk_i)
                     if (
-                        n_depends_on[_chunk_i:chunk_i].sum() * disk_ratio["lower"] > rough_disk
-                        or chunk_i == n_chunks
-                    ):
+                        n_depends_on[sl] * disk_ratio["lower"][sl]
+                    ).sum() > rough_disk or chunk_i == n_chunks:
                         chunks_list.append([_chunk_i, chunk_i])
                         _chunk_i = chunk_i
             else:
@@ -372,7 +389,10 @@ class RunConfig:
                 )
             else:
                 self.data_types[detector][f"lower_{detector}"]["disk"] = np.array(
-                    [n_depends_on[c[0] : c[-1]].sum() * disk_ratio["lower"] for c in chunks_list]
+                    [
+                        (n_depends_on[c[0] : c[-1]] * disk_ratio["lower"][c[0] : c[-1]]).sum()
+                        for c in chunks_list
+                    ]
                 )
             if LOWER_MEMORY is not None:
                 self.data_types[detector][f"lower_{detector}"]["memory"] = np.full(
@@ -392,8 +412,8 @@ class RunConfig:
                 self.data_types[detector][f"upper_{detector}"]["disk"] = UPPER_DISK
             else:
                 self.data_types[detector][f"upper_{detector}"]["disk"] = (
-                    n_depends_on.sum() * disk_ratio["upper"]
-                )
+                    n_depends_on * disk_ratio["upper"]
+                ).sum()
             if UPPER_MEMORY is not None:
                 self.data_types[detector][f"upper_{detector}"]["memory"] = UPPER_MEMORY
             else:
@@ -404,8 +424,8 @@ class RunConfig:
                 self.data_types[detector][f"lower_{detector}"]["combine_disk"] = COMBINE_DISK
             else:
                 self.data_types[detector][f"lower_{detector}"]["combine_disk"] = (
-                    n_depends_on.sum() * disk_ratio["combine"]
-                )
+                    n_depends_on * disk_ratio["combine"]
+                ).sum()
             if COMBINE_MEMORY is not None:
                 self.data_types[detector][f"lower_{detector}"]["combine_memory"] = COMBINE_MEMORY
             else:
