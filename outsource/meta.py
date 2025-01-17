@@ -1,3 +1,6 @@
+import straxen
+
+
 # These data_types need per-chunk storage, so don't upload to rucio here!
 PER_CHUNK_DATA_TYPES = [
     "peaklets",
@@ -68,7 +71,7 @@ DETECTOR_DATA_TYPES = {
         "raw": "raw_records_nv",
         "per_chunk": True,
         "possible": ["hitlets_nv", "events_nv"],
-        "keep_chunks": 5,
+        "keep_chunks": straxen.nVETORecorder.takes_config["keep_n_chunks_for_monitoring"].default,
         "rate": {
             "lone_raw_record_statistics_nv": [0, 0],
             "raw_records_coin_nv": [1.0, 0.2],
