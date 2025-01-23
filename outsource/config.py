@@ -303,13 +303,15 @@ class RunConfig:
                     ]
                 )
 
-            keep_chunks = _detector.get("keep_chunks", 0)
-            repeats = [
-                min(keep_chunks, len(n_depends_on)),
-                max(keep_chunks, len(n_depends_on)) - keep_chunks,
-            ]
-            if keep_chunks == 0:
-                repeats = repeats[1:]
+            meta = coll.find_one({"number": self.run_id}, {"start": 1, "end": 1})
+            total_seconds = (meta["end"] - meta["start"]).total_seconds()
+            seconds = np.cumsum(n_depends_on) / n_depends_on.sum() * total_seconds
+            keep_seconds = _detector.get("keep_seconds", 0)
+            if keep_seconds == 0:
+                repeats = [len(n_depends_on)]
+            else:
+                repeats = np.searchsorted(seconds, keep_seconds) + 1
+                repeats = [repeats, len(n_depends_on) - repeats]
             assert sum(repeats) == len(n_depends_on)
 
             # Calculate the disk usage ratio in MB
@@ -321,7 +323,7 @@ class RunConfig:
                     data_kind = data_type_collection[data_type]
                     ratios[_level].append(
                         np.repeat(
-                            _detector["rate"].get(data_kind, [0, 0] if keep_chunks else 0), repeats
+                            _detector["rate"].get(data_kind, [0, 0] if keep_seconds else 0), repeats
                         )
                         * _detector["compression"].get(data_kind, 0)
                     )
