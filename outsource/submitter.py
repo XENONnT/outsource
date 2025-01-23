@@ -45,10 +45,23 @@ db = DB()
 
 class Submitter:
     # Transformation map (high level name -> script)
-    _transformations_map = {
-        "combine": COMBINE_WRAPPER,
-        "untar": UNTAR_WRAPPER,
-    }
+    _transformations_map = {}
+    _transformations_map.update(
+        dict(
+            zip(
+                [f"combine_{det}" for det in DETECTOR_DATA_TYPES],
+                [COMBINE_WRAPPER] * len(DETECTOR_DATA_TYPES),
+            )
+        )
+    )
+    _transformations_map.update(
+        dict(
+            zip(
+                [f"untar_{det}" for det in DETECTOR_DATA_TYPES],
+                [UNTAR_WRAPPER] * len(DETECTOR_DATA_TYPES),
+            )
+        )
+    )
     _transformations_map.update(
         dict(
             zip(
@@ -546,7 +559,8 @@ class Submitter:
         # have current process-wrapper.sh depend on previous combine-wrapper.sh
 
         if self.stage_out_upper:
-            untar_job = self._job("untar", run_on_submit_node=True)
+            suffix = "_".join(label.split("_")[1:])
+            untar_job = self._job(name=f"untar_{suffix}", run_on_submit_node=True)
             untar_job.add_inputs(job_tar)
             untar_job.add_args(job_tar, self.outputs_dir)
             untar_job.set_stdout(File(f"untar-{job_tar}.log"), stage_out=True)
@@ -576,11 +590,12 @@ class Submitter:
 
         desired_sites, requirements = self.get_rse_sites(dbcfg, rses, per_chunk=True)
 
+        suffix = "_".join(label.split("_")[1:])
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
         # only need combine job for low-level stuff
         combine_job = self._job(
-            name="combine",
+            name=f"combine_{suffix}",
             cores=level["combine_cores"],
             memory=level["combine_memory"],
             disk=level["combine_disk"],
@@ -618,7 +633,7 @@ class Submitter:
         )
 
         if self.stage_out_combine:
-            untar_job = self._job("untar", run_on_submit_node=True)
+            untar_job = self._job(name=f"untar_{suffix}", run_on_submit_node=True)
             untar_job.add_inputs(combine_tar)
             untar_job.add_args(combine_tar, self.outputs_dir)
             untar_job.set_stdout(File(f"untar-{combine_tar}.log"), stage_out=True)

@@ -86,7 +86,7 @@ def main():
 
     # Merge
     for data_type in data_types:
-        logger.info(f"Merging {data_type} level")
+        logger.info(f"Merging {data_type}")
         merge(st, run_id, data_type, chunk_number_group)
 
     # Remove rucio directory

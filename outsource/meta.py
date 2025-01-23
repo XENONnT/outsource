@@ -70,7 +70,7 @@ DETECTOR_DATA_TYPES = {
     "neutron_veto": {
         "raw": "raw_records_nv",
         "per_chunk": True,
-        "possible": ["hitlets_nv", "events_nv"],
+        "possible": ["hitlets_nv", "events_nv", "event_positions_nv", "event_waveform_nv"],
         "keep_chunks": straxen.nVETORecorder.takes_config["keep_n_chunks_for_monitoring"].default,
         "rate": {
             "lone_raw_record_statistics_nv": [0, 0],
