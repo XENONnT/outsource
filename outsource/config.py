@@ -327,7 +327,9 @@ class RunConfig:
                         )
                         * _detector["compression"].get(data_kind, 0)
                     )
-                ratios[_level] = np.array(ratios[_level]).T
+                ratios[_level] = np.array(ratios[_level]).T.reshape(
+                    (sum(repeats), len(missing_data_types[_level]))
+                )
             # coefficients = [1, 1, 1, 2]  # if we remove tarred folder while tarring
             coefficients = [2, 0.5, 2, 1.5]  # if we do not remove tarred folder while tarring
             # The lower level disk usage
