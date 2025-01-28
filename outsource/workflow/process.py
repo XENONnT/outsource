@@ -31,7 +31,9 @@ def process(st, run_id, data_type, chunks):
     st.make(
         run_id,
         data_type,
+        save=data_type,
         chunk_number=get_chunk_number(st, run_id, data_type, chunks),
+        progress_bar=True,
     )
     gc.collect()
 
