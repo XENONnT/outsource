@@ -85,7 +85,7 @@ DETECTOR_DATA_TYPES = {
             "events_nv": 0.15,
         },
         "memory": {
-            "lower": [0.1, 7.5e3],
+            "lower": [4.0, 0.0e3],
             "combine": [0.0, 2.0e3],
             "upper": [0.0, 4.0e3],
         },
