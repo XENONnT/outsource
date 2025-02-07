@@ -45,10 +45,23 @@ db = DB()
 
 class Submitter:
     # Transformation map (high level name -> script)
-    _transformations_map = {
-        "combine": COMBINE_WRAPPER,
-        "untar": UNTAR_WRAPPER,
-    }
+    _transformations_map = {}
+    _transformations_map.update(
+        dict(
+            zip(
+                [f"combine_{det}" for det in DETECTOR_DATA_TYPES],
+                [COMBINE_WRAPPER] * len(DETECTOR_DATA_TYPES),
+            )
+        )
+    )
+    _transformations_map.update(
+        dict(
+            zip(
+                [f"untar_{det}" for det in DETECTOR_DATA_TYPES],
+                [UNTAR_WRAPPER] * len(DETECTOR_DATA_TYPES),
+            )
+        )
+    )
     _transformations_map.update(
         dict(
             zip(
@@ -147,6 +160,10 @@ class Submitter:
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
 
     @property
+    def x509_user_proxy(self):
+        return os.path.join(self.generated_dir, ".x509_user_proxy")
+
+    @property
     def dbtoken(self):
         return os.path.join(self.generated_dir, ".dbtoken")
 
@@ -228,13 +245,15 @@ class Submitter:
         job.add_profiles(Namespace.ENV, TF_ENABLE_ONEDNN_OPTS="0")
 
         # Increase memory/disk if the first attempt fails
+        # Second memory/disk will be the same to the first attempt
+        # The memory/disk will be increased by the number of retries afterwards
         memory_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry == 0, {int(memory)}, (DAGNodeRetry + 1)*{int(memory)})"
+            f"DAGNodeRetry == 0, {int(memory)}, DAGNodeRetry * {int(memory)})"
         )
         disk_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry == 0, {int(disk * 1_000)}, (DAGNodeRetry + 1)*{int(disk * 1_000)})"
+            f"DAGNodeRetry == 0, {int(disk * 1_000)}, DAGNodeRetry * {int(disk * 1_000)})"
         )
         job.add_profiles(Namespace.CONDOR, "request_disk", disk_str)
         job.add_profiles(Namespace.CONDOR, "request_memory", memory_str)
@@ -277,7 +296,7 @@ class Submitter:
         condorpool.add_profiles(Namespace.PEGASUS, style="condor")
         condorpool.add_profiles(Namespace.CONDOR, universe="vanilla")
         # We need the x509 proxy for Rucio transfers
-        condorpool.add_profiles(Namespace.CONDOR, "x509userproxy", os.environ["X509_USER_PROXY"])
+        condorpool.add_profiles(Namespace.CONDOR, "x509userproxy", self.x509_user_proxy)
         condorpool.add_profiles(
             Namespace.CONDOR, "+SingularityImage", f'"{self.singularity_image}"'
         )
@@ -320,7 +339,7 @@ class Submitter:
         output_dir.add_file_servers(FileServer(f"file:///{self.outputs_dir}", Operation.ALL))
         local.add_directories(scratch_dir, output_dir)
 
-        local.add_profiles(Namespace.ENV, HOME=os.environ["HOME"])
+        # local.add_profiles(Namespace.ENV, HOME=os.environ["HOME"])
         local.add_profiles(Namespace.ENV, GLOBUS_LOCATION="")
         local.add_profiles(
             Namespace.ENV,
@@ -342,7 +361,7 @@ class Submitter:
             ),
         )
         local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
-        local.add_profiles(Namespace.ENV, X509_USER_PROXY=os.environ["X509_USER_PROXY"])
+        local.add_profiles(Namespace.ENV, X509_USER_PROXY=self.x509_user_proxy)
         # local.add_profiles(
         #     Namespace.ENV,
         #     RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s",
@@ -495,10 +514,10 @@ class Submitter:
         dbcfg,
         installsh,
         processpy,
+        combinepy,
         xenon_config,
         dbtoken,
         tarballs,
-        combinepy,
     ):
         """Add a processing job to the workflow."""
         rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
@@ -546,7 +565,8 @@ class Submitter:
         # have current process-wrapper.sh depend on previous combine-wrapper.sh
 
         if self.stage_out_upper:
-            untar_job = self._job("untar", run_on_submit_node=True)
+            suffix = "_".join(label.split("_")[1:])
+            untar_job = self._job(name=f"untar_{suffix}", run_on_submit_node=True)
             untar_job.add_inputs(job_tar)
             untar_job.add_args(job_tar, self.outputs_dir)
             untar_job.set_stdout(File(f"untar-{job_tar}.log"), stage_out=True)
@@ -562,10 +582,10 @@ class Submitter:
         dbcfg,
         installsh,
         processpy,
+        combinepy,
         xenon_config,
         dbtoken,
         tarballs,
-        combinepy,
     ):
         """Add a per-chunk processing job to the workflow."""
         rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
@@ -579,11 +599,12 @@ class Submitter:
             dbcfg, ["UC_OSG_USERDISK"], per_chunk=False
         )
 
+        suffix = "_".join(label.split("_")[1:])
         # Set up the combine job first -
         # we can then add to that job inside the chunk file loop
         # only need combine job for low-level stuff
         combine_job = self._job(
-            name="combine",
+            name=f"combine_{suffix}",
             cores=level["combine_cores"],
             memory=level["combine_memory"],
             disk=level["combine_disk"],
@@ -609,7 +630,7 @@ class Submitter:
         )
 
         if self.stage_out_combine:
-            untar_job = self._job("untar", run_on_submit_node=True)
+            untar_job = self._job(name=f"untar_{suffix}", run_on_submit_node=True)
             untar_job.add_inputs(combine_tar)
             untar_job.add_args(combine_tar, self.outputs_dir)
             untar_job.set_stdout(File(f"untar-{combine_tar}.log"), stage_out=True)
@@ -661,6 +682,22 @@ class Submitter:
 
         return combine_job, combine_tar
 
+    def add_transformations(self, tc, source, destination, name):
+        """Add transformations to the transformation catalog."""
+        shutil.copy(source, destination)
+        t = Transformation(
+            name,
+            site="local",
+            pfn=f"file://{destination}",
+            is_stageable=True,
+        )
+        tc.add_transformations(t)
+
+    def add_replica(self, rc, source, destination, site, lfn):
+        """Add a replica to the replica catalog."""
+        shutil.copy(source, destination)
+        rc.add_replica(site, lfn, f"file://{destination}")
+
     def _generate_workflow(self):
         """Use the Pegasus API to build an abstract graph of the workflow."""
 
@@ -673,49 +710,68 @@ class Submitter:
 
         # Add executables to the workflow-level transformation catalog
         for job_type, script in self._transformations_map.items():
-            t = Transformation(
+            self.add_transformations(
+                tc,
+                f"{base_dir}/workflow/{script}",
+                os.path.join(self.generated_dir, script),
                 job_type,
-                site="local",
-                pfn=f"file://{base_dir}/workflow/{script}",
-                is_stageable=True,
             )
-            tc.add_transformations(t)
 
         # scripts some exectuables might need
-        processpy = File("process.py")
         if self.resources_test:
-            rc.add_replica(
-                "local", "process.py", f"file://{base_dir}/workflow/test_resource_usage.py"
+            self.add_replica(
+                rc,
+                f"{base_dir}/workflow/test_resource_usage.py",
+                os.path.join(self.generated_dir, "test_resource_usage.py"),
+                "local",
+                "process.py",
             )
         else:
-            rc.add_replica("local", "process.py", f"file://{base_dir}/workflow/process.py")
-        combinepy = File("combine.py")
+            self.add_replica(
+                rc,
+                f"{base_dir}/workflow/process.py",
+                os.path.join(self.generated_dir, "process.py"),
+                "local",
+                "process.py",
+            )
         if self.resources_test:
-            rc.add_replica(
-                "local", "combine.py", f"file://{base_dir}/workflow/test_resource_usage.py"
+            self.add_replica(
+                rc,
+                f"{base_dir}/workflow/test_resource_usage.py",
+                os.path.join(self.generated_dir, "combine.py"),
+                "local",
+                "combine.py",
             )
         else:
-            rc.add_replica("local", "combine.py", f"file://{base_dir}/workflow/combine.py")
+            self.add_replica(
+                rc,
+                f"{base_dir}/workflow/combine.py",
+                os.path.join(self.generated_dir, "combine.py"),
+                "local",
+                "combine.py",
+            )
 
         # script to install packages
-        installsh = File("install.sh")
-        rc.add_replica(
+        self.add_replica(
+            rc,
+            os.path.join(os.path.dirname(utilix.__file__), "install.sh"),
+            os.path.join(self.generated_dir, "install.sh"),
             "local",
             "install.sh",
-            f"file://{os.path.join(os.path.dirname(utilix.__file__), 'install.sh')}",
         )
 
-        # Add common data files to the replica catalog
-        xenon_config = File(".xenon_config")
         # Avoid its change after the job submission
-        shutil.copy(uconfig.config_path, self.xenon_config)
-        rc.add_replica("local", ".xenon_config", f"file://{self.xenon_config}")
-
-        # Token needed for DB connection
-        dbtoken = File(".dbtoken")
-        # Avoid its change after the job submission
-        shutil.copy(os.path.join(os.environ["HOME"], ".dbtoken"), self.dbtoken)
-        rc.add_replica("local", ".dbtoken", f"file://{self.dbtoken}")
+        self.add_replica(
+            rc,
+            uconfig.get("Outsource", "x509_user_proxy"),
+            self.x509_user_proxy,
+            "local",
+            ".x509_user_proxy",
+        )
+        self.add_replica(
+            rc, os.path.join(os.environ["HOME"], ".dbtoken"), self.dbtoken, "local", ".dbtoken"
+        )
+        self.add_replica(rc, uconfig.config_path, self.xenon_config, "local", ".xenon_config")
 
         tarballs, tarball_paths = self.make_tarballs()
         for tarball, tarball_path in zip(tarballs, tarball_paths):
@@ -770,12 +826,12 @@ class Submitter:
                         label,
                         level,
                         dbcfg,
-                        installsh,
-                        processpy,
-                        xenon_config,
-                        dbtoken,
+                        File("install.sh"),
+                        File("process.py"),
+                        File("combine.py"),
+                        File(".xenon_config"),
+                        File(".dbtoken"),
                         tarballs,
-                        combinepy,
                     )
                     if group == 0:
                         combine_job, combine_tar = self.add_lower_processing_job(*args)
@@ -845,7 +901,9 @@ class Submitter:
             raise RuntimeError(f"Workflow already exists at {self.workflow_dir}.")
 
         # Ensure we have a proxy with enough time left
-        _validate_x509_proxy()
+        _validate_x509_proxy(
+            min_valid_hours=eval(uconfig.get("Outsource", "min_valid_hours", fallback=96))
+        )
 
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
         os.makedirs(self.runs_dir, 0o755, exist_ok=True)

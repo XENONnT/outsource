@@ -9,6 +9,11 @@ from utilix.config import setup_logger
 from outsource.utils import get_context, get_processing_order, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
+from rframe.interfaces.mongo import MongoAggregation
+from rframe.interfaces.mongo import MultiMongoAggregation
+
+MongoAggregation.allow_disk_use = True
+MultiMongoAggregation.allow_disk_use = True
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 
@@ -31,7 +36,9 @@ def process(st, run_id, data_type, chunks):
     st.make(
         run_id,
         data_type,
+        save=data_type,
         chunk_number=get_chunk_number(st, run_id, data_type, chunks),
+        progress_bar=True,
     )
     gc.collect()
 

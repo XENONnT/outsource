@@ -49,6 +49,7 @@ def get_context(
                     exclude=tuple(st.root_data_types),
                 )
             )
+    st.purge_unused_configs()
     return st
 
 
