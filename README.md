@@ -100,6 +100,7 @@ xe1t_database = run
 
 [Outsource]
 work_dir = /scratch/$USER/workflows
+x509_user_proxy = $HOME/.xenon_service_proxy
 user_install_package = strax, straxen, cutax, rucio, utilix, admix, outsource
 check_user_install_package = strax, straxen, cutax, rucio, utilix, admix, outsource
 # sites to exclude (GLIDEIN_Site), comma seprated list
@@ -121,6 +122,7 @@ rough_disk = 16000
 dagman_retry = 2
 dagman_maxidle = 5000
 dagman_maxjobs = 5000
+min_valid_hours = 48
 ```
 
 ## Add a setup script

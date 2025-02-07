@@ -9,6 +9,11 @@ from utilix.config import setup_logger
 from outsource.utils import get_context, get_processing_order, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
 
+from rframe.interfaces.mongo import MongoAggregation
+from rframe.interfaces.mongo import MultiMongoAggregation
+
+MongoAggregation.allow_disk_use = True
+MultiMongoAggregation.allow_disk_use = True
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 
