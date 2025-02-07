@@ -514,10 +514,10 @@ class Submitter:
         dbcfg,
         installsh,
         processpy,
+        combinepy,
         xenon_config,
         dbtoken,
         tarballs,
-        combinepy,
     ):
         """Add a processing job to the workflow."""
         rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
@@ -582,10 +582,10 @@ class Submitter:
         dbcfg,
         installsh,
         processpy,
+        combinepy,
         xenon_config,
         dbtoken,
         tarballs,
-        combinepy,
     ):
         """Add a per-chunk processing job to the workflow."""
         rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
@@ -778,7 +778,7 @@ class Submitter:
         self.add_replica(
             rc, os.path.join(os.environ["HOME"], ".dbtoken"), self.dbtoken, "local", ".dbtoken"
         )
-        self.add_replica(rc, uconfig.config_path, "local", self.xenon_config, ".xenon_config")
+        self.add_replica(rc, uconfig.config_path, self.xenon_config, "local", ".xenon_config")
 
         tarballs, tarball_paths = self.make_tarballs()
         for tarball, tarball_path in zip(tarballs, tarball_paths):
@@ -835,10 +835,10 @@ class Submitter:
                         dbcfg,
                         File("install.sh"),
                         File("process.py"),
+                        File("combine.py"),
                         File(".xenon_config"),
                         File(".dbtoken"),
                         tarballs,
-                        File("combine.py"),
                     )
                     if group == 0:
                         combine_job, combine_tar = self.add_lower_processing_job(*args)
