@@ -595,9 +595,6 @@ class Submitter:
             )
 
         desired_sites, requirements, site_ranks = self.get_rse_sites(dbcfg, rses, per_chunk=True)
-        desired_sites_for_us, requirements_for_us, site_ranks_us = self.get_rse_sites(
-            dbcfg, ["UC_OSG_USERDISK"], per_chunk=False
-        )
 
         suffix = "_".join(label.split("_")[1:])
         # Set up the combine job first -
@@ -610,7 +607,7 @@ class Submitter:
             disk=level["combine_disk"],
         )
 
-        combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements_for_us)
+        combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
         # priority is given in the order they were submitted
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *tarballs)
