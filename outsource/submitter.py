@@ -245,15 +245,26 @@ class Submitter:
         job.add_profiles(Namespace.ENV, TF_ENABLE_ONEDNN_OPTS="0")
 
         # Increase memory/disk if the first attempt fails
-        # Second memory/disk will be the same to the first attempt
+        # The first dagman_static_retry memory/disk will be the same to the first attempt
         # The memory/disk will be increased by the number of retries afterwards
+        dagman_static_retry = uconfig.getint("Outsource", "dagman_static_retry", fallback=0)
+        if dagman_static_retry == 0:
+            extra_retry = "(DAGNodeRetry + 1)"
+        elif dagman_static_retry == 1:
+            extra_retry = "DAGNodeRetry"
+        else:
+            extra_retry = f"(DAGNodeRetry - {dagman_static_retry - 1})"
         memory_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry == 0, {int(memory)}, DAGNodeRetry * {int(memory)})"
+            f"DAGNodeRetry <= {dagman_static_retry}, "
+            f"{int(memory)}, "
+            f"{extra_retry} * {int(memory)})"
         )
         disk_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry == 0, {int(disk * 1_000)}, DAGNodeRetry * {int(disk * 1_000)})"
+            f"DAGNodeRetry <= {dagman_static_retry}, "
+            f"{int(disk * 1_000)}, "
+            f"{extra_retry} * {int(disk * 1_000)})"
         )
         job.add_profiles(Namespace.CONDOR, "request_disk", disk_str)
         job.add_profiles(Namespace.CONDOR, "request_memory", memory_str)
