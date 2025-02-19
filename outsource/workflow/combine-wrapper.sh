@@ -61,16 +61,18 @@ export XENON_CONFIG=$PWD/.xenon_config
 echo "HOST Stuff:"
 env | grep HOST
 python -c "import socket; print(socket.getfqdn())"
+echo
 
 echo "GLIDEIN Stuff:"
 env | grep GLIDEIN
+echo
 
 echo "RUCIO/X509 Stuff:"
 env | grep X509
 env | grep RUCIO
+echo
 
 rucio whoami
-
 echo
 
 run_id_pad=`printf %06d $run_id`
