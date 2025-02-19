@@ -102,8 +102,8 @@ class RunConfig:
 
     rse_site_map = {
         "NIKHEF2_USERDISK": "NIKHEF",
-        "SURFSARA_USERDISK": "SURFSARA",
-        "SURFSARA2_USERDISK": "SURFSARA",
+        "SURFSARA_USERDISK": "SURFsara",
+        "SURFSARA2_USERDISK": "SURFsara",
         "CCIN2P3_USERDISK": "CCIN2P3",
         "CCIN2P32_USERDISK": "CCIN2P3",
     }
