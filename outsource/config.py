@@ -491,7 +491,7 @@ class RunConfig:
     def set_requirements_base(self):
         requirements_base = "HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org"
         requirements_base += " && PORT_2880 && PORT_8000 && PORT_27017"
-        requirements_base += ' && (Microarch >= "x86_64-v3")'
+        requirements_base += ' && Microarch >= "x86_64-v3"'
 
         # hs06_test_run limits the run_id to a set of compute nodes
         # at UChicago with a known HS06 factor
@@ -536,8 +536,8 @@ class RunConfig:
                     exprs.append(self.rse_site_map[rse]["expr"])
                 if "site" in self.rse_site_map[rse]:
                     sites.append(self.rse_site_map[rse]["site"])
-        exprs = list(set(exprs))
-        sites = list(set(sites))
+        exprs = sorted(set(exprs))
+        sites = sorted(set(sites))
 
         # make sure we do not request XENON1T sites we do not need
         if len(sites) == 0:
@@ -558,6 +558,6 @@ class RunConfig:
             requirements += f" && ({sites_expression})"
         # Add excluded nodes
         if self._exclude_sites:
-            requirements += f" && ({self._exclude_sites})"
+            requirements += f" && {self._exclude_sites}"
 
         return desired_sites, requirements
