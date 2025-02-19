@@ -24,6 +24,9 @@ UPPER_MEMORY = uconfig.getint("Outsource", "upper_memory", fallback=None)
 LOWER_CPUS = uconfig.getint("Outsource", "lower_cpus", fallback=1)
 COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
 UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
+US_ONLY = uconfig.getboolean("Outsource", "us_only", fallback=False)
+EU_ONLY = uconfig.getboolean("Outsource", "eu_only", fallback=False)
+SITE_ONLY = uconfig.getboolean("Outsource", "site_only", fallback=False)
 
 MAX_MEMORY = 30_000  # in MB
 MIN_DISK = 200  # in MB
@@ -55,22 +58,70 @@ class RunConfig:
     # Data availability to site selection map.
     # This puts constraints on the sites that can be used for
     # processing based on the input RSE for raw_records.
+
+    # These are US sites
+    # We only send these to US sites
+    us_rses = [
+        # Chicago, IL
+        "UC_OSG_USERDISK",  # DISK
+        "UC_DALI_USERDISK",  # DISK
+        "UC_MIDWAY_USERDISK",  # DISK
+        # San Diego, CA
+        "SDSC_NSDF_USERDISK",  # DISK
+    ]
+
+    # These are European sites
+    eu_rses = [
+        # Amsterdam, NL
+        "NIKHEF2_USERDISK",  # DISK
+        "SURFSARA_USERDISK",  # TAPE
+        "SURFSARA2_USERDISK",  # DISK
+        # Paris, FR
+        "CCIN2P3_USERDISK",  # TAPE
+        "CCIN2P32_USERDISK",  # DISK
+        # Bologna, IT
+        "CNAF_USERDISK",  # DISK
+        "CNAF_TAPE3_USERDISK",  # TAPE
+    ]
+
+    us_only_requriements = 'GLIDEIN_Country == "US"'
+
+    # Define an expression to give higher priority to EU sites
+    eu_high_rank = (
+        '((GLIDEIN_Country == "NL") * 999)'
+        ' + ((GLIDEIN_Country == "FR") * 9)'
+        ' + ((GLIDEIN_Country == "IT") * 9)'
+    )
+
+    # In case we want to keep the pipelines separate
+    # let's add a requirement that the jobs run in the EU only
+    # we do not have a EU flag, so we use the countries
+    eu_only_requriements = (
+        '(GLIDEIN_Country == "NL" || GLIDEIN_Country == "FR" || GLIDEIN_Country == "IT")'
+    )
+
     rse_site_map = {
-        "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
-        "UC_DALI_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
-        "UC_MIDWAY_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
-        "CCIN2P3_USERDISK": {"site": "CCIN2P3", "expr": 'GLIDEIN_Site == "CCIN2P3"'},
-        "CNAF_TAPE_USERDISK": {},
-        "CNAF_USERDISK": {},
-        "LNGS_USERDISK": {},
-        "NIKHEF2_USERDISK": {"site": "NIKHEF", "expr": 'GLIDEIN_Site == "NIKHEF"'},
-        "NIKHEF_USERDISK": {"site": "NIKHEF", "expr": 'GLIDEIN_Site == "NIKHEF"'},
-        "SURFSARA_USERDISK": {"site": "SURFsara", "expr": 'GLIDEIN_Site == "SURFsara"'},
-        "SURFSARA2_USERDISK": {"site": "SURFsara", "expr": 'GLIDEIN_Site == "SURFsara"'},
-        "WEIZMANN_USERDISK": {"site": "Weizmann", "expr": 'GLIDEIN_Site == "Weizmann"'},
-        "SDSC_USERDISK": {"expr": 'GLIDEIN_ResourceName == "SDSC-Expanse"'},
-        "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},
+        "NIKHEF2_USERDISK": "NIKHEF",
+        "SURFSARA_USERDISK": "SURFsara",
+        "SURFSARA2_USERDISK": "SURFsara",
+        "CCIN2P3_USERDISK": "CCIN2P3",
+        "CCIN2P32_USERDISK": "CCIN2P3",
     }
+
+    rse_constraints: Dict[str, Any] = {}
+
+    if US_ONLY:
+        for rse in us_rses:
+            rse_constraints.setdefault(rse, {})
+            rse_constraints[rse]["expr"] = us_only_requriements
+
+    for rse in eu_rses:
+        rse_constraints.setdefault(rse, {})
+        rse_constraints[rse]["rank"] = eu_high_rank
+        if EU_ONLY:
+            rse_constraints[rse]["expr"] = eu_only_requriements
+        if SITE_ONLY and rse in rse_site_map:
+            rse_constraints[rse]["site"] = rse_site_map[rse]
 
     chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=None)
 
@@ -86,7 +137,7 @@ class RunConfig:
         # in the order they were submitted.
         self.priority = 2250000000 - int(time.time())
         if self.priority <= 0:
-            raise ValueError("Priority must be positive")
+            raise ValueError("Priority must be positive. Are you from the future?")
 
         self.run_data = db.get_data(self.run_id)
         self.set_requirements_base()
@@ -489,9 +540,11 @@ class RunConfig:
         return len(files) - 1
 
     def set_requirements_base(self):
-        requirements_base = "HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org"
-        requirements_base += " && PORT_2880 && PORT_8000 && PORT_27017"
-        requirements_base += ' && Microarch >= "x86_64-v3"'
+        requirements_base = (
+            "HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org"
+            " && PORT_2880 && PORT_8000 && PORT_27017"
+            ' && Microarch >= "x86_64-v3"'
+        )
 
         # hs06_test_run limits the run_id to a set of compute nodes
         # at UChicago with a known HS06 factor
@@ -504,13 +557,7 @@ class RunConfig:
         if this_site_only:
             requirements_base += f' && GLIDEIN_ResourceName == "{this_site_only}"'
 
-        requirements_base_us = requirements_base + ' && GLIDEIN_Country == "US"'
-        # if we are only using US sites
-        if uconfig.getboolean("Outsource", "us_only", fallback=False):
-            requirements_base = requirements_base_us
-
         self.requirements_base = requirements_base
-        self.requirements_base_us = requirements_base_us
 
     @property
     def _exclude_sites(self):
@@ -530,14 +577,18 @@ class RunConfig:
 
         exprs = []
         sites = []
+        ranks = []
         for rse in rses:
-            if rse in self.rse_site_map:
-                if "expr" in self.rse_site_map[rse]:
-                    exprs.append(self.rse_site_map[rse]["expr"])
-                if "site" in self.rse_site_map[rse]:
-                    sites.append(self.rse_site_map[rse]["site"])
+            if rse in self.rse_constraints:
+                if "expr" in self.rse_constraints[rse]:
+                    exprs.append(self.rse_constraints[rse]["expr"])
+                if "site" in self.rse_constraints[rse]:
+                    sites.append(self.rse_constraints[rse]["site"])
+                if "rank" in self.rse_constraints[rse]:
+                    ranks.append(self.rse_constraints[rse]["rank"])
         exprs = sorted(set(exprs))
         sites = sorted(set(sites))
+        ranks = sorted(set(ranks))
 
         # make sure we do not request XENON1T sites we do not need
         if len(sites) == 0:
@@ -545,19 +596,20 @@ class RunConfig:
 
         final_expr = " || ".join(exprs)
         desired_sites = ", ".join(sites)
-        return final_expr, desired_sites
+        ranks = " + ".join(ranks)
+        return final_expr, desired_sites, ranks
 
     def get_requirements(self, rses):
         # Determine the job requirements based on the data locations
-        sites_expression, desired_sites = self._determine_target_sites(rses)
-        if len(rses) > 0:
-            requirements = self.requirements_base
-        else:
-            requirements = self.requirements_base_us
+        sites_expression, desired_sites, ranks = self._determine_target_sites(rses)
+        requirements = self.requirements_base
         if sites_expression:
-            requirements += f" && ({sites_expression})"
+            if "||" in sites_expression:
+                requirements += f" && ({sites_expression})"
+            else:
+                requirements += f" && {sites_expression}"
         # Add excluded nodes
         if self._exclude_sites:
             requirements += f" && {self._exclude_sites}"
 
-        return desired_sites, requirements
+        return desired_sites, requirements, ranks
