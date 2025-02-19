@@ -59,22 +59,6 @@ class RunConfig:
     # This puts constraints on the sites that can be used for
     # processing based on the input RSE for raw_records.
 
-    us_only_requriements = 'GLIDEIN_Country == "US"'
-
-    # In case we want to keep the pipelines separate
-    # let's add a requirement that the jobs run in the EU only
-    # we do not have a EU flag, so we use the countries
-    eu_only_requriements = (
-        '(GLIDEIN_Country == "NL" || GLIDEIN_Country == "FR" || GLIDEIN_Country == "IT")'
-    )
-
-    # Define an expression to give higher priority to EU sites
-    eu_high_rank = (
-        '((GLIDEIN_Country == "NL") * 999)'
-        ' + ((GLIDEIN_Country == "FR") * 9)'
-        ' + ((GLIDEIN_Country == "IT") * 9)'
-    )
-
     # These are US sites
     # We only send these to US sites
     us_rses = [
@@ -99,6 +83,22 @@ class RunConfig:
         "CNAF_USERDISK",  # DISK
         "CNAF_TAPE3_USERDISK",  # TAPE
     ]
+
+    us_only_requriements = 'GLIDEIN_Country == "US"'
+
+    # Define an expression to give higher priority to EU sites
+    eu_high_rank = (
+        '((GLIDEIN_Country == "NL") * 999)'
+        ' + ((GLIDEIN_Country == "FR") * 9)'
+        ' + ((GLIDEIN_Country == "IT") * 9)'
+    )
+
+    # In case we want to keep the pipelines separate
+    # let's add a requirement that the jobs run in the EU only
+    # we do not have a EU flag, so we use the countries
+    eu_only_requriements = (
+        '(GLIDEIN_Country == "NL" || GLIDEIN_Country == "FR" || GLIDEIN_Country == "IT")'
+    )
 
     rse_site_map = {
         "NIKHEF2_USERDISK": "NIKHEF",
