@@ -586,9 +586,9 @@ class RunConfig:
                     sites.append(self.rse_constraints[rse]["site"])
                 if "rank" in self.rse_constraints[rse]:
                     ranks.append(self.rse_constraints[rse]["rank"])
-        exprs = list(set(exprs))
-        sites = list(set(sites))
-        ranks = list(set(ranks))
+        exprs = sorted(set(exprs))
+        sites = sorted(set(sites))
+        ranks = sorted(set(ranks))
 
         # make sure we do not request XENON1T sites we do not need
         if len(sites) == 0:

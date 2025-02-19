@@ -494,7 +494,7 @@ class Submitter:
         if per_chunk:
             # For low level data, we only want to run_id on sites
             # that we specified for raw_records_rses
-            rses = list(set(rses) & set(raw_records_rses))
+            rses = sorted(set(rses) & set(raw_records_rses))
             if not len(rses):
                 raise RuntimeError(
                     f"No sites found since no intersection between the available rses "
