@@ -50,6 +50,7 @@ fi
 
 echo "Current dir is $PWD. Here's whats inside:"
 ls -lah .
+echo
 
 if [ "X$rucio_upload" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
@@ -94,6 +95,7 @@ echo
 echo "Combining:"
 time python3 combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path $chunksarg $extraflags
 
+echo
 echo "Moving auxiliary files to output directory"
 if ls $input_path/*.npy >/dev/null 2>&1; then mv $input_path/*.npy $output_path; fi
 if ls $input_path/*.json >/dev/null 2>&1; then mv $input_path/*.json $output_path; fi
