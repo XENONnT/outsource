@@ -109,6 +109,8 @@ exclude_sites = SU-ITS, NotreDame, UConn-HPC, Purdue Geddes, Chameleon, WSU-GRID
 include_data_types = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpulses, led_calibration
 exclude_modes = tpc_noise, tpc_rn_8pmts, tpc_commissioning_pmtgain, tpc_rn_6pmts, tpc_rn_12_pmts, nVeto_LED_calibration,tpc_rn_12pmts, nVeto_LED_calibration_2
 us_only = False
+eu_only = False
+site_only = False
 hs06_test_run = False
 raw_records_rse = UC_OSG_USERDISK
 records_rse = UC_MIDWAY_USERDISK
@@ -124,6 +126,7 @@ dagman_static_retry = 0
 dagman_maxidle = 5000
 dagman_maxjobs = 5000
 min_valid_hours = 48
+stream_output = True
 ```
 
 ## Add a setup script

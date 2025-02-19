@@ -24,7 +24,9 @@ UPPER_MEMORY = uconfig.getint("Outsource", "upper_memory", fallback=None)
 LOWER_CPUS = uconfig.getint("Outsource", "lower_cpus", fallback=1)
 COMBINE_CPUS = uconfig.getint("Outsource", "combine_cpus", fallback=1)
 UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
-EU_SEPARATE = uconfig.getboolean("Outsource", "eu_separate", fallback=False)
+US_ONLY = uconfig.getboolean("Outsource", "us_only", fallback=False)
+EU_ONLY = uconfig.getboolean("Outsource", "eu_only", fallback=False)
+SITE_ONLY = uconfig.getboolean("Outsource", "site_only", fallback=False)
 
 MAX_MEMORY = 30_000  # in MB
 MIN_DISK = 200  # in MB
@@ -57,44 +59,69 @@ class RunConfig:
     # This puts constraints on the sites that can be used for
     # processing based on the input RSE for raw_records.
 
-    # Define an expression to give higher priority to EU sites
-    eu_high_rank = '((GLIDEIN_Site == "NL") * 999)'
-    eu_high_rank += ' + ((GLIDEIN_Site == "SURFsara") * 999)'
-    eu_high_rank += ' + ((GLIDEIN_Site == "FR") * 9)'
-    eu_high_rank += ' + ((GLIDEIN_Site == "IT") * 9)'
+    us_only_requriements = 'GLIDEIN_Country == "US"'
 
-    if EU_SEPARATE:
-        # In case we want to keep the pipelines separate
-        # let's add a requirement that the jobs run in the EU only
-        # we do not have a EU flag, so we use the countries
-        eu_separate_requriements = '((GLIDEIN_Country == "NL")'
-        eu_separate_requriements += ' || (GLIDEIN_Country == "FR")'
-        eu_separate_requriements += ' || (GLIDEIN_Country == "IT"))'
-    else:
-        # Let's keep all sites in the pool, we still give higher rank to EU sites
-        eu_separate_requriements = ""
+    # In case we want to keep the pipelines separate
+    # let's add a requirement that the jobs run in the EU only
+    # we do not have a EU flag, so we use the countries
+    eu_only_requriements = (
+        '(GLIDEIN_Country == "NL" || GLIDEIN_Country == "FR" || GLIDEIN_Country == "IT")'
+    )
+
+    # Define an expression to give higher priority to EU sites
+    eu_high_rank = (
+        '((GLIDEIN_Country == "NL") * 999)'
+        ' + ((GLIDEIN_Country == "FR") * 9)'
+        ' + ((GLIDEIN_Country == "IT") * 9)'
+    )
+
+    # These are US sites
+    # We only send these to US sites
+    us_rses = [
+        # Chicago, IL
+        "UC_OSG_USERDISK",  # DISK
+        "UC_DALI_USERDISK",  # DISK
+        "UC_MIDWAY_USERDISK",  # DISK
+        # San Diego, CA
+        "SDSC_NSDF_USERDISK",  # DISK
+    ]
+
+    # These are European sites
+    eu_rses = [
+        # Amsterdam, NL
+        "NIKHEF2_USERDISK",  # DISK
+        "SURFSARA_USERDISK",  # TAPE
+        "SURFSARA2_USERDISK",  # DISK
+        # Paris, FR
+        "CCIN2P3_USERDISK",  # TAPE
+        "CCIN2P32_USERDISK",  # DISK
+        # Bologna, IT
+        "CNAF_USERDISK",  # DISK
+        "CNAF_TAPE3_USERDISK",  # TAPE
+    ]
 
     rse_site_map = {
-        # These are US sites
-        # We only send these to US sites
-        # Chicago, IL
-        "UC_OSG_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
-        "UC_DALI_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
-        "UC_MIDWAY_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
-        # San Diego, CA
-        "SDSC_NSDF_USERDISK": {"expr": 'GLIDEIN_Country == "US"'},  # DISK
-        # These are European sites
-        # Paris, FR
-        "CCIN2P3_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # TAPE
-        "CCIN2P32_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # DISK
-        # Amsterdam, NL
-        "NIKHEF2_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # DISK
-        "SURFSARA_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # TAPE
-        "SURFSARA2_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # DISK
-        # Bologna, IT
-        "CNAF_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # DISK
-        "CNAF_TAPE3_USERDISK": {"rank": eu_high_rank, "expr": eu_separate_requriements},  # TAPE
+        "NIKHEF2_USERDISK": "NIKHEF",
+        "SURFSARA_USERDISK": "SURFSARA",
+        "SURFSARA2_USERDISK": "SURFSARA",
+        "CCIN2P3_USERDISK": "CCIN2P3",
+        "CCIN2P32_USERDISK": "CCIN2P3",
     }
+
+    rse_constraints: Dict[str, Any] = {}
+
+    if US_ONLY:
+        for rse in us_rses:
+            rse_constraints.setdefault(rse, {})
+            rse_constraints[rse]["expr"] = us_only_requriements
+
+    for rse in eu_rses:
+        rse_constraints.setdefault(rse, {})
+        rse_constraints[rse]["rank"] = eu_high_rank
+        if EU_ONLY:
+            rse_constraints[rse]["expr"] = eu_only_requriements
+        if SITE_ONLY and rse in rse_site_map:
+            rse_constraints[rse]["site"] = rse_site_map[rse]
 
     chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=None)
 
@@ -110,7 +137,7 @@ class RunConfig:
         # in the order they were submitted.
         self.priority = 2250000000 - int(time.time())
         if self.priority <= 0:
-            raise ValueError("Priority must be positive")
+            raise ValueError("Priority must be positive. Are you from the future?")
 
         self.run_data = db.get_data(self.run_id)
         self.set_requirements_base()
@@ -513,9 +540,11 @@ class RunConfig:
         return len(files) - 1
 
     def set_requirements_base(self):
-        requirements_base = "HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org"
-        requirements_base += " && PORT_2880 && PORT_8000 && PORT_27017"
-        requirements_base += ' && (Microarch >= "x86_64-v3")'
+        requirements_base = (
+            "HAS_SINGULARITY && HAS_CVMFS_xenon_opensciencegrid_org"
+            " && PORT_2880 && PORT_8000 && PORT_27017"
+            ' && Microarch >= "x86_64-v3"'
+        )
 
         # hs06_test_run limits the run_id to a set of compute nodes
         # at UChicago with a known HS06 factor
@@ -528,13 +557,7 @@ class RunConfig:
         if this_site_only:
             requirements_base += f' && GLIDEIN_ResourceName == "{this_site_only}"'
 
-        requirements_base_us = requirements_base + ' && GLIDEIN_Country == "US"'
-        # if we are only using US sites
-        if uconfig.getboolean("Outsource", "us_only", fallback=False):
-            requirements_base = requirements_base_us
-
         self.requirements_base = requirements_base
-        self.requirements_base_us = requirements_base_us
 
     @property
     def _exclude_sites(self):
@@ -556,13 +579,13 @@ class RunConfig:
         sites = []
         ranks = []
         for rse in rses:
-            if rse in self.rse_site_map:
-                if "expr" in self.rse_site_map[rse]:
-                    exprs.append(self.rse_site_map[rse]["expr"])
-                if "site" in self.rse_site_map[rse]:
-                    sites.append(self.rse_site_map[rse]["site"])
-                if "rank" in self.rse_site_map[rse]:
-                    ranks.append(self.rse_site_map[rse]["rank"])
+            if rse in self.rse_constraints:
+                if "expr" in self.rse_constraints[rse]:
+                    exprs.append(self.rse_constraints[rse]["expr"])
+                if "site" in self.rse_constraints[rse]:
+                    sites.append(self.rse_constraints[rse]["site"])
+                if "rank" in self.rse_constraints[rse]:
+                    ranks.append(self.rse_constraints[rse]["rank"])
         exprs = list(set(exprs))
         sites = list(set(sites))
         ranks = list(set(ranks))
@@ -579,14 +602,11 @@ class RunConfig:
     def get_requirements(self, rses):
         # Determine the job requirements based on the data locations
         sites_expression, desired_sites, ranks = self._determine_target_sites(rses)
-        if len(rses) > 0:
-            requirements = self.requirements_base
-        else:
-            requirements = self.requirements_base_us
+        requirements = self.requirements_base
         if sites_expression:
-            requirements += f" && ({sites_expression})"
+            requirements += f" && {sites_expression}"
         # Add excluded nodes
         if self._exclude_sites:
-            requirements += f" && ({self._exclude_sites})"
+            requirements += f" && {self._exclude_sites}"
 
         return desired_sites, requirements, ranks

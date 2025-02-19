@@ -271,8 +271,9 @@ class Submitter:
 
         # Stream output and error
         # Allows to see the output of the job in real time
-        job.add_profiles(Namespace.CONDOR, "stream_output", "True")
-        job.add_profiles(Namespace.CONDOR, "stream_error", "True")
+        if uconfig.getboolean("Outsource", "stream_output", fallback=False):
+            job.add_profiles(Namespace.CONDOR, "stream_output", "True")
+            job.add_profiles(Namespace.CONDOR, "stream_error", "True")
 
         return job
 
