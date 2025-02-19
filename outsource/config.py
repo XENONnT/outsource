@@ -604,7 +604,10 @@ class RunConfig:
         sites_expression, desired_sites, ranks = self._determine_target_sites(rses)
         requirements = self.requirements_base
         if sites_expression:
-            requirements += f" && {sites_expression}"
+            if "||" in sites_expression:
+                requirements += f" && ({sites_expression})"
+            else:
+                requirements += f" && {sites_expression}"
         # Add excluded nodes
         if self._exclude_sites:
             requirements += f" && {self._exclude_sites}"
