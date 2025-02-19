@@ -177,19 +177,16 @@ def get_runlist(
     cursor_basic = coll.find(
         full_query_basic,
         {"number": 1, "mode": 1},
-        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
     cursor_basic_has_raw = coll.find(
         full_query_basic_has_raw,
         {"number": 1, "mode": 1},
-        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
     cursor_basic_to_save = coll.find(
         full_query_basic_to_save,
         {"number": 1, "mode": 1},
-        limit=uconfig.getint("Outsource", "max_daily", fallback=None),
         sort=[("number", -1)],
     )
 

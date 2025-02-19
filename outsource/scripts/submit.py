@@ -1,5 +1,6 @@
 import os
 import argparse
+import numpy as np
 from utilix import xent_collection, uconfig, DB
 from utilix.io import load_runlist
 from utilix.config import setup_logger
@@ -145,10 +146,16 @@ def main():
         number_to=args.number_to,
         ignore_processed=args.ignore_processed,
     )
+
+    max_num = uconfig.getint("Outsource", "max_num", fallback=None)
+    if max_num:
+        rng = np.random.default_rng(seed=max_num)
+        runlist = sorted(rng.choice(runlist, min(max_num, len(runlist)), replace=False).tolist())
+    logger.info(f"The following {len(runlist)} runs will be processed: {sorted(runlist)}")
     missing_runlist = set(_runlist) - set(runlist)
     if missing_runlist:
         logger.warning(
-            f"The following {len(missing_runlist)} run_ids were not processible "
+            f"The following {len(missing_runlist)} run_ids will not be processed "
             f"after checking dependeicies in the RunDB: {sorted(missing_runlist)}"
         )
     if not runlist:
