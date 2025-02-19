@@ -124,7 +124,7 @@ echo
 
 echo "Processing:"
 time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --data_types $data_types $extraflags
-# time admix-download $run_id raw_records --chunks $(seq -s ' ' $chunks_start $(($chunks_end - 1))) --tries 3 --threads 1 --hash rfzvpzj4mf
+# time admix-download $run_id raw_records --chunks $(seq -s ' ' $chunks_start $(($chunks_end - 1))) --tries 3 --threads 1 --hash rfzvpzj4mf --stage
 
 echo "Moving auxiliary files to output directory"
 if ls $input_path/*.npy >/dev/null 2>&1; then mv $input_path/*.npy $output_path; fi
