@@ -28,6 +28,58 @@ US_ONLY = uconfig.getboolean("Outsource", "us_only", fallback=False)
 EU_ONLY = uconfig.getboolean("Outsource", "eu_only", fallback=False)
 SITE_ONLY = uconfig.getboolean("Outsource", "site_only", fallback=False)
 
+# Data availability to site selection map.
+# This puts constraints on the sites that can be used for
+# processing based on the input RSE for raw_records.
+
+# These are US sites
+US_RSES = [
+    # Chicago, IL
+    "UC_OSG_USERDISK",  # DISK
+    "UC_DALI_USERDISK",  # DISK
+    "UC_MIDWAY_USERDISK",  # DISK
+    # San Diego, CA
+    "SDSC_NSDF_USERDISK",  # DISK
+]
+
+# These are European sites
+EU_RSES = [
+    # Amsterdam, NL
+    "NIKHEF2_USERDISK",  # DISK
+    "SURFSARA_USERDISK",  # TAPE
+    "SURFSARA2_USERDISK",  # DISK
+    # Paris, FR
+    "CCIN2P3_USERDISK",  # TAPE
+    "CCIN2P32_USERDISK",  # DISK
+    # Bologna, IT
+    "CNAF_USERDISK",  # DISK
+    "CNAF_TAPE3_USERDISK",  # TAPE
+]
+
+US_ONLY_REQUIREMENTS = 'GLIDEIN_Country == "US"'
+
+# Define an expression to give higher priority to EU sites
+EU_RANK = (
+    '((GLIDEIN_Country == "NL") * 999)'
+    ' + ((GLIDEIN_Country == "FR") * 9)'
+    ' + ((GLIDEIN_Country == "IT") * 9)'
+)
+
+# In case we want to keep the pipelines separate
+# let's add a requirement that the jobs run in the EU only
+# we do not have a EU flag, so we use the countries
+EU_ONLY_REQUIREMENTS = (
+    '(GLIDEIN_Country == "NL" || GLIDEIN_Country == "FR" || GLIDEIN_Country == "IT")'
+)
+
+RSE_SITE_MAP = {
+    "NIKHEF2_USERDISK": "NIKHEF",
+    "SURFSARA_USERDISK": "SURFsara",
+    "SURFSARA2_USERDISK": "SURFsara",
+    "CCIN2P3_USERDISK": "CCIN2P3",
+    "CCIN2P32_USERDISK": "CCIN2P3",
+}
+
 MAX_MEMORY = 30_000  # in MB
 MIN_DISK = 200  # in MB
 
@@ -55,77 +107,22 @@ class RunConfig:
 
     """
 
-    # Data availability to site selection map.
-    # This puts constraints on the sites that can be used for
-    # processing based on the input RSE for raw_records.
-
-    # These are US sites
-    # We only send these to US sites
-    us_rses = [
-        # Chicago, IL
-        "UC_OSG_USERDISK",  # DISK
-        "UC_DALI_USERDISK",  # DISK
-        "UC_MIDWAY_USERDISK",  # DISK
-        # San Diego, CA
-        "SDSC_NSDF_USERDISK",  # DISK
-    ]
-
-    # These are European sites
-    eu_rses = [
-        # Amsterdam, NL
-        "NIKHEF2_USERDISK",  # DISK
-        "SURFSARA_USERDISK",  # TAPE
-        "SURFSARA2_USERDISK",  # DISK
-        # Paris, FR
-        "CCIN2P3_USERDISK",  # TAPE
-        "CCIN2P32_USERDISK",  # DISK
-        # Bologna, IT
-        "CNAF_USERDISK",  # DISK
-        "CNAF_TAPE3_USERDISK",  # TAPE
-    ]
-
-    us_only_requriements = 'GLIDEIN_Country == "US"'
-
-    # Define an expression to give higher priority to EU sites
-    eu_high_rank = (
-        '((GLIDEIN_Country == "NL") * 999)'
-        ' + ((GLIDEIN_Country == "FR") * 9)'
-        ' + ((GLIDEIN_Country == "IT") * 9)'
-    )
-
-    # In case we want to keep the pipelines separate
-    # let's add a requirement that the jobs run in the EU only
-    # we do not have a EU flag, so we use the countries
-    eu_only_requriements = (
-        '(GLIDEIN_Country == "NL" || GLIDEIN_Country == "FR" || GLIDEIN_Country == "IT")'
-    )
-
-    rse_site_map = {
-        "NIKHEF2_USERDISK": "NIKHEF",
-        "SURFSARA_USERDISK": "SURFsara",
-        "SURFSARA2_USERDISK": "SURFsara",
-        "CCIN2P3_USERDISK": "CCIN2P3",
-        "CCIN2P32_USERDISK": "CCIN2P3",
-    }
-
-    rse_constraints: Dict[str, Any] = {}
-
-    if US_ONLY:
-        for rse in us_rses:
-            rse_constraints.setdefault(rse, {})
-            rse_constraints[rse]["expr"] = us_only_requriements
-
-    for rse in eu_rses:
-        rse_constraints.setdefault(rse, {})
-        rse_constraints[rse]["rank"] = eu_high_rank
-        if EU_ONLY:
-            rse_constraints[rse]["expr"] = eu_only_requriements
-        if SITE_ONLY and rse in rse_site_map:
-            rse_constraints[rse]["site"] = rse_site_map[rse]
-
     chunks_per_job = uconfig.getint("Outsource", "chunks_per_job", fallback=None)
 
     def __init__(self, context, run_id, ignore_processed=False):
+        self.rse_constraints: Dict[str, Any] = {}
+        for rse in US_RSES:
+            self.rse_constraints.setdefault(rse, {})
+            if US_ONLY:
+                self.rse_constraints[rse]["expr"] = US_ONLY_REQUIREMENTS
+        for rse in EU_RSES:
+            self.rse_constraints.setdefault(rse, {})
+            if EU_ONLY:
+                self.rse_constraints[rse]["expr"] = EU_ONLY_REQUIREMENTS
+            if SITE_ONLY and rse in RSE_SITE_MAP:
+                self.rse_constraints[rse]["site"] = RSE_SITE_MAP[rse]
+            self.rse_constraints[rse]["rank"] = EU_RANK
+
         self.context = context
         self.run_id = run_id
         self.ignore_processed = ignore_processed
