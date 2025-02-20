@@ -74,7 +74,7 @@ export XENON_CONFIG=$PWD/.xenon_config
 
 echo "HOST Stuff:"
 env | grep HOST
-python -c "import socket; print(socket.getfqdn())"
+python3 -c "import socket; print(socket.getfqdn())"
 echo
 
 echo "GLIDEIN Stuff:"
