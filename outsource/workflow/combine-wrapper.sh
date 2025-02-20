@@ -59,18 +59,9 @@ fi
 unset http_proxy
 export XENON_CONFIG=$PWD/.xenon_config
 
-echo "HOST Stuff:"
-env | grep HOST
-python3 -c "import socket; print(socket.getfqdn())"
-echo
-
-echo "GLIDEIN Stuff:"
-env | grep GLIDEIN
-echo
-
 echo "RUCIO/X509 Stuff:"
-env | grep X509
 env | grep RUCIO
+env | grep X509
 echo
 
 rucio whoami
