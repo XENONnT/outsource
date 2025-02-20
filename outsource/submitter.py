@@ -664,7 +664,8 @@ class Submitter:
             job.add_profiles(Namespace.CONDOR, "requirements", requirements)
             job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
             # This allows us to set higher priority for EU sites when we have data in EU
-            job.add_profiles(Namespace.CONDOR, "rank", site_ranks)
+            if site_ranks:
+                job.add_profiles(Namespace.CONDOR, "rank", site_ranks)
 
             job.add_args(
                 dbcfg.run_id,
