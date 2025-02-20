@@ -31,11 +31,15 @@ def get_context(
     if output_path:
         st.storage.append(strax.DataDirectory(output_path))
     if staging_dir:
+        tries = uconfig.getint("Outsource", "tries", fallback=3)
+        num_threads = uconfig.getint("Outsource", "num_threads", fallback=1)
         st.storage.append(
             straxen.storage.RucioRemoteFrontend(
                 staging_dir=staging_dir,
                 rses_only=uconfig.getlist("Outsource", "raw_records_rses"),
                 download_heavy=True,
+                tries=tries,
+                num_threads=num_threads,
                 stage=stage,
                 take_only=tuple(st.root_data_types),
             )
@@ -45,6 +49,8 @@ def get_context(
                 straxen.storage.RucioRemoteFrontend(
                     staging_dir=staging_dir,
                     download_heavy=True,
+                    tries=tries,
+                    num_threads=num_threads,
                     stage=stage,
                     exclude=tuple(st.root_data_types),
                 )
