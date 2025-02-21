@@ -105,6 +105,8 @@ user_install_package = strax, straxen, cutax, rucio, utilix, admix, outsource
 check_user_install_package = strax, straxen, cutax, rucio, utilix, admix, outsource
 # sites to exclude (GLIDEIN_Site), comma seprated list
 exclude_sites = SU-ITS, NotreDame, UConn-HPC, Purdue Geddes, Chameleon, WSU-GRID, SIUE-CC-production, Lancium
+# countries of EU only jobs
+eu_only_countries = NL, FR, IT
 # data type to process
 include_data_types = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpulses, led_calibration
 exclude_modes = tpc_noise, tpc_rn_8pmts, tpc_commissioning_pmtgain, tpc_rn_6pmts, tpc_rn_12_pmts, nVeto_LED_calibration,tpc_rn_12pmts, nVeto_LED_calibration_2

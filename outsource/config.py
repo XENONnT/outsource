@@ -60,17 +60,21 @@ US_ONLY_REQUIREMENTS = 'GLIDEIN_Country == "US"'
 
 # Define an expression to give higher priority to EU sites
 EU_RANK = (
-    '((GLIDEIN_Country == "NL") * 999)'
-    ' + ((GLIDEIN_Country == "FR") * 9)'
-    ' + ((GLIDEIN_Country == "IT") * 9)'
+    '(GLIDEIN_Country == "NL") * 999'
+    ' + (GLIDEIN_Country == "FR") * 9'
+    ' + (GLIDEIN_Country == "IT") * 9'
 )
 
 # In case we want to keep the pipelines separate
 # let's add a requirement that the jobs run in the EU only
 # we do not have a EU flag, so we use the countries
-EU_ONLY_REQUIREMENTS = (
-    '(GLIDEIN_Country == "NL" || GLIDEIN_Country == "FR" || GLIDEIN_Country == "IT")'
-)
+EU_ONLY_COUNTRIES = uconfig.getlist("Outsource", "eu_only_countries", fallback=["NL", "FR", "IT"])
+if len(EU_ONLY_COUNTRIES) > 1:
+    EU_ONLY_REQUIREMENTS = (
+        "(" + " || ".join(f'GLIDEIN_Country == "{c}"' for c in EU_ONLY_COUNTRIES) + ")"
+    )
+else:
+    EU_ONLY_REQUIREMENTS = f'GLIDEIN_Country == "{EU_ONLY_COUNTRIES[0]}"'
 
 RSE_SITE_MAP = {
     "NIKHEF2_USERDISK": "NIKHEF",
@@ -119,9 +123,9 @@ class RunConfig:
             self.rse_constraints.setdefault(rse, {})
             if EU_ONLY:
                 self.rse_constraints[rse]["expr"] = EU_ONLY_REQUIREMENTS
+                self.rse_constraints[rse]["rank"] = EU_RANK
             if SITE_ONLY and rse in RSE_SITE_MAP:
                 self.rse_constraints[rse]["site"] = RSE_SITE_MAP[rse]
-            self.rse_constraints[rse]["rank"] = EU_RANK
 
         self.context = context
         self.run_id = run_id
@@ -601,10 +605,10 @@ class RunConfig:
         sites_expression, desired_sites, ranks = self._determine_target_sites(rses)
         requirements = self.requirements_base
         if sites_expression:
-            if "||" in sites_expression:
-                requirements += f" && ({sites_expression})"
-            else:
+            if sites_expression.startswith("(") or "||" not in sites_expression:
                 requirements += f" && {sites_expression}"
+            else:
+                requirements += f" && ({sites_expression})"
         # Add excluded nodes
         if self._exclude_sites:
             requirements += f" && {self._exclude_sites}"
