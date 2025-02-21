@@ -249,22 +249,20 @@ class Submitter:
         # The memory/disk will be increased by the number of retries afterwards
         dagman_static_retry = uconfig.getint("Outsource", "dagman_static_retry", fallback=0)
         if dagman_static_retry == 0:
-            extra_retry = "(DAGNodeRetry + 1)"
-        elif dagman_static_retry == 1:
             extra_retry = "DAGNodeRetry"
         else:
-            extra_retry = f"(DAGNodeRetry - {dagman_static_retry - 1})"
+            extra_retry = f"(DAGNodeRetry - {dagman_static_retry})"
         memory_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
             f"DAGNodeRetry <= {dagman_static_retry}, "
             f"{int(memory)}, "
-            f"{extra_retry} * {int(memory)})"
+            f"({extra_retry} * 0.2 + 1) * {int(memory)})"
         )
         disk_str = (
             "ifthenelse(isundefined(DAGNodeRetry) || "
             f"DAGNodeRetry <= {dagman_static_retry}, "
             f"{int(disk * 1_000)}, "
-            f"{extra_retry} * {int(disk * 1_000)})"
+            f"({extra_retry} * 0.2 + 1) * {int(disk * 1_000)})"
         )
         job.add_profiles(Namespace.CONDOR, "request_disk", disk_str)
         job.add_profiles(Namespace.CONDOR, "request_memory", memory_str)
