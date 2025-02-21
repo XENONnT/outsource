@@ -121,10 +121,11 @@ class RunConfig:
                 self.rse_constraints[rse]["expr"] = US_ONLY_REQUIREMENTS
         for rse in EU_RSES:
             self.rse_constraints.setdefault(rse, {})
-            if EU_ONLY:
+            if EU_ONLY and not SITE_ONLY:
                 self.rse_constraints[rse]["expr"] = EU_ONLY_REQUIREMENTS
                 self.rse_constraints[rse]["rank"] = EU_RANK
             if SITE_ONLY and rse in RSE_SITE_MAP:
+                self.rse_constraints[rse]["expr"] = f'GLIDEIN_Site == "{RSE_SITE_MAP[rse]}"'
                 self.rse_constraints[rse]["site"] = RSE_SITE_MAP[rse]
 
         self.context = context
