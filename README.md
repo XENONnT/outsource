@@ -110,6 +110,7 @@ eu_only_countries = NL, FR, IT
 # data type to process
 include_data_types = peaklets, hitlets_nv, events_nv, events_mv, event_info_double, afterpulses, led_calibration
 exclude_modes = tpc_noise, tpc_rn_8pmts, tpc_commissioning_pmtgain, tpc_rn_6pmts, tpc_rn_12_pmts, nVeto_LED_calibration,tpc_rn_12pmts, nVeto_LED_calibration_2
+exclude_tags = bad, abandon, prioritize, messy
 us_only = False
 eu_only = False
 site_only = False
