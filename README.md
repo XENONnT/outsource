@@ -123,6 +123,7 @@ chunks_per_job = 10
 rough_disk = 16000
 dagman_retry = 2
 dagman_static_retry = 0
+resources_increment = 0.2
 dagman_maxidle = 5000
 dagman_maxjobs = 5000
 min_valid_hours = 48
