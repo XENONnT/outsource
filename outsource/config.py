@@ -84,7 +84,7 @@ RSE_SITE_MAP = {
     "CCIN2P32_USERDISK": "CCIN2P3",
 }
 
-MAX_MEMORY = 30_000  # in MB
+MAX_MEMORY = uconfig.getint("Outsource", "max_memory", fallback=12_000)  # in MB
 MIN_DISK = 200  # in MB
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))

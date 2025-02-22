@@ -124,6 +124,7 @@ max_run_number = 999999
 max_num = 500
 chunks_per_job = 10
 rough_disk = 16000
+max_memory = 8000
 dagman_retry = 2
 dagman_static_retry = 0
 resources_increment = 0.2

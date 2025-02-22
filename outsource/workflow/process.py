@@ -5,6 +5,7 @@ import shutil
 import gc
 from utilix import uconfig
 from utilix.config import setup_logger
+import straxen
 
 from outsource.utils import get_context, get_processing_order, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
@@ -17,6 +18,9 @@ MongoAggregation.allow_disk_use = True
 MultiMongoAggregation.allow_disk_use = True
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
+
+if not straxen.HAVE_ADMIX:
+    raise ImportError("straxen must be installed with admix to use this script")
 
 
 def get_chunk_number(st, run_id, data_type, chunks):
