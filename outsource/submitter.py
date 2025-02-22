@@ -659,6 +659,16 @@ class Submitter:
                 disk=level["disk"][job_i],
             )
             if desired_sites:
+                # Give a hint to glideinWMS for the sites we want
+                # (mostly useful for XENON VO in Europe).
+                # Glideinwms is the provisioning system.
+                # It starts pilot jobs (glideins) at sites when you have idle jobs in the queue.
+                # Most of the jobs you run to the OSPool (Open Science Pool),
+                # but you do have a few sites where you have allocations at,
+                # and those are labeled XENON VO (Virtual Organization).
+                # The "+" has to be used by non-standard HTCondor attributes.
+                # The attribute has to have double quotes,
+                # otherwise HTCondor will try to evaluate it as an expression.
                 job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
             job.add_profiles(Namespace.CONDOR, "requirements", requirements)
             job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
