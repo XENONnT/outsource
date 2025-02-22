@@ -58,7 +58,7 @@ DETECTOR_DATA_TYPES = {
             "afterpulses": None,
         },
         "memory": {
-            "lower": [3.2, 1.2e3],
+            "lower": [1.0, 1.6e3],
             "combine": [0.0, 2.0e3],
             "upper": [0.007, 4.0e3],
         },
@@ -85,7 +85,7 @@ DETECTOR_DATA_TYPES = {
             "events_nv": 0.15,
         },
         "memory": {
-            "lower": [4.0, 0.0e3],
+            "lower": [0.1, 7.0e3],
             "combine": [0.0, 2.0e3],
             "upper": [0.0, 4.0e3],
         },
@@ -107,7 +107,7 @@ DETECTOR_DATA_TYPES = {
             "events_mv": 0.003,
         },
         "memory": {
-            "lower": [4.0, 1.0e3],
+            "lower": [1.1, 1.05e3],
             "combine": [0.0, 2.0e3],
             "upper": [0.0, 4.0e3],
         },
