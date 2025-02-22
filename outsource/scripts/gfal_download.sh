@@ -5,6 +5,8 @@ set -e
 list=$1
 workflow=$2
 
+mkdir -p $workflow/outputs
+
 find $workflow/outputs -type f -size 0 -delete
 
 for tarball in $(cat $list); do
