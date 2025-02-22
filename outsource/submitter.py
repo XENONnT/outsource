@@ -551,6 +551,8 @@ class Submitter:
         # https://support.opensciencegrid.org/support/solutions/articles/12000028940-working-with-tensorflow-gpus-and-containers
         job.add_profiles(Namespace.CONDOR, "requirements", requirements)
         job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
+        if desired_sites:
+            job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
 
         # Note that any changes to this argument list,
         # also means process-wrapper.sh has to be updated
@@ -617,10 +619,12 @@ class Submitter:
             memory=level["combine_memory"],
             disk=level["combine_disk"],
         )
-
         combine_job.add_profiles(Namespace.CONDOR, "requirements", requirements)
         # priority is given in the order they were submitted
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
+        if desired_sites:
+            combine_job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
+
         combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *tarballs)
         _key = self.get_key(dbcfg, level)
         combine_tar = File(f"{_key}-output.tar.gz")
