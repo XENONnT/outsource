@@ -103,7 +103,7 @@ work_dir = /scratch/$USER/workflows
 x509_user_proxy = $HOME/.xenon_service_proxy
 user_install_package = strax, straxen, cutax, rucio, utilix, admix, outsource
 check_user_install_package = strax, straxen, cutax, rucio, utilix, admix, outsource
-# sites to exclude (GLIDEIN_Site), comma seprated list
+# sites to exclude (GLIDEIN_Site), comma separated list
 exclude_sites = SU-ITS, NotreDame, UConn-HPC, Purdue Geddes, Chameleon, WSU-GRID, SIUE-CC-production, Lancium
 # countries of EU only jobs
 eu_only_countries = NL, FR, IT

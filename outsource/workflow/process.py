@@ -12,6 +12,7 @@ from outsource.upload import upload_to_rucio
 from rframe.interfaces.mongo import MongoAggregation
 from rframe.interfaces.mongo import MultiMongoAggregation
 
+# Allow disk use for mongo aggregation
 MongoAggregation.allow_disk_use = True
 MultiMongoAggregation.allow_disk_use = True
 
