@@ -59,7 +59,7 @@ fi
 sleep $(( RANDOM % 20 + 1 ))s
 
 # Installing customized packages
-. install.sh strax straxen cutax utilix outsource
+. install.sh strax straxen cutax utilix admix outsource
 
 echo "Current dir is $PWD. Here's whats inside:"
 ls -lah .
