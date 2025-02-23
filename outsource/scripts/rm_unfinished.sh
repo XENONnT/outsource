@@ -9,10 +9,12 @@ outputs=$workflow/outputs
 del=$workflow/del
 lower_log=lower_done.log
 upper_log=upper_done.log
+done_log=done.log
 
 # Get the run IDs from the files
 ls $outputs | grep let | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $lower_log
 ls $outputs | grep event | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $upper_log
+comm -12 $lower_log $upper_log > $done_log
 
 # Ensure the delete folder exists
 mkdir -p $del
