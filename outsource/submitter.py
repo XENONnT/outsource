@@ -517,7 +517,7 @@ class Submitter:
             raise RuntimeError(f"Filename {_key} is still too long.")
         return _key
 
-    def add_higher_processing_job(
+    def add_upper_processing_job(
         self,
         workflow,
         label,
@@ -553,6 +553,9 @@ class Submitter:
         job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         if desired_sites:
             job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
+        maxwalltime = uconfig.getint("Outsource", "pegasus_maxwalltime_upper", fallback=None)
+        if maxwalltime:
+            job.add_profiles(Namespace.PEGASUS, key="maxwalltime", value=maxwalltime)
 
         # Note that any changes to this argument list,
         # also means process-wrapper.sh has to be updated
@@ -624,6 +627,9 @@ class Submitter:
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         if desired_sites:
             combine_job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
+        maxwalltime = uconfig.getint("Outsource", "pegasus_maxwalltime_combine", fallback=None)
+        if maxwalltime:
+            combine_job.add_profiles(Namespace.PEGASUS, key="maxwalltime", value=maxwalltime)
 
         combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *tarballs)
         _key = self.get_key(dbcfg, level)
@@ -679,6 +685,9 @@ class Submitter:
             # This allows us to set higher priority for EU sites when we have data in EU
             if site_ranks:
                 job.add_profiles(Namespace.CONDOR, "rank", site_ranks)
+            maxwalltime = uconfig.getint("Outsource", "pegasus_maxwalltime_lower", fallback=None)
+            if maxwalltime:
+                job.add_profiles(Namespace.PEGASUS, key="maxwalltime", value=maxwalltime)
 
             job.add_args(
                 dbcfg.run_id,
@@ -860,7 +869,7 @@ class Submitter:
                         combine_job, combine_tar = self.add_lower_processing_job(*args)
                         workflow.add_jobs(combine_job)
                     else:
-                        job, job_tar = self.add_higher_processing_job(*args)
+                        job, job_tar = self.add_upper_processing_job(*args)
                         if combine_tar:
                             job.add_inputs(combine_tar)
                         workflow.add_jobs(job)
