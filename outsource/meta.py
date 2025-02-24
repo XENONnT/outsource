@@ -63,8 +63,8 @@ DETECTOR_DATA_TYPES = {
             "upper": [0.0, 7.0e3],
         },
         "redundancy": {
-            "disk": 1.25,
-            "memory": 1.25,
+            "disk": 1.2,
+            "memory": 1.2,
         },
     },
     "neutron_veto": {
@@ -90,8 +90,8 @@ DETECTOR_DATA_TYPES = {
             "upper": [0.0, 4.0e3],
         },
         "redundancy": {
-            "disk": 1.25,
-            "memory": 1.25,
+            "disk": 1.2,
+            "memory": 1.2,
         },
     },
     "muon_veto": {
@@ -112,8 +112,8 @@ DETECTOR_DATA_TYPES = {
             "upper": [0.0, 4.0e3],
         },
         "redundancy": {
-            "disk": 1.25,
-            "memory": 1.25,
+            "disk": 1.2,
+            "memory": 1.2,
         },
     },
 }
