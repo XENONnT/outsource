@@ -31,8 +31,8 @@ def get_context(
     if output_path:
         st.storage.append(strax.DataDirectory(output_path))
     if staging_dir:
-        tries = uconfig.getint("Outsource", "tries", fallback=3)
-        num_threads = uconfig.getint("Outsource", "num_threads", fallback=1)
+        tries = uconfig.getint("Outsource", "admix_tries", fallback=3)
+        num_threads = uconfig.getint("Outsource", "admix_num_threads", fallback=5)
         st.storage.append(
             straxen.storage.RucioRemoteFrontend(
                 staging_dir=staging_dir,
