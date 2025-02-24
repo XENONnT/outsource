@@ -94,13 +94,6 @@ if ls *.npy >/dev/null 2>&1; then mv *.npy $output_path; fi
 if ls *.json >/dev/null 2>&1; then mv *.json $output_path; fi
 
 echo
-echo "Total amount of data in ./strax_data before removing: "`du -s --si ./strax_data | cut -f1`
-echo
-
-echo "Removing inputs directory:"
-rm -rf ./strax_data
-
-echo
 echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
 echo
 
