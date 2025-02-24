@@ -383,27 +383,36 @@ class RunConfig:
                 ratios[_level] = np.array(ratios[_level]).T.reshape(
                     (sum(repeats), len(missing_data_types[_level]))
                 )
-            # coefficients = [1, 1, 1, 2]  # if we remove tarred folder while tarring
-            coefficients = [2, 0.5, 2, 1.5]  # if we do not remove tarred folder while tarring
+            # We do not remove tarred folder while tarring
             # The lower level disk usage
-            disk_ratio = dict()
-            disk_ratio["lower"] = coefficients[0] * (ratios["lower"] * itemsizes["lower"]).sum(
-                axis=1
-            )
-            # The upper level also needs to consider the disk usage of the lower level
-            disk_ratio["upper"] = coefficients[1] * disk_ratio["lower"]
-            disk_ratio["upper"] += coefficients[2] * (ratios["upper"] * itemsizes["upper"]).sum(
-                axis=1
-            )
-            # The combine level disk usage is replica of the lower level w/o raw_records*
-            disk_ratio["combine"] = coefficients[3] * (ratios["lower"] * itemsizes["lower"]).sum(
-                axis=1
-            )
+            lower = (ratios["lower"] * itemsizes["lower"]).sum(axis=1)
+            upper = (ratios["upper"] * itemsizes["upper"]).sum(axis=1)
             # The raw_records* disk usage is calculated in the last
             if self.data_types[detector][f"lower_{detector}"]["data_types"]:
-                disk_ratio["lower"] += self.context.data_itemsize(depends_on) * compression_ratio
+                lower_raw = self.context.data_itemsize(depends_on) * compression_ratio
+                upper_raw = 0
             else:
-                disk_ratio["upper"] += self.context.data_itemsize(depends_on) * compression_ratio
+                upper_raw = self.context.data_itemsize(depends_on) * compression_ratio
+                lower_raw = 0
+            disk_ratio = dict()
+            disk_ratio["lower"] = np.max(
+                [
+                    lower_raw + lower,  # raw_records* + uncompressed lower
+                    2 * lower,  # uncompressed lower + compressed lower
+                ],
+                axis=0,
+            )
+            # The upper level also needs to consider the disk usage of the lower level
+            disk_ratio["upper"] = np.max(
+                [
+                    upper_raw + 2 * lower,  # compressed lower + decompressed lower
+                    upper_raw + lower + upper,  # decompressed lower + uncompressed upper
+                    2 * upper,  # uncompressed upper + compressed upper
+                ],
+                axis=0,
+            )
+            # The combine level disk usage is twice of the lower level w/o raw_records*
+            disk_ratio["combine"] = 2 * lower  # compressed lower + decompressed lower
             for k in disk_ratio:
                 disk_ratio[k] /= 1e6
 
