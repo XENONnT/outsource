@@ -40,9 +40,9 @@ DETECTOR_DATA_TYPES = {
             "led_calibration",
         ],
         "rate": {
-            "peaklets": 0.02,
+            "peaklets": 0.015,
             "lone_hits": 0.10,
-            "merged_s2s": 0.01,
+            "merged_s2s": 0.003,
             "peaks": 0.01,
             "events": 0.001,
             "led_cal": 1.0,
@@ -51,16 +51,16 @@ DETECTOR_DATA_TYPES = {
         "compression": {
             "peaklets": 0.25,
             "lone_hits": 0.35,
-            "merged_s2s": 0.25,
+            "merged_s2s": 0.35,
             "peaks": 0.75,
             "events": 0.60,
             "led_cal": 0.30,
             "afterpulses": None,
         },
         "memory": {
-            "lower": [1.0, 1.6e3],
+            "lower": [1.0, 2.0e3],
             "combine": [0.0, 2.0e3],
-            "upper": [0.007, 4.0e3],
+            "upper": [0.0, 7.0e3],
         },
         "redundancy": {
             "disk": 1.25,

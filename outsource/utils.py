@@ -171,7 +171,7 @@ def get_runlist(
         basic_queries_to_save.append(basic_query_to_save)
 
     full_query_basic = {"$or": basic_queries}
-    full_query_basic_has_raw = {"$or": basic_queries_has_raw}
+    full_query_basic_has_raw = {"$and": basic_queries_has_raw}
     full_query_basic_to_save = {"$or": basic_queries_to_save}
 
     cursor_basic = coll.find(

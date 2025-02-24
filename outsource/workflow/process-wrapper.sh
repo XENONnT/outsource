@@ -125,6 +125,17 @@ if ls $input_path/*.json >/dev/null 2>&1; then mv $input_path/*.json $output_pat
 if ls *.npy >/dev/null 2>&1; then mv *.npy $output_path; fi
 if ls *.json >/dev/null 2>&1; then mv *.json $output_path; fi
 
+echo
+echo "Total amount of data in ./strax_data before removing: "`du -s --si ./strax_data | cut -f1`
+echo
+
+echo "Removing inputs directory:"
+rm -rf ./strax_data
+
+echo
+echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
+echo
+
 echo "Removing inputs directory:"
 rm -r $input_path
 
@@ -132,7 +143,7 @@ echo "Here is what is in the output directory after processing:"
 ls -lah $output_path
 
 echo
-echo "Total amount of data before tarballing: "`du -s --si $output_path | cut -f1`
+echo "Total amount of data in $output_path before tarballing: "`du -s --si $output_path | cut -f1`
 echo
 
 echo "We are tarballing the output directory and removing it:"
