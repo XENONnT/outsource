@@ -553,9 +553,13 @@ class Submitter:
         job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         if desired_sites:
             job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
-        maxwalltime = uconfig.getint("Outsource", "pegasus_maxwalltime_upper", fallback=None)
-        if maxwalltime:
-            job.add_profiles(Namespace.PEGASUS, key="maxwalltime", value=maxwalltime)
+        max_hours = uconfig.getint("Outsource", "pegasus_max_hours_upper", fallback=None)
+        if max_hours:
+            job.add_profiles(
+                Namespace.CONDOR,
+                key="periodic_hold",
+                value=f"(JobStatus == 2) && (time() - EnteredCurrentStatus) > ({max_hours} * 3600)",
+            )
 
         # Note that any changes to this argument list,
         # also means process-wrapper.sh has to be updated
@@ -627,9 +631,13 @@ class Submitter:
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         if desired_sites:
             combine_job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
-        maxwalltime = uconfig.getint("Outsource", "pegasus_maxwalltime_combine", fallback=None)
-        if maxwalltime:
-            combine_job.add_profiles(Namespace.PEGASUS, key="maxwalltime", value=maxwalltime)
+        max_hours = uconfig.getint("Outsource", "pegasus_max_hours_combine", fallback=None)
+        if max_hours:
+            combine_job.add_profiles(
+                Namespace.CONDOR,
+                key="periodic_hold",
+                value=f"(JobStatus == 2) && (time() - EnteredCurrentStatus) > ({max_hours} * 3600)",
+            )
 
         combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *tarballs)
         _key = self.get_key(dbcfg, level)
@@ -685,9 +693,16 @@ class Submitter:
             # This allows us to set higher priority for EU sites when we have data in EU
             if site_ranks:
                 job.add_profiles(Namespace.CONDOR, "rank", site_ranks)
-            maxwalltime = uconfig.getint("Outsource", "pegasus_maxwalltime_lower", fallback=None)
-            if maxwalltime:
-                job.add_profiles(Namespace.PEGASUS, key="maxwalltime", value=maxwalltime)
+            max_hours = uconfig.getint("Outsource", "pegasus_max_hours_lower", fallback=None)
+            if max_hours:
+                job.add_profiles(
+                    Namespace.CONDOR,
+                    key="periodic_hold",
+                    value=(
+                        "(JobStatus == 2) && (time() - EnteredCurrentStatus) > "
+                        f"({max_hours} * 3600)"
+                    ),
+                )
 
             job.add_args(
                 dbcfg.run_id,
@@ -934,7 +949,7 @@ class Submitter:
 
         # Ensure we have a proxy with enough time left
         _validate_x509_proxy(
-            min_valid_hours=eval(uconfig.get("Outsource", "min_valid_hours", fallback=96))
+            min_valid_hours=eval(uconfig.get("Outsource", "x509_min_valid_hours", fallback=96))
         )
 
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
