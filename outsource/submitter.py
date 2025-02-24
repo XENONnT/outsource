@@ -195,7 +195,7 @@ class Submitter:
         pconfig["pegasus.mode"] = "development"
         # give jobs a total of {retry} + 1 tries
         pconfig["dagman.retry"] = uconfig.getint("Outsource", "dagman_retry", fallback=2)
-        # make sure we do start too many jobs at the same time
+        # make sure we do not start too many jobs at the same time
         pconfig["dagman.maxidle"] = uconfig.getint("Outsource", "dagman_maxidle", fallback=5_000)
         # total number of jobs cap
         pconfig["dagman.maxjobs"] = uconfig.getint("Outsource", "dagman_maxjobs", fallback=5_000)
