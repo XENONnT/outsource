@@ -274,6 +274,16 @@ class Submitter:
             job.add_profiles(Namespace.CONDOR, "stream_output", "True")
             job.add_profiles(Namespace.CONDOR, "stream_error", "True")
 
+        # https://htcondor.readthedocs.io/en/latest/users-manual/automatic-job-management.html
+        # https://htcondor.readthedocs.io/en/latest/apis/python-bindings/tutorials/HTCondor-Introduction.html
+        max_hours = uconfig.getint("Outsource", "pegasus_max_hours_idle", fallback=None)
+        if max_hours:
+            job.add_profiles(
+                Namespace.CONDOR,
+                key="periodic_hold",
+                value=f"(JobStatus == 1) && (time() - EnteredCurrentStatus) > ({max_hours} * 3600)",
+            )
+
         return job
 
     def _setup_workflow_id(self, workflow_id):

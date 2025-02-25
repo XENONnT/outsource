@@ -133,6 +133,7 @@ resources_increment = 0.2
 dagman_maxidle = 5000
 dagman_maxjobs = 5000
 x509_min_valid_hours = 48
+pegasus_max_hours_idle = 6
 pegasus_max_hours_lower = 4
 pegasus_max_hours_combine = 2
 pegasus_max_hours_upper = 6

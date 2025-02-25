@@ -43,7 +43,7 @@ DETECTOR_DATA_TYPES = {
             "peaklets": 0.015,
             "lone_hits": 0.10,
             "merged_s2s": 0.003,
-            "peaks": 0.01,
+            "peaks": 0.03,
             "events": 0.001,
             "led_cal": 1.0,
             "afterpulses": None,
@@ -58,7 +58,7 @@ DETECTOR_DATA_TYPES = {
             "afterpulses": None,
         },
         "memory": {
-            "lower": [1.0, 2.0e3],
+            "lower": [1.0, 1.6e3],
             "combine": [0.0, 2.0e3],
             "upper": [0.0, 7.0e3],
         },
