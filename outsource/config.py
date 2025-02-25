@@ -85,7 +85,7 @@ RSE_SITE_MAP = {
 }
 
 MAX_MEMORY = uconfig.getint("Outsource", "max_memory", fallback=12_000)  # in MB
-MIN_DISK = 200  # in MB
+MIN_DISK = uconfig.getint("Outsource", "min_disk", fallback=1_000)  # in MB
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 db = DB()

@@ -125,6 +125,7 @@ max_num = 500
 chunks_per_job = 10
 rough_disk = 16000
 max_memory = 12000
+min_disk = 1000
 admix_tries = 3
 admix_num_threads = 5
 dagman_retry = 2

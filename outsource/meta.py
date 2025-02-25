@@ -36,6 +36,7 @@ DETECTOR_DATA_TYPES = {
             "cuts_basic",
             "peak_s1_positions_cnn",
             "peak_basics_he",
+            "distinct_channels",
             "afterpulses",
             "led_calibration",
         ],
