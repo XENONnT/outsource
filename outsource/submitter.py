@@ -246,10 +246,10 @@ class Submitter:
         job.add_profiles(Namespace.ENV, NPROC=f"{cores}")
         job.add_profiles(Namespace.ENV, TF_ENABLE_ONEDNN_OPTS="0")
         job.add_profiles(
-            Namespace.CONDOR, "request_disk", RESOURCES_RETRY.format(resources=int(memory))
+            Namespace.CONDOR, "request_memory", RESOURCES_RETRY.format(resources=int(memory))
         )
         job.add_profiles(
-            Namespace.CONDOR, "request_memory", RESOURCES_RETRY.format(resources=int(disk * 1_000))
+            Namespace.CONDOR, "request_disk", RESOURCES_RETRY.format(resources=int(disk * 1_000))
         )
         # https://htcondor.readthedocs.io/en/latest/users-manual/automatic-job-management.html
         # https://htcondor.readthedocs.io/en/latest/apis/python-bindings/tutorials/HTCondor-Introduction.html
