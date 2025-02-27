@@ -38,6 +38,7 @@ def get_context(
                 staging_dir=staging_dir,
                 rses_only=uconfig.getlist("Outsource", "raw_records_rses"),
                 download_heavy=True,
+                remove_heavy=True,
                 tries=tries,
                 num_threads=num_threads,
                 stage=stage,
@@ -49,6 +50,7 @@ def get_context(
                 straxen.storage.RucioRemoteFrontend(
                     staging_dir=staging_dir,
                     download_heavy=True,
+                    remove_heavy=True,
                     tries=tries,
                     num_threads=num_threads,
                     stage=stage,
