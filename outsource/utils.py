@@ -318,3 +318,26 @@ def get_processing_order(st, data_types, rm_lower=False):
         _data_types -= set(get_processing_order(st, per_chunk_data_types, False))
     _data_types = sorted(_data_types, key=lambda x: st.tree_levels[x]["order"])
     return _data_types
+
+
+def get_resources_retry():
+    # Increase memory/disk if the first attempt(s) fails
+    # The first dagman_static_retry memory/disk will be the same to the first attempt(s)
+    # The memory/disk will be increased by the number of retries afterwards
+    dagman_static_retry = uconfig.getint("Outsource", "dagman_static_retry", fallback=0)
+    resources_increment = uconfig.getfloat("Outsource", "resources_increment", fallback=0.1)
+    if dagman_static_retry == 0:
+        extra_retry = "DAGNodeRetry"
+    else:
+        extra_retry = f"(DAGNodeRetry - {dagman_static_retry})"
+    if resources_increment == 0.0:
+        resources_retry = "{resources}"
+    else:
+        resources_retry = (
+            "ifthenelse(isundefined(DAGNodeRetry) || "
+            f"DAGNodeRetry <= {dagman_static_retry}, "
+            "{resources}, "
+            f"({extra_retry} * {resources_increment} + 1) * "
+            "{resources})"
+        )
+    return resources_retry

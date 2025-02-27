@@ -29,7 +29,7 @@ from Pegasus.api import (
 
 from outsource.config import RunConfig
 from outsource.meta import DETECTOR_DATA_TYPES
-from outsource.utils import get_context, get_to_save_data_types
+from outsource.utils import get_context, get_to_save_data_types, get_resources_retry
 
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -41,6 +41,8 @@ PROCESS_WRAPPER = "process-wrapper.sh"
 UNTAR_WRAPPER = "untar.sh"
 
 db = DB()
+
+RESOURCES_RETRY = get_resources_retry()
 
 
 class Submitter:
@@ -243,46 +245,42 @@ class Submitter:
         # But this works, from https://github.com/jax-ml/jax/discussions/22739
         job.add_profiles(Namespace.ENV, NPROC=f"{cores}")
         job.add_profiles(Namespace.ENV, TF_ENABLE_ONEDNN_OPTS="0")
-
-        # Increase memory/disk if the first attempt fails
-        # The first dagman_static_retry memory/disk will be the same to the first attempt
-        # The memory/disk will be increased by the number of retries afterwards
-        dagman_static_retry = uconfig.getint("Outsource", "dagman_static_retry", fallback=0)
-        resources_increment = uconfig.getfloat("Outsource", "resources_increment", fallback=0.2)
-        if dagman_static_retry == 0:
-            extra_retry = "DAGNodeRetry"
-        else:
-            extra_retry = f"(DAGNodeRetry - {dagman_static_retry})"
-        memory_str = (
-            "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry <= {dagman_static_retry}, "
-            f"{int(memory)}, "
-            f"({extra_retry} * {resources_increment} + 1) * {int(memory)})"
+        job.add_profiles(
+            Namespace.CONDOR, "request_memory", RESOURCES_RETRY.format(resources=int(memory))
         )
-        disk_str = (
-            "ifthenelse(isundefined(DAGNodeRetry) || "
-            f"DAGNodeRetry <= {dagman_static_retry}, "
-            f"{int(disk * 1_000)}, "
-            f"({extra_retry} * {resources_increment} + 1) * {int(disk * 1_000)})"
+        job.add_profiles(
+            Namespace.CONDOR, "request_disk", RESOURCES_RETRY.format(resources=int(disk * 1_000))
         )
-        job.add_profiles(Namespace.CONDOR, "request_disk", disk_str)
-        job.add_profiles(Namespace.CONDOR, "request_memory", memory_str)
+        # https://htcondor.readthedocs.io/en/latest/users-manual/automatic-job-management.html
+        # https://htcondor.readthedocs.io/en/latest/apis/python-bindings/tutorials/HTCondor-Introduction.html
+        periodic_hold = []
+        max_hours_idle = uconfig.get("Outsource", "pegasus_max_hours_idle", fallback=None)
+        if max_hours_idle:
+            max_hours_idle = RESOURCES_RETRY.format(resources=eval(max_hours_idle) * 3600)
+            periodic_hold.append(
+                f"JobStatus == 1 && (time() - EnteredCurrentStatus) > {max_hours_idle}"
+            )
+        max_hours_run = uconfig.get(
+            "Outsource", f"pegasus_max_hours_{name.split('_')[0]}", fallback=None
+        )
+        if max_hours_run:
+            max_hours_run = RESOURCES_RETRY.format(resources=eval(max_hours_run) * 3600)
+            periodic_hold.append(
+                f"JobStatus == 2 && (time() - EnteredCurrentStatus) > {max_hours_run}"
+            )
+        if periodic_hold:
+            if len(periodic_hold) == 1:
+                periodic_hold = periodic_hold[0]
+            else:
+                periodic_hold = [f"({p})" for p in periodic_hold]
+                periodic_hold = " || ".join(periodic_hold)
+            job.add_profiles(Namespace.CONDOR, "periodic_hold", periodic_hold)
 
         # Stream output and error
         # Allows to see the output of the job in real time
         if uconfig.getboolean("Outsource", "stream_output", fallback=False):
             job.add_profiles(Namespace.CONDOR, "stream_output", "True")
             job.add_profiles(Namespace.CONDOR, "stream_error", "True")
-
-        # https://htcondor.readthedocs.io/en/latest/users-manual/automatic-job-management.html
-        # https://htcondor.readthedocs.io/en/latest/apis/python-bindings/tutorials/HTCondor-Introduction.html
-        max_hours = uconfig.getint("Outsource", "pegasus_max_hours_idle", fallback=None)
-        if max_hours:
-            job.add_profiles(
-                Namespace.CONDOR,
-                key="periodic_hold",
-                value=f"(JobStatus == 1) && (time() - EnteredCurrentStatus) > ({max_hours} * 3600)",
-            )
 
         return job
 
@@ -563,13 +561,6 @@ class Submitter:
         job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         if desired_sites:
             job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
-        max_hours = uconfig.getint("Outsource", "pegasus_max_hours_upper", fallback=None)
-        if max_hours:
-            job.add_profiles(
-                Namespace.CONDOR,
-                key="periodic_hold",
-                value=f"(JobStatus == 2) && (time() - EnteredCurrentStatus) > ({max_hours} * 3600)",
-            )
 
         # Note that any changes to this argument list,
         # also means process-wrapper.sh has to be updated
@@ -641,13 +632,6 @@ class Submitter:
         combine_job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         if desired_sites:
             combine_job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
-        max_hours = uconfig.getint("Outsource", "pegasus_max_hours_combine", fallback=None)
-        if max_hours:
-            combine_job.add_profiles(
-                Namespace.CONDOR,
-                key="periodic_hold",
-                value=f"(JobStatus == 2) && (time() - EnteredCurrentStatus) > ({max_hours} * 3600)",
-            )
 
         combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *tarballs)
         _key = self.get_key(dbcfg, level)
@@ -703,16 +687,6 @@ class Submitter:
             # This allows us to set higher priority for EU sites when we have data in EU
             if site_ranks:
                 job.add_profiles(Namespace.CONDOR, "rank", site_ranks)
-            max_hours = uconfig.getint("Outsource", "pegasus_max_hours_lower", fallback=None)
-            if max_hours:
-                job.add_profiles(
-                    Namespace.CONDOR,
-                    key="periodic_hold",
-                    value=(
-                        "(JobStatus == 2) && (time() - EnteredCurrentStatus) > "
-                        f"({max_hours} * 3600)"
-                    ),
-                )
 
             job.add_args(
                 dbcfg.run_id,
