@@ -251,6 +251,30 @@ class Submitter:
         job.add_profiles(
             Namespace.CONDOR, "request_memory", RESOURCES_RETRY.format(resources=int(disk * 1_000))
         )
+        # https://htcondor.readthedocs.io/en/latest/users-manual/automatic-job-management.html
+        # https://htcondor.readthedocs.io/en/latest/apis/python-bindings/tutorials/HTCondor-Introduction.html
+        periodic_hold = []
+        max_hours_idle = uconfig.get("Outsource", "pegasus_max_hours_idle", fallback=None)
+        if max_hours_idle:
+            max_hours_idle = RESOURCES_RETRY.format(resources=eval(max_hours_idle) * 3600)
+            periodic_hold.append(
+                f"JobStatus == 1 && (time() - EnteredCurrentStatus) > {max_hours_idle}"
+            )
+        max_hours_run = uconfig.get(
+            "Outsource", f"pegasus_max_hours_{name.split('_')[0]}", fallback=None
+        )
+        if max_hours_run:
+            max_hours_run = RESOURCES_RETRY.format(resources=eval(max_hours_run) * 3600)
+            periodic_hold.append(
+                f"JobStatus == 2 && (time() - EnteredCurrentStatus) > {max_hours_run}"
+            )
+        if periodic_hold:
+            if len(periodic_hold) == 1:
+                periodic_hold = periodic_hold[0]
+            else:
+                periodic_hold = [f"({p})" for p in periodic_hold]
+                periodic_hold = " || ".join(periodic_hold)
+            job.add_profiles(Namespace.CONDOR, "periodic_hold", periodic_hold)
 
         # Stream output and error
         # Allows to see the output of the job in real time
@@ -537,30 +561,6 @@ class Submitter:
         job.add_profiles(Namespace.CONDOR, "priority", dbcfg.priority)
         if desired_sites:
             job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
-        # https://htcondor.readthedocs.io/en/latest/users-manual/automatic-job-management.html
-        # https://htcondor.readthedocs.io/en/latest/apis/python-bindings/tutorials/HTCondor-Introduction.html
-        periodic_hold = []
-        max_hours_idle = uconfig.get("Outsource", "pegasus_max_hours_idle", fallback=None)
-        if max_hours_idle:
-            max_hours_idle = RESOURCES_RETRY.format(resources=eval(max_hours_idle) * 3600)
-            periodic_hold.append(
-                f"JobStatus == 1 && (time() - EnteredCurrentStatus) > {max_hours_idle}"
-            )
-        max_hours_upper = uconfig.get(
-            "Outsource", f"pegasus_max_hours_{label.split('_')[0]}", fallback=None
-        )
-        if max_hours_upper:
-            max_hours_upper = RESOURCES_RETRY.format(resources=eval(max_hours_upper) * 3600)
-            periodic_hold.append(
-                f"JobStatus == 2 && (time() - EnteredCurrentStatus) > {max_hours_upper}"
-            )
-        if periodic_hold:
-            if len(periodic_hold) == 1:
-                periodic_hold = periodic_hold[0]
-            else:
-                periodic_hold = [f"({p})" for p in periodic_hold]
-                periodic_hold = " || ".join(periodic_hold)
-            job.add_profiles(Namespace.CONDOR, "periodic_hold", periodic_hold)
 
         # Note that any changes to this argument list,
         # also means process-wrapper.sh has to be updated
