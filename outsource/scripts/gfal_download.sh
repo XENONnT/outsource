@@ -11,11 +11,11 @@ mkdir -p $workflow/outputs
 find $workflow/outputs -type f -size 0 -delete
 
 if [ "X$relay" = "Xrelay" ]; then
-    # IF OSG-RCC relay, do not download per-chunk files
-    tarballs=($(cat $list | grep output.tar.gz))
-else
     # If not OSG-RCC relay, download all files
     tarballs=($(cat $list))
+else
+    # IF OSG-RCC relay, do not download per-chunk files
+    tarballs=($(cat $list | grep output.tar.gz))
 fi
 
 for tarball in ${tarballs[@]}; do
