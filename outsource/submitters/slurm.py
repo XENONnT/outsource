@@ -11,9 +11,9 @@ base_dir = os.path.abspath(os.path.dirname(__file__))
 BATCHQ_DEFAULT_ARGUMENTS = {
     "exclude_nodes": "dali[028-030],midway2-0048",
     "exclude_lc_nodes": True,
-    "partition": "xenon1t",
-    "qos": "xenon1t",
-    "bind": ["/project"],
+    "partition": uconfig.get("Outsource", "rcc_partition"),
+    "qos": uconfig.get("Outsource", "rcc_partition"),
+    "bind": uconfig.getlist("Outsource", "rcc_bind"),
 }
 
 
@@ -114,7 +114,12 @@ class SubmitterSlurm(Submitter):
 
         self.logging.debug(f"Submitting the following job: '{job}'")
         job_id = batchq.submit_job(
-            job, jobname=jobname, log=log, **{**self.batchq_arguments, **kwargs}
+            job,
+            jobname=jobname,
+            log=log,
+            verbose=self.debug,
+            dry_run=self.debug,
+            **{**self.batchq_arguments, **kwargs},
         )
         return job_id
 

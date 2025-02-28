@@ -87,6 +87,10 @@ def main():
     # Merge
     for data_type in data_types:
         logger.info(f"Merging {data_type}")
+        if st.is_stored(run_id, data_type):
+            # Logic kept for slurm jobs
+            logger.info(f"Data type {data_type} already stored.")
+            continue
         merge(st, run_id, data_type, chunk_number_group)
 
     if not args.rucio_upload:
