@@ -9,7 +9,7 @@ base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
 # suggested default arguments for utilix.batchq.submit_job
 BATCHQ_DEFAULT_ARGUMENTS = {
-    "exclude_nodes": "dali[028-030],midway2-0048",
+    "exclude_nodes": "dali001,dali002,dali003,dali019,dali027,dali[028-030],midway2-0048",
     "exclude_lc_nodes": True,
     "partition": uconfig.get("Outsource", "rcc_partition"),
     "qos": uconfig.get("Outsource", "rcc_partition"),
