@@ -137,6 +137,7 @@ class Submitter:
 
         self.ignore_processed = ignore_processed
         self.stage = stage
+        self.remove_heavy = remove_heavy
         self.rucio_upload = rucio_upload
         self.rundb_update = rundb_update
         if not self.rucio_upload and self.rundb_update:
