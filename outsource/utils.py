@@ -21,6 +21,7 @@ def get_context(
     output_path=None,
     staging_dir=None,
     ignore_processed=False,
+    remove_heavy=True,
     stage=False,
 ):
     """Get straxen context for given context name and xedocs_version."""
@@ -38,6 +39,7 @@ def get_context(
                 staging_dir=staging_dir,
                 rses_only=uconfig.getlist("Outsource", "raw_records_rses"),
                 download_heavy=True,
+                remove_heavy=remove_heavy,
                 tries=tries,
                 num_threads=num_threads,
                 stage=stage,
@@ -49,6 +51,7 @@ def get_context(
                 straxen.storage.RucioRemoteFrontend(
                     staging_dir=staging_dir,
                     download_heavy=True,
+                    remove_heavy=remove_heavy,
                     tries=tries,
                     num_threads=num_threads,
                     stage=stage,
