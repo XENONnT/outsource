@@ -9,18 +9,20 @@ rucio_upload=$4
 rundb_update=$5
 stage=$6
 remove_heavy=$7
-tar_filename=$8
+input_path=$8
+output_path=$9
+tar_filename=${10}
 args=( "$@" )
-chunks=${args[@]:8}
+chunks=${args[@]:10}
+
+if [ -n $WORKFLOW_DIR ]; then
+    cd $WORKFLOW_DIR/scratch
+fi
 
 echo $@
 echo $*
 
-export HOME=$PWD
-
-input_path="input"
 mkdir -p $input_path
-output_path="output"
 mkdir -p $output_path
 
 extraflags=""
@@ -52,8 +54,10 @@ if [ -e /image-build-info.txt ]; then
     echo
 fi
 
-# Installing customized packages
-. install.sh strax straxen cutax utilix admix outsource
+if [ -f install.sh ]; then
+    # Installing customized packages
+    . install.sh strax straxen cutax utilix admix outsource
+fi
 
 echo "Current dir is $PWD. Here's whats inside:"
 ls -lah .
@@ -114,9 +118,11 @@ echo
 echo "Total amount of data in $output_path before tarballing: "`du -s --si $output_path | cut -f1`
 echo
 
-echo "We are tarballing the output directory and removing it:"
-tar czfv $tar_filename $output_path
-# tar czfv $tar_filename $output_path --remove-files
+if [ $tar_filename != "X" ]; then
+    echo "We are tarballing the output directory and removing it:"
+    tar czfv $tar_filename $output_path
+    # tar czfv $tar_filename $output_path --remove-files
+fi
 
 echo
 echo "Job is done. Here is the contents of the directory now:"

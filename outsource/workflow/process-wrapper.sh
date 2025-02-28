@@ -12,21 +12,23 @@ rundb_update=$7
 ignore_processed=$8
 stage=$9
 remove_heavy=${10}
-tar_filename=${11}
+input_path=${11}
+output_path=${12}
+tar_filename=${13}
 args=( "$@" )
-data_types=${args[@]:11}
+data_types=${args[@]:13}
+
+if [ -n $WORKFLOW_DIR ]; then
+    cd $WORKFLOW_DIR/scratch
+fi
 
 echo $@
 echo $*
 
-export HOME=$PWD
-
 echo "Processing chunks:"
 echo "$chunks_start to $chunks_end"
 
-input_path="input"
 mkdir -p $input_path
-output_path="output"
 mkdir -p $output_path
 
 extraflags=""
@@ -63,8 +65,10 @@ fi
 # Sleep random amount of time to spread out e.g. API calls and downloads
 sleep $(( RANDOM % 20 + 1 ))s
 
-# Installing customized packages
-. install.sh strax straxen cutax utilix admix outsource
+if [ -f install.sh ]; then
+    # Installing customized packages
+    . install.sh strax straxen cutax utilix admix outsource
+fi
 
 echo "Current dir is $PWD. Here's whats inside:"
 ls -lah .
@@ -144,9 +148,11 @@ echo
 echo "Total amount of data in $output_path before tarballing: "`du -s --si $output_path | cut -f1`
 echo
 
-echo "We are tarballing the output directory and removing it:"
-tar czfv $tar_filename $output_path
-# tar czfv $tar_filename $output_path --remove-files
+if [ $tar_filename != "X" ]; then
+    echo "We are tarballing the output directory and removing it:"
+    tar czfv $tar_filename $output_path
+    # tar czfv $tar_filename $output_path --remove-files
+fi
 
 echo
 echo "Job is done. Here is the contents of the directory now:"

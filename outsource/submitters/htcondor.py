@@ -1,9 +1,6 @@
 import os
-import json
 import shutil
 import getpass
-from itertools import chain
-import numpy as np
 import utilix
 from utilix import DB, uconfig
 from utilix.x509 import _validate_x509_proxy
@@ -24,10 +21,9 @@ from Pegasus.api import (
     ReplicaCatalog,
 )
 
-from outsource.config import RunConfig
 from outsource.submitter import Submitter
 from outsource.meta import DETECTOR_DATA_TYPES
-from outsource.utils import get_to_save_data_types, get_resources_retry
+from outsource.utils import get_resources_retry
 
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -127,9 +123,9 @@ class SubmitterHTCondor(Submitter):
         # Pegasus workflow directory
         self.workflow_dir = os.path.join(self.work_dir, self.workflow_id)
         self.generated_dir = os.path.join(self.workflow_dir, "generated")
-        self.runs_dir = os.path.join(self.workflow_dir, "runs")
         self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
+        self.runs_dir = os.path.join(self.workflow_dir, "runs")
 
     @property
     def x509_user_proxy(self):
@@ -144,7 +140,7 @@ class SubmitterHTCondor(Submitter):
         return os.path.join(self.generated_dir, ".xenon_config")
 
     @property
-    def workflow(self):
+    def _workflow(self):
         return os.path.join(self.generated_dir, "workflow.yml")
 
     @property
@@ -474,7 +470,6 @@ class SubmitterHTCondor(Submitter):
 
     def add_upper_processing_job(
         self,
-        workflow,
         label,
         level,
         dbcfg,
@@ -483,7 +478,6 @@ class SubmitterHTCondor(Submitter):
         combinepy,
         xenon_config,
         dbtoken,
-        tarballs,
     ):
         """Add a processing job to the workflow."""
         rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
@@ -522,11 +516,13 @@ class SubmitterHTCondor(Submitter):
             f"{self.ignore_processed}".lower(),
             f"{self.stage}".lower(),
             f"{self.remove_heavy}".lower(),
+            "input",
+            "output",
             job_tar,
             *level["data_types"],
         )
 
-        job.add_inputs(installsh, processpy, xenon_config, dbtoken, *tarballs)
+        job.add_inputs(installsh, processpy, xenon_config, dbtoken, *self.tarballs)
         job.add_outputs(job_tar, stage_out=self.stage_out_upper)
         job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
 
@@ -539,13 +535,12 @@ class SubmitterHTCondor(Submitter):
             untar_job.add_inputs(job_tar)
             untar_job.add_args(job_tar, self.outputs_dir)
             untar_job.set_stdout(File(f"untar-{job_tar}.log"), stage_out=True)
-            workflow.add_jobs(untar_job)
+            self.workflow.add_jobs(untar_job)
 
         return job, job_tar
 
     def add_lower_processing_job(
         self,
-        workflow,
         label,
         level,
         dbcfg,
@@ -554,7 +549,6 @@ class SubmitterHTCondor(Submitter):
         combinepy,
         xenon_config,
         dbtoken,
-        tarballs,
     ):
         """Add a per-chunk processing job to the workflow."""
         rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
@@ -581,7 +575,7 @@ class SubmitterHTCondor(Submitter):
         if desired_sites:
             combine_job.add_profiles(Namespace.CONDOR, "+XENON_DESIRED_Sites", f'"{desired_sites}"')
 
-        combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *tarballs)
+        combine_job.add_inputs(installsh, combinepy, xenon_config, dbtoken, *self.tarballs)
         _key = self.get_key(dbcfg, level)
         combine_tar = File(f"{_key}-output.tar.gz")
         combine_job.add_outputs(combine_tar, stage_out=self.stage_out_combine)
@@ -594,6 +588,8 @@ class SubmitterHTCondor(Submitter):
             f"{self.rundb_update}".lower(),
             f"{self.stage}".lower(),
             f"{self.remove_heavy}".lower(),
+            "input",
+            "output",
             combine_tar,
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         )
@@ -603,7 +599,7 @@ class SubmitterHTCondor(Submitter):
             untar_job.add_inputs(combine_tar)
             untar_job.add_args(combine_tar, self.outputs_dir)
             untar_job.set_stdout(File(f"untar-{combine_tar}.log"), stage_out=True)
-            workflow.add_jobs(untar_job)
+            self.workflow.add_jobs(untar_job)
 
         # Loop over the chunks
         for job_i in range(len(level["chunks"])):
@@ -648,15 +644,17 @@ class SubmitterHTCondor(Submitter):
                 f"{self.ignore_processed}".lower(),
                 f"{self.stage}".lower(),
                 f"{self.remove_heavy}".lower(),
+                "input",
+                "output",
                 job_tar,
                 *level["data_types"],
             )
 
-            job.add_inputs(installsh, processpy, xenon_config, dbtoken, *tarballs)
+            job.add_inputs(installsh, processpy, xenon_config, dbtoken, *self.tarballs)
             job.add_outputs(job_tar, stage_out=self.stage_out_lower)
             job.set_stdout(File(f"{job_tar}.log"), stage_out=True)
 
-            workflow.add_jobs(job)
+            self.workflow.add_jobs(job)
 
             # Update combine job
             combine_job.add_inputs(job_tar)
@@ -679,11 +677,32 @@ class SubmitterHTCondor(Submitter):
         shutil.copy(source, destination)
         rc.add_replica(site, lfn, f"file://{destination}")
 
+    def _submit_run(self, group, label, level, dbcfg):
+        """Submit a single run to the workflow."""
+        args = (
+            label,
+            level,
+            dbcfg,
+            File("install.sh"),
+            File("process.py"),
+            File("combine.py"),
+            File(".xenon_config"),
+            File(".dbtoken"),
+        )
+        if group == 0:
+            combine_job, self.combine_tar = self.add_lower_processing_job(*args)
+            self.workflow.add_jobs(combine_job)
+        else:
+            job, job_tar = self.add_upper_processing_job(*args)
+            if self.combine_tar:
+                job.add_inputs(self.combine_tar)
+            self.workflow.add_jobs(job)
+
     def _generate_workflow(self):
         """Use the Pegasus API to build an abstract graph of the workflow."""
 
         # Create a abstract dag
-        workflow = Workflow("outsource_workflow")
+        self.workflow = Workflow("outsource_workflow")
         # Initialize the catalogs
         sc = self._generate_sc()
         tc = self._generate_tc()
@@ -754,114 +773,27 @@ class SubmitterHTCondor(Submitter):
         )
         self.add_replica(rc, uconfig.config_path, self.xenon_config, "local", ".xenon_config")
 
-        tarballs, tarball_paths = self.make_tarballs()
-        for tarball, tarball_path in zip(tarballs, tarball_paths):
+        self.tarballs, tarball_paths = self.make_tarballs()
+        for tarball, tarball_path in zip(self.tarballs, tarball_paths):
             rc.add_replica("local", tarball, tarball_path)
 
-        # Keep track of what runs we submit, useful for bookkeeping
-        runlist = set()
-        summary = dict()
-        for run_id in self._runlist:
-            dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
-            summary[dbcfg._run_id] = dbcfg.data_types
-            self.logger.info(f"Adding {dbcfg._run_id} to the workflow.")
-
-            for detector in dbcfg.detectors:
-                # Check if this run_id needs to be processed
-                if not list(
-                    chain.from_iterable(
-                        v["data_types"] for v in dbcfg.data_types[detector].values()
-                    )
-                ):
-                    self.logger.debug(
-                        f"Run {dbcfg._run_id} detector {detector} is already processed with "
-                        f"context {self.context_name} xedocs_version {self.xedocs_version}."
-                    )
-                    continue
-
-                # Get data_types to process
-                combine_tar = None
-                for group, (label, level) in enumerate(dbcfg.data_types[detector].items()):
-                    if not level["data_types"].not_processed:
-                        self.logger.debug(
-                            f"Run {dbcfg._run_id} group {label} is already processed with "
-                            f"context {self.context_name} xedocs_version {self.xedocs_version}."
-                        )
-                        continue
-                    # Check that raw data exist for this run_id
-                    if group == 0:
-                        # There will be at most one in data_types
-                        data_types = list(level["data_types"].keys())
-                        for data_type in data_types:
-                            depends_on = dbcfg.depends_on(data_type, lower=not group)
-                            for _depends_on in depends_on:
-                                if not dbcfg.dependency_exists(data_type=_depends_on):
-                                    raise RuntimeError(
-                                        f"Unable to find the raw data for {data_types}."
-                                    )
-
-                    runlist |= {dbcfg.run_id}
-
-                    args = (
-                        workflow,
-                        label,
-                        level,
-                        dbcfg,
-                        File("install.sh"),
-                        File("process.py"),
-                        File("combine.py"),
-                        File(".xenon_config"),
-                        File(".dbtoken"),
-                        tarballs,
-                    )
-                    if group == 0:
-                        combine_job, combine_tar = self.add_lower_processing_job(*args)
-                        workflow.add_jobs(combine_job)
-                    else:
-                        job, job_tar = self.add_upper_processing_job(*args)
-                        if combine_tar:
-                            job.add_inputs(combine_tar)
-                        workflow.add_jobs(job)
+        runlist, summary = self._submit_runs()
 
         # Write the workflow to stdout
-        workflow.add_replica_catalog(rc)
-        workflow.add_transformation_catalog(tc)
-        workflow.add_site_catalog(sc)
-        workflow.write(file=self.workflow)
+        self.workflow.add_replica_catalog(rc)
+        self.workflow.add_transformation_catalog(tc)
+        self.workflow.add_site_catalog(sc)
+        self.workflow.write(file=self._workflow)
 
-        # Save the runlist
-        np.savetxt(self.runlist, sorted(runlist), fmt="%0d")
+        # Save the runlist and summary
+        self.save_runlist(runlist)
+        self.update_summary(summary)
+        self.save_summary(summary)
 
-        # Save the job summary
-        summary["include_data_types"] = sorted(
-            uconfig.getlist("Outsource", "include_data_types"),
-            key=lambda item: self.context.tree_levels[item]["order"],
-        )
-        summary["save_data_types"] = sorted(
-            get_to_save_data_types(
-                self.context,
-                list(
-                    set().union(
-                        *[v.get("submitted", []) for v in summary.values() if isinstance(v, dict)]
-                    )
-                ),
-                rm_lower=False,
-            ),
-            key=lambda item: self.context.tree_levels[item]["order"],
-        )
-        summary["save_data_types"] = [
-            "-".join(str(self.context.key_for("0", d)).split("-")[1:])
-            for d in summary["save_data_types"]
-        ]
-        with open(self.summary, mode="w") as f:
-            f.write(json.dumps(summary, indent=4))
-
-        return workflow
-
-    def _plan_and_submit(self, workflow):
+    def _plan_and_submit(self):
         """Submit the workflow."""
 
-        workflow.plan(
+        self.workflow.plan(
             submit=not self.debug,
             cluster=["horizontal"],
             cleanup="none",
@@ -887,20 +819,20 @@ class SubmitterHTCondor(Submitter):
         )
 
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
-        os.makedirs(self.runs_dir, 0o755, exist_ok=True)
         os.makedirs(self.outputs_dir, 0o755, exist_ok=True)
+        os.makedirs(self.runs_dir, 0o755, exist_ok=True)
 
         # Generate the workflow
-        workflow = self._generate_workflow()
+        self._generate_workflow()
 
-        if len(workflow.jobs):
+        if len(self.workflow.jobs):
             # Submit the workflow
-            self._plan_and_submit(workflow)
+            self._plan_and_submit()
 
         if self.debug:
-            workflow.graph(
+            self.workflow.graph(
                 output=os.path.join(self.generated_dir, "workflow_graph.dot"), label="xform-id"
             )
-            # workflow.graph(
+            # self.workflow.graph(
             #     output=os.path.join(self.generated_dir, "workflow_graph.svg"), label="xform-id"
             # )

@@ -1,16 +1,24 @@
 import os
 import sys
+import json
+from itertools import chain
 from datetime import datetime, timezone
+import numpy as np
 from utilix import uconfig
 from utilix.config import setup_logger, set_logging_level
 
+from outsource.config import RunConfig
 from outsource.utils import get_context
+from outsource.utils import get_to_save_data_types
 
 
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
 
 
 class Submitter:
+
+    # Whether in OSG-RCC relay mode
+    relay = False
 
     # This is a flag to indicate that the user has installed the packages
     user_installed_packages = True
@@ -112,3 +120,85 @@ class Submitter:
         if self.user_installed_packages:
             workflow_id = ("user", *workflow_id)
         self.workflow_id = "-".join(workflow_id)
+
+    def _submit_runs(self):
+        """Loop over the runs and submit the jobs to the workflow."""
+        # Keep track of what runs we submit, useful for bookkeeping
+        runlist = set()
+        summary = dict()
+        for run_id in self._runlist:
+            dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
+            summary[dbcfg._run_id] = dbcfg.data_types
+            self.logger.info(f"Adding {dbcfg._run_id} to the workflow.")
+
+            for detector in dbcfg.detectors:
+                # Check if this run_id needs to be processed
+                if not list(
+                    chain.from_iterable(
+                        v["data_types"] for v in dbcfg.data_types[detector].values()
+                    )
+                ):
+                    self.logger.debug(
+                        f"Run {dbcfg._run_id} detector {detector} is already processed with "
+                        f"context {self.context_name} xedocs_version {self.xedocs_version}."
+                    )
+                    continue
+
+                # Get data_types to process
+                self.combine_tar = None
+                for group, (label, level) in enumerate(dbcfg.data_types[detector].items()):
+                    if not level["data_types"].not_processed:
+                        self.logger.debug(
+                            f"Run {dbcfg._run_id} group {label} is already processed with "
+                            f"context {self.context_name} xedocs_version {self.xedocs_version}."
+                        )
+                        continue
+                    # Check that raw data exist for this run_id
+                    if group == 0:
+                        # There will be at most one in data_types
+                        data_types = list(level["data_types"].keys())
+                        for data_type in data_types:
+                            depends_on = dbcfg.depends_on(data_type, lower=not group)
+                            for _depends_on in depends_on:
+                                if not dbcfg.dependency_exists(data_type=_depends_on):
+                                    raise RuntimeError(
+                                        f"Unable to find the raw data for {data_types}."
+                                    )
+
+                    runlist |= {dbcfg.run_id}
+
+                    self._submit_run(group, label, level, dbcfg)
+
+        return runlist, summary
+
+    def save_runlist(self, runlist):
+        """Save the runlist."""
+        np.savetxt(self.runlist, sorted(runlist), fmt="%0d")
+
+    def update_summary(self, summary):
+        """Update the job summary."""
+        summary["include_data_types"] = sorted(
+            uconfig.getlist("Outsource", "include_data_types"),
+            key=lambda item: self.context.tree_levels[item]["order"],
+        )
+        summary["save_data_types"] = sorted(
+            get_to_save_data_types(
+                self.context,
+                list(
+                    set().union(
+                        *[v.get("submitted", []) for v in summary.values() if isinstance(v, dict)]
+                    )
+                ),
+                rm_lower=False,
+            ),
+            key=lambda item: self.context.tree_levels[item]["order"],
+        )
+        summary["save_data_types"] = [
+            "-".join(str(self.context.key_for("0", d)).split("-")[1:])
+            for d in summary["save_data_types"]
+        ]
+
+    def save_summary(self, summary):
+        """Save the job summary."""
+        with open(self.summary, mode="w") as f:
+            f.write(json.dumps(summary, indent=4))

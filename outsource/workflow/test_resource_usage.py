@@ -22,6 +22,8 @@ parser.add_argument("run_id", type=int)
 parser.add_argument("--chunks_start", type=int)
 parser.add_argument("--chunks_end", type=int)
 parser.add_argument("--chunks", nargs="*", type=int)
+parser.add_argument("--input_path")
+parser.add_argument("--output_path")
 args, _ = parser.parse_known_args()
 
 suffix = "_".join(os.environ["PEGASUS_DAG_JOB_ID"].split("_")[:-1])
@@ -90,7 +92,7 @@ def get_sizes(directory):
     return sizes
 
 
-io_list = ["input", "output"]
+io_list = [args.input_path, args.output_path]
 storage_usage = dict()
 for io in io_list:
     storage_usage[io] = get_sizes(f"./{io}")
