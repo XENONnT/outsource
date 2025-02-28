@@ -8,7 +8,7 @@ xedocs_version=$3
 rucio_upload=$4
 rundb_update=$5
 stage=$6
-keep_raw_records=$7
+remove_heavy=$7
 tar_filename=$8
 args=( "$@" )
 chunks=${args[@]:8}
@@ -37,8 +37,8 @@ if [ "X$stage" = "Xtrue" ]; then
     extraflags="$extraflags --stage"
 fi
 
-if [ "X$keep_raw_records" = "Xtrue" ]; then
-    extraflags="$extraflags --keep_raw_records"
+if [ "X$remove_heavy" = "Xtrue" ]; then
+    extraflags="$extraflags --remove_heavy"
 fi
 
 chunksarg="--chunks $chunks"

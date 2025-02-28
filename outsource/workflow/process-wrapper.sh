@@ -11,7 +11,7 @@ rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
 stage=$9
-keep_raw_records=${10}
+remove_heavy=${10}
 tar_filename=${11}
 args=( "$@" )
 data_types=${args[@]:11}
@@ -47,8 +47,8 @@ if [ "X$stage" = "Xtrue" ]; then
     extraflags="$extraflags --stage"
 fi
 
-if [ "X$keep_raw_records" = "Xtrue" ]; then
-    extraflags="$extraflags --keep_raw_records"
+if [ "X$remove_heavy" = "Xtrue" ]; then
+    extraflags="$extraflags --remove_heavy"
 fi
 
 . /opt/XENONnT/setup.sh

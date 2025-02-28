@@ -94,6 +94,7 @@ class Submitter:
         rundb_update=False,
         ignore_processed=False,
         stage=False,
+        remove_heavy=True,
         resources_test=False,
         stage_out_lower=False,
         stage_out_combine=False,
@@ -574,6 +575,7 @@ class Submitter:
             f"{self.rundb_update}".lower(),
             f"{self.ignore_processed}".lower(),
             f"{self.stage}".lower(),
+            f"{self.remove_heavy}".lower(),
             job_tar,
             *level["data_types"],
         )
@@ -645,6 +647,7 @@ class Submitter:
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             f"{self.stage}".lower(),
+            f"{self.remove_heavy}".lower(),
             combine_tar,
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         )
@@ -698,6 +701,7 @@ class Submitter:
                 f"{self.rundb_update}".lower(),
                 f"{self.ignore_processed}".lower(),
                 f"{self.stage}".lower(),
+                f"{self.remove_heavy}".lower(),
                 job_tar,
                 *level["data_types"],
             )
