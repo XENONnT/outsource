@@ -26,7 +26,7 @@ from outsource.meta import DETECTOR_DATA_TYPES
 from outsource.utils import get_resources_retry
 
 
-base_dir = os.path.abspath(os.path.dirname(__file__))
+base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
 
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
@@ -453,20 +453,6 @@ class SubmitterHTCondor(Submitter):
 
         desired_sites, requirements, site_ranks = dbcfg.get_requirements(rses)
         return desired_sites, requirements, site_ranks
-
-    def get_key(self, dbcfg, level):
-        """Get the key for the output files and check the file name."""
-        # output files
-        _key = "-".join(
-            [dbcfg._run_id] + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in level["data_types"]]
-        )
-        # Sometimes the filename can be too long
-        if len(_key) > 255 - len("untar--output.tar.gz.log"):
-            self.logger.warning(f"Filename {_key} is too long, will not include hash in it.")
-            _key = "-".join([dbcfg._run_id] + list(level["data_types"]))
-        if len(_key) > 255 - len("untar--output.tar.gz.log"):
-            raise RuntimeError(f"Filename {_key} is still too long.")
-        return _key
 
     def add_upper_processing_job(
         self,

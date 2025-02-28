@@ -5,6 +5,7 @@ import shutil
 import gc
 from utilix import uconfig
 from utilix.config import setup_logger
+import admix
 import straxen
 
 from outsource.utils import get_context, get_processing_order, per_chunk_storage_root_data_type
@@ -21,6 +22,8 @@ logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fal
 
 if not straxen.HAVE_ADMIX:
     raise ImportError("straxen must be installed with admix to use this script")
+if not admix.manager.HAVE_GFAL2:
+    raise ImportError("admix must be installed with gfal2 to use this script")
 
 
 def get_chunk_number(st, run_id, data_type, chunks):

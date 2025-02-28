@@ -4,7 +4,7 @@ from utilix import uconfig, batchq
 from outsource.submitter import Submitter
 
 
-base_dir = os.path.abspath(os.path.dirname(__file__))
+base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
 
 # suggested default arguments for utilix.batchq.submit_job
@@ -61,9 +61,6 @@ class SubmitterSlurm(Submitter):
         self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
 
-        self.batchq_arguments = {**BATCHQ_DEFAULT_ARGUMENTS, **self.slurm_configurations}
-        self._check_batchq_arguments()
-
         self.job_prefix = f"export WORKFLOW_DIR={self.workflow_dir}\n\n"
 
     def copy_files(self):
@@ -91,18 +88,7 @@ class SubmitterSlurm(Submitter):
             )
 
     def _submit(self, job, jobname, log, **kwargs):
-        """Submits job to batch queue which actually runs the analysis.
-
-        Args:
-            job (str): The job script to be submitted.
-            jobname (str): The name of the job.
-            log (str): The path to the log file.
-
-        Keyword Args:
-            jobname (str): The name of the job.
-            log (str): The path to the log file.
-
-        """
+        """Submits job to batch queue which actually runs the analysis."""
 
         kwargs_to_pop = []
         for key, val in kwargs.items():
@@ -112,14 +98,13 @@ class SubmitterSlurm(Submitter):
         for kw in kwargs_to_pop:
             kwargs.pop(kw)
 
-        self.logging.debug(f"Submitting the following job: '{job}'")
         job_id = batchq.submit_job(
             job,
             jobname=jobname,
             log=log,
             verbose=self.debug,
             dry_run=self.debug,
-            **{**self.batchq_arguments, **kwargs},
+            **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
         )
         return job_id
 
@@ -133,36 +118,41 @@ class SubmitterSlurm(Submitter):
 
         # Get the key for the job
         _key = self.get_key(dbcfg, level)
-        jobname = f"{label}_{dbcfg.run_id}"
+        jobname = f"{label}_{dbcfg._run_id}"
 
         # Loop over the chunks
         job_ids = []
         for job_i in range(len(level["chunks"])):
             self.logger.debug(f"Adding job for per-chunk processing: {level['chunks'][job_i]}")
-            log = os.path.join(self.outputs_dir, f"{_key}-output-{job_i:04d}.tar.gz.log")
+            log = os.path.join(self.outputs_dir, f"{_key}-output-{job_i:04d}.log")
 
             # Add job
             input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
             output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-            args = [
-                dbcfg.run_id,
-                self.context_name,
-                self.xedocs_version,
-                level["chunks"][job_i][0],
-                level["chunks"][job_i][1],
-                f"{self.rucio_upload}".lower(),
-                f"{self.rundb_update}".lower(),
-                f"{self.ignore_processed}".lower(),
-                f"{self.stage}".lower(),
-                f"{self.remove_heavy}".lower(),
-                input,
-                output,
-                "X",
-            ] + level["data_types"]
+            args = (
+                [f"{self.scratch_dir}/process-wrapper.sh"]
+                + [
+                    dbcfg.run_id,
+                    self.context_name,
+                    self.xedocs_version,
+                    level["chunks"][job_i][0],
+                    level["chunks"][job_i][1],
+                    f"{self.rucio_upload}".lower(),
+                    f"{self.rundb_update}".lower(),
+                    f"{self.ignore_processed}".lower(),
+                    f"{self.stage}".lower(),
+                    f"{self.remove_heavy}".lower(),
+                    input,
+                    output,
+                    "X",
+                ]
+                + list(level["data_types"])
+            )
+            args = [str(arg) for arg in args]
             # if self.resources_test:
-            job = self.job_prefix + " ".join([f"{self.scratch_dir}/process-wrapper.sh"] + args)
+            job = self.job_prefix + " ".join(args)
             job += "\n\n"
-            job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc_per_chunk"
+            job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc_per_chunk/"
             batchq_kwargs = {}
             batchq_kwargs["jobname"] = f"{jobname}-{job_i:04d}"
             batchq_kwargs["log"] = log
@@ -176,8 +166,8 @@ class SubmitterSlurm(Submitter):
             job_ids.append(job_id)
 
         suffix = "_".join(label.split("_")[1:])
-        jobname = f"combine_{suffix}_{dbcfg.run_id}"
-        log = os.path.join(self.outputs_dir, f"{_key}-output.tar.gz.log")
+        jobname = f"combine_{suffix}_{dbcfg._run_id}"
+        log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
         args = [
@@ -195,7 +185,7 @@ class SubmitterSlurm(Submitter):
         ]
         job = self.job_prefix + " ".join([f"{self.scratch_dir}/combine-wrapper.sh"] + args)
         job += "\n\n"
-        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc"
+        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
@@ -219,28 +209,33 @@ class SubmitterSlurm(Submitter):
 
         # Get the key for the job
         _key = self.get_key(dbcfg, level)
-        jobname = f"{label}_{dbcfg.run_id}"
-        log = os.path.join(self.outputs_dir, f"{_key}-output.tar.gz.log")
+        jobname = f"{label}_{dbcfg._run_id}"
+        log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-        args = [
-            dbcfg.run_id,
-            self.context_name,
-            self.xedocs_version,
-            -1,
-            -1,
-            f"{self.rucio_upload}".lower(),
-            f"{self.rundb_update}".lower(),
-            f"{self.ignore_processed}".lower(),
-            f"{self.stage}".lower(),
-            f"{self.remove_heavy}".lower(),
-            input,
-            output,
-            "X",
-        ] + level["data_types"]
-        job = self.job_prefix + " ".join([f"{self.scratch_dir}/process-wrapper.sh"] + args)
+        args = (
+            [f"{self.scratch_dir}/process-wrapper.sh"]
+            + [
+                dbcfg.run_id,
+                self.context_name,
+                self.xedocs_version,
+                -1,
+                -1,
+                f"{self.rucio_upload}".lower(),
+                f"{self.rundb_update}".lower(),
+                f"{self.ignore_processed}".lower(),
+                f"{self.stage}".lower(),
+                f"{self.remove_heavy}".lower(),
+                input,
+                output,
+                "X",
+            ]
+            + list(level["data_types"])
+        )
+        args = [str(arg) for arg in args]
+        job = self.job_prefix + " ".join(args)
         job += "\n\n"
-        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc"
+        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log

@@ -51,6 +51,23 @@ class Submitter:
         # Whether in OSG-RCC relay mode
         self.relay = relay
 
+        if not isinstance(runlist, list):
+            raise RuntimeError("Outsource expects a list of run_id")
+        self._runlist = runlist
+
+        # Assume that if the image is not a full path, it is a name
+        if not os.path.exists(image):
+            self.image_tag = image
+            self.singularity_image = f"{IMAGE_PREFIX}{image}"
+        else:
+            self.image_tag = image.split(":")[-1]
+            self.singularity_image = image
+
+        # Setup context
+        self.context_name = context_name
+        self.xedocs_version = xedocs_version
+        self.context = get_context(context_name, self.xedocs_version)
+
         # Load from XENON_CONFIG
         self.work_dir = uconfig.get("Outsource", "work_dir")
         # The current time will always be part of the workflow_id, except in relay mode
@@ -62,14 +79,6 @@ class Submitter:
         else:
             self._setup_workflow_id(workflow_id)
 
-        # Assume that if the image is not a full path, it is a name
-        if not os.path.exists(image):
-            self.image_tag = image
-            self.singularity_image = f"{IMAGE_PREFIX}{image}"
-        else:
-            self.image_tag = image.split(":")[-1]
-            self.singularity_image = image
-
         # Check if the environment used to run this script is consistent with the container
         if self.image_tag not in sys.executable:
             raise EnvironmentError(
@@ -78,15 +87,6 @@ class Submitter:
                 "Please use the following command to activate the correct environment: \n"
                 f"source /cvmfs/xenon.opensciencegrid.org/releases/nT/{self.image_tag}/setup.sh"
             )
-
-        if not isinstance(runlist, list):
-            raise RuntimeError("Outsource expects a list of run_id")
-        self._runlist = runlist
-
-        # Setup context
-        self.context_name = context_name
-        self.xedocs_version = xedocs_version
-        self.context = get_context(context_name, self.xedocs_version)
 
         self.ignore_processed = ignore_processed
         self.stage = stage
@@ -97,6 +97,20 @@ class Submitter:
             raise RuntimeError("Rucio upload must be enabled when updating the RunDB.")
         self.resources_test = resources_test
         self.debug = debug
+
+    def get_key(self, dbcfg, level):
+        """Get the key for the output files and check the file name."""
+        # output files
+        _key = "-".join(
+            [dbcfg._run_id] + [f"{d}-{dbcfg.key_for(d).lineage_hash}" for d in level["data_types"]]
+        )
+        # Sometimes the filename can be too long
+        if len(_key) > 255 - len("untar--output.tar.gz.log"):
+            self.logger.warning(f"Filename {_key} is too long, will not include hash in it.")
+            _key = "-".join([dbcfg._run_id] + list(level["data_types"]))
+        if len(_key) > 255 - len("untar--output.tar.gz.log"):
+            raise RuntimeError(f"Filename {_key} is still too long.")
+        return _key
 
     def _setup_workflow_id(self, workflow_id):
         """Set up the workflow ID."""

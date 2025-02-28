@@ -1,8 +1,9 @@
 import argparse
 import os
-import admix
 from utilix import uconfig
 from utilix.config import setup_logger
+import admix
+import straxen
 
 from outsource.utils import get_context, per_chunk_storage_root_data_type
 from outsource.upload import upload_to_rucio
@@ -10,6 +11,11 @@ from outsource.upload import upload_to_rucio
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 admix.clients._init_clients()
+
+if not straxen.HAVE_ADMIX:
+    raise ImportError("straxen must be installed with admix to use this script")
+if not admix.manager.HAVE_GFAL2:
+    raise ImportError("admix must be installed with gfal2 to use this script")
 
 
 def merge(st, run_id, data_type, chunk_number_group):
