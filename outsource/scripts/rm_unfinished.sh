@@ -3,6 +3,7 @@
 set -e
 
 workflow=$1
+relay=$2
 
 # Define directories
 outputs=$workflow/outputs
@@ -11,18 +12,27 @@ lower_log=lower_done.log
 upper_log=upper_done.log
 done_log=done.log
 
-# Get the run IDs from the files
-ls $outputs | grep let | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $lower_log
-ls $outputs | grep event | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $upper_log
-comm -12 $lower_log $upper_log > $done_log
-
 # Ensure the delete folder exists
 mkdir -p $del
 
+# Get the run IDs from the files
+ls $outputs | grep output.tar.gz | grep -v log | grep let | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $lower_log
+ls $outputs | grep output.tar.gz | grep -v log | grep event | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $upper_log
+comm -12 $lower_log $upper_log > $done_log
+
+# Read and store unique run IDs into an array
+if [ "X$relay" = "Xrelay" ]; then
+    # IF OSG-RCC relay, remove runs whose upper finished only
+    run_ids=($(cat $upper_log | sort | uniq))
+else
+    # If not OSG-RCC relay, keep runs whose both lower and upper finished
+    run_ids=($(cat $lower_log $upper_log | sort | uniq))
+fi
+
 # Read each run ID from the file
-while IFS= read -r run_id; do
+for run_id in ${run_ids[@]}; do
     # Find files matching the run ID
-    matching_files=($(ls $outputs | grep $run_id))
+    matching_files=($(ls $outputs | grep output.tar.gz | grep -v log | grep $run_id))
 
     # Check the number of matching files
     if [ ${#matching_files[@]} -ne 2 ]; then
@@ -31,4 +41,4 @@ while IFS= read -r run_id; do
             echo "Moved: $outputs/$file -> $del/"
         done
     fi
-done < <(cat $lower_log $upper_log | sort | uniq)
+done
