@@ -54,6 +54,12 @@ def main():
         help="Stage data before downloading",
     )
     parser.add_argument(
+        "--remove_heavy",
+        dest="remove_heavy",
+        action="store_true",
+        help="Remove heavy chunk immediately after processing",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help=(
@@ -174,6 +180,7 @@ def main():
         rundb_update=args.rundb_update,
         ignore_processed=args.ignore_processed,
         stage=args.stage,
+        remove_heavy=args.remove_heavy,
         resources_test=args.resources_test,
         stage_out_lower=args.stage_out_lower,
         stage_out_combine=args.stage_out_combine,

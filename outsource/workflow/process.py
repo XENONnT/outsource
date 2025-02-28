@@ -65,7 +65,7 @@ def main():
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--ignore_processed", action="store_true", dest="ignore_processed")
     parser.add_argument("--stage", action="store_true", dest="stage")
-    parser.add_argument("--keep_raw_records", action="store_true", dest="keep_raw_records")
+    parser.add_argument("--remove_heavy", action="store_true", dest="remove_heavy")
 
     args = parser.parse_args()
 
@@ -86,6 +86,7 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=args.ignore_processed,
+        remove_heavy=args.remove_heavy,
         stage=args.stage,
     )
 
@@ -111,10 +112,6 @@ def main():
         process(st, run_id, data_type, chunks)
 
     logger.info("Done processing. Now check if we should upload to rucio")
-
-    # Remove rucio directory
-    if not args.keep_raw_records:
-        shutil.rmtree(staging_dir)
 
     # Now loop over data_type we just made and upload the data
     processed_data = os.listdir(output_path)

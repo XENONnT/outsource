@@ -1,6 +1,5 @@
 import argparse
 import os
-import shutil
 import admix
 from utilix import uconfig
 from utilix.config import setup_logger
@@ -45,7 +44,7 @@ def main():
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--stage", action="store_true", dest="stage")
-    parser.add_argument("--keep_raw_records", action="store_true", dest="keep_raw_records")
+    parser.add_argument("--remove_heavy", action="store_true", dest="remove_heavy")
     parser.add_argument("--chunks", required=True, nargs="*", type=int)
 
     args = parser.parse_args()
@@ -67,6 +66,7 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=True,
+        remove_heavy=args.remove_heavy,
         stage=args.stage,
     )
 
@@ -88,10 +88,6 @@ def main():
     for data_type in data_types:
         logger.info(f"Merging {data_type}")
         merge(st, run_id, data_type, chunk_number_group)
-
-    # Remove rucio directory
-    if not args.keep_raw_records:
-        shutil.rmtree(staging_dir)
 
     if not args.rucio_upload:
         logger.warning("Ignoring rucio upload")

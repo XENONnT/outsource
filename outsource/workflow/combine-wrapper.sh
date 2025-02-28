@@ -8,9 +8,10 @@ xedocs_version=$3
 rucio_upload=$4
 rundb_update=$5
 stage=$6
-tar_filename=$7
+remove_heavy=$7
+tar_filename=$8
 args=( "$@" )
-chunks=${args[@]:7}
+chunks=${args[@]:8}
 
 echo $@
 echo $*
@@ -27,11 +28,17 @@ extraflags=""
 if [ "X$rucio_upload" = "Xtrue" ]; then
     extraflags="$extraflags --rucio_upload"
 fi
+
 if [ "X$rundb_update" = "Xtrue" ]; then
     extraflags="$extraflags --rundb_update"
 fi
+
 if [ "X$stage" = "Xtrue" ]; then
     extraflags="$extraflags --stage"
+fi
+
+if [ "X$remove_heavy" = "Xtrue" ]; then
+    extraflags="$extraflags --remove_heavy"
 fi
 
 chunksarg="--chunks $chunks"
