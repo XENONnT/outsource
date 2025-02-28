@@ -6,9 +6,18 @@ from utilix import xent_collection
 from utilix.config import setup_logger
 import strax
 import straxen
+
+if not straxen.HAVE_ADMIX:
+    raise ImportError("admix is required for this script to run.")
+
 import cutax
 
 from outsource.meta import get_clean_detector_data_types, get_clean_per_chunk_data_types
+
+import admix
+
+if not admix.manager.HAVE_GFAL2:
+    raise ImportError("gfal2 is required for this script to run.")
 
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))

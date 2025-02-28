@@ -127,7 +127,9 @@ def main():
     args = parser.parse_args()
 
     if not args.keep_dbtoken:
-        os.remove(os.path.join(os.environ["HOME"], ".dbtoken"))
+        dbtoken = os.path.join(os.environ["HOME"], ".dbtoken")
+        if os.path.exists(dbtoken):
+            os.remove(dbtoken)
         # Remove the cached DB instance and reinitialize it
         DB._instances = dict()
         DB()
@@ -179,11 +181,11 @@ def main():
         )
 
     if args.slurm:
-        from alea.submitters.slurm import SubmitterSlurm
+        from outsource.submitters.slurm import SubmitterSlurm
 
         submitter_class = SubmitterSlurm
     elif args.htcondor:
-        from alea.submitters.htcondor import SubmitterHTCondor
+        from outsource.submitters.htcondor import SubmitterHTCondor
 
         submitter_class = SubmitterHTCondor
     else:
