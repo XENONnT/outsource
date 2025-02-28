@@ -170,7 +170,7 @@ class SubmitterSlurm(Submitter):
         log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-        args = [
+        args = [f"{self.scratch_dir}/combine-wrapper.sh"] + [
             dbcfg.run_id,
             self.context_name,
             self.xedocs_version,
@@ -183,7 +183,8 @@ class SubmitterSlurm(Submitter):
             "X",
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         ]
-        job = self.job_prefix + " ".join([f"{self.scratch_dir}/combine-wrapper.sh"] + args)
+        args = [str(arg) for arg in args]
+        job = self.job_prefix + " ".join(args)
         job += "\n\n"
         job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
         batchq_kwargs = {}
