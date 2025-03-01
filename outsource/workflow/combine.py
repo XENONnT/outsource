@@ -77,7 +77,10 @@ def main():
         stage=args.stage,
     )
 
-    # Check what data is in the output folder
+    _chunks = [0] + args.chunks
+    chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
+
+    # Check what data_type has to be merged
     data_types = []
     for d in os.listdir(input_path):
         if not os.path.isdir(os.path.join(input_path, d)):
@@ -86,9 +89,7 @@ def main():
             continue
         data_types.append(d.split("-")[1])
     data_types = sorted(set(data_types))
-
-    _chunks = [0] + args.chunks
-    chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
+    logger.info(f"{data_types} have to be merged.")
 
     # Merge
     for data_type in data_types:

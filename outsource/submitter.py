@@ -5,7 +5,9 @@ from itertools import chain
 from datetime import datetime, timezone
 import numpy as np
 from utilix import uconfig
+from utilix.tarball import Tarball
 from utilix.config import setup_logger, set_logging_level
+import cutax
 
 from outsource.config import RunConfig
 from outsource.utils import get_context
@@ -68,6 +70,9 @@ class Submitter:
         self.xedocs_version = xedocs_version
         self.context = get_context(context_name, self.xedocs_version)
 
+        # Need to know whether used self-installed packages before assigning the workflow_id
+        self._setup_packages()
+
         # Load from XENON_CONFIG
         self.work_dir = uconfig.get("Outsource", "work_dir")
         # The current time will always be part of the workflow_id, except in relay mode
@@ -100,9 +105,15 @@ class Submitter:
 
         # Workflow directory
         self.workflow_dir = os.path.join(self.work_dir, self.workflow_id)
+        # Does workflow already exist?
+        if os.path.exists(self.workflow_dir):
+            raise RuntimeError(f"Workflow already exists at {self.workflow_dir}.")
         self.generated_dir = os.path.join(self.workflow_dir, "generated")
         self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
+
+        # All submitters need to make tarballs
+        self.make_tarballs()
 
     @property
     def runlist(self):
@@ -125,6 +136,89 @@ class Submitter:
         if len(_key) > 255 - len("untar--output.tar.gz.log"):
             raise RuntimeError(f"Filename {_key} is still too long.")
         return _key
+
+    def _setup_packages(self):
+        """Get the list of user-installed packages."""
+        package_names = uconfig.getlist("Outsource", "user_install_package", fallback=[])
+        if "cutax" not in package_names:
+            raise RuntimeError(
+                "cutax must be in the list of user_install_package "
+                f"in the XENON_CONFIG configuration, but got {package_names}."
+            )
+        # Check if the package in not in the official software environment
+        check_package_names = uconfig.getlist(
+            "Outsource", "check_user_install_package", fallback=[]
+        )
+        check_package_names += [
+            "strax",
+            "straxen",
+            "cutax",
+            "rucio",
+            "utilix",
+            "admix",
+            "outsource",
+        ]
+        for package_name in set(check_package_names) - set(package_names):
+            if Tarball.get_installed_git_repo(package_name) or Tarball.is_user_installed(
+                package_name
+            ):
+                raise RuntimeError(
+                    f"{package_name} should be either in user_install_package "
+                    "in the XENON_CONFIG configuration after being installed in editable mode, "
+                    "because it is not in the official software environment. "
+                    "Or uninstalled from the user-installed environment."
+                )
+        self.package_names = package_names
+        # Get a flag of whether there are user-installed packages
+        # to determine the workflow_id later
+        for package_name in self.package_names:
+            if Tarball.get_installed_git_repo(package_name):
+                self.user_installed_packages = True
+                break
+
+    def make_tarballs(self):
+        """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
+        os.makedirs(self.generated_dir, 0o755, exist_ok=True)
+        self.tarballs = []
+        self.tarball_paths = []
+
+        # Install the specified user-installed packages
+        for package_name in self.package_names:
+            _tarball = Tarball(self.generated_dir, package_name)
+            if Tarball.get_installed_git_repo(package_name):
+                if self.rucio_upload:
+                    raise RuntimeError(
+                        f"When using user_install_package, rucio_upload must be False!"
+                    )
+                _tarball.create_tarball()
+                tarball = _tarball.tarball_name
+                tarball_path = _tarball.tarball_path
+                self.logger.warning(
+                    f"Using tarball of user installed package {package_name} at {tarball_path}."
+                )
+            else:
+                # Packages should not be non-editable user-installed
+                if Tarball.is_user_installed(package_name):
+                    raise RuntimeError(
+                        f"You should not install {package_name} in "
+                        "non-editable user-installed mode."
+                    )
+                # cutax is special because it is not installed in site-pacakges of the environment
+                if package_name == "cutax":
+                    if "CUTAX_LOCATION" not in os.environ:
+                        raise RuntimeError(
+                            "cutax should either be editable user-installed from a git repo "
+                            "or patched by the software environment by CUTAX_LOCATION."
+                        )
+                    tarball = _tarball.tarball_name
+                    tarball_path = (
+                        "/ospool/uc-shared/project/xenon/xenonnt/software"
+                        f"/cutax/v{cutax.__version__.replace('.', '-')}.tar.gz"
+                    )
+                else:
+                    continue
+            self.tarballs.append(tarball)
+            self.tarball_paths.append(tarball_path)
 
     def _setup_workflow_id(self, workflow_id):
         """Set up the workflow ID."""

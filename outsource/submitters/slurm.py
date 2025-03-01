@@ -1,5 +1,6 @@
 import os
 import shutil
+import utilix
 from utilix import uconfig, batchq
 from outsource.submitter import Submitter
 
@@ -75,11 +76,11 @@ class SubmitterSlurm(Submitter):
         # To prevent different jobs from overwriting each other's files
         os.makedirs(os.path.join(self.scratch_dir, "strax_data"), 0o555, exist_ok=True)
         os.makedirs(os.path.join(self.outputs_dir, "strax_data_rcc"), 0o755, exist_ok=True)
-        os.makedirs(
-            os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk"), 0o755, exist_ok=True
-        )
 
         # Copy the workflow files
+        shutil.copy2(
+            os.path.join(os.path.dirname(utilix.__file__), "install.sh"), self.generated_dir
+        )
         shutil.copy2(f"{base_dir}/workflow/process-wrapper.sh", self.scratch_dir)
         shutil.copy2(f"{base_dir}/workflow/combine-wrapper.sh", self.scratch_dir)
         shutil.copy2(os.path.join(os.environ["HOME"], ".dbtoken"), self.scratch_dir)
@@ -91,10 +92,18 @@ class SubmitterSlurm(Submitter):
                 f"{base_dir}/workflow/test_resource_usage.py",
                 os.path.join(self.scratch_dir, "process.py"),
             )
+            shutil.copy2(
+                f"{base_dir}/workflow/test_resource_usage.py",
+                os.path.join(self.scratch_dir, "combine.py"),
+            )
         else:
             shutil.copy2(
                 f"{base_dir}/workflow/process.py",
                 os.path.join(self.scratch_dir, "process.py"),
+            )
+            shutil.copy2(
+                f"{base_dir}/workflow/combine.py",
+                os.path.join(self.scratch_dir, "combine.py"),
             )
 
     def _submit(self, job, jobname, log, **kwargs):
@@ -120,6 +129,25 @@ class SubmitterSlurm(Submitter):
             raise RuntimeError("Job submission failed.")
         return job_id
 
+    def add_install_job(self):
+        """Install user specified packages."""
+        log = os.path.join(self.outputs_dir, "install.log")
+        job = "set -e\n\n"
+        job += self.job_prefix
+        job += "cd $WORKFLOW_DIR/generated\n\n"
+        job += "export HOME=$WORKFLOW_DIR/scratch\n\n"
+        job += ". install.sh strax straxen cutax utilix admix outsource\n"
+        batchq_kwargs = {}
+        batchq_kwargs["jobname"] = "install"
+        batchq_kwargs["log"] = log
+        batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
+        batchq_kwargs["cpus_per_task"] = 1
+        batchq_kwargs["mem_per_cpu"] = 2_000 + CONTAINER_MEMORY_OVERHEAD
+        batchq_kwargs["hours"] = 1
+        self.install_job_id = self._submit(job, **batchq_kwargs)
+        self.jobs.append(job)
+        self._job_id += 1
+
     def add_lower_processing_job(self, label, level, dbcfg):
         """Add a per-chunk processing job to the workflow."""
         rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
@@ -133,6 +161,9 @@ class SubmitterSlurm(Submitter):
         jobname = f"{label}_{dbcfg._run_id}"
 
         # Loop over the chunks
+        os.makedirs(
+            os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input"), 0o755, exist_ok=True
+        )
         job_ids = []
         for job_i in range(len(level["chunks"])):
             self.logger.debug(f"Adding job for per-chunk processing: {level['chunks'][job_i]}")
@@ -163,18 +194,21 @@ class SubmitterSlurm(Submitter):
             ]
             args += list(level["data_types"])
             args = [str(arg) for arg in args]
-            # if self.resources_test:
             job = "set -e\n\n"
             job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
             job += "\n\n"
             job += self.job_prefix + " ".join(args)
             job += "\n\n"
-            job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc_per_chunk/"
+            job += f"mv {output}/* "
+            job += os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
+            job += "\n\n"
             self.jobs.append(job)
             batchq_kwargs = {}
             batchq_kwargs["jobname"] = f"{jobname}-{job_i:04d}"
             batchq_kwargs["log"] = log
             batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
+            if not self.debug and self.install_job_id is not None:
+                batchq_kwargs["dependency"] = self.install_job_id
             batchq_kwargs["cpus_per_task"] = level["cores"]
             batchq_kwargs["mem_per_cpu"] = level["memory"][job_i] + CONTAINER_MEMORY_OVERHEAD
             batchq_kwargs["hours"] = eval(
@@ -187,7 +221,7 @@ class SubmitterSlurm(Submitter):
         suffix = "_".join(label.split("_")[1:])
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         log = os.path.join(self.outputs_dir, f"{_key}-output.log")
-        input = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
+        input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
         staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
         args = [f"{self.scratch_dir}/combine-wrapper.sh"]
@@ -211,14 +245,22 @@ class SubmitterSlurm(Submitter):
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
         job += "\n\n"
-        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
+        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/\n"
         self.jobs.append(job)
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
         if not self.debug:
-            batchq_kwargs["dependency"] = job_ids
+            batchq_kwargs["dependency"] = []
+            for job_id in [self.install_job_id] + job_ids:
+                if job_id is None:
+                    continue
+                batchq_kwargs["dependency"].append(job_id)
+            if len(batchq_kwargs["dependency"]) == 0:
+                batchq_kwargs.pop("dependency")
+            elif len(batchq_kwargs["dependency"]) == 1:
+                batchq_kwargs["dependency"] = batchq_kwargs["dependency"][0]
         batchq_kwargs["cpus_per_task"] = level["combine_cores"]
         batchq_kwargs["mem_per_cpu"] = level["combine_memory"] + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = eval(
@@ -240,7 +282,7 @@ class SubmitterSlurm(Submitter):
         _key = self.get_key(dbcfg, level)
         jobname = f"{label}_{dbcfg._run_id}"
         log = os.path.join(self.outputs_dir, f"{_key}-output.log")
-        input = os.path.join(self.outputs_dir, "strax_data_rcc")
+        input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
         staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
         args = [f"{self.scratch_dir}/process-wrapper.sh"]
@@ -267,15 +309,22 @@ class SubmitterSlurm(Submitter):
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
         job += "\n\n"
-        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
+        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/\n"
         self.jobs.append(job)
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
-        if not self.debug and self.job_id is not None:
-            # self.job_id can be None if there is not lower or combine job
-            batchq_kwargs["dependency"] = [self.job_id]
+        if not self.debug:
+            batchq_kwargs["dependency"] = []
+            for job_id in [self.install_job_id, self.job_id]:
+                if job_id is None:
+                    continue
+                batchq_kwargs["dependency"].append(job_id)
+            if len(batchq_kwargs["dependency"]) == 0:
+                batchq_kwargs.pop("dependency")
+            elif len(batchq_kwargs["dependency"]) == 1:
+                batchq_kwargs["dependency"] = batchq_kwargs["dependency"][0]
         batchq_kwargs["cpus_per_task"] = level["cores"]
         batchq_kwargs["mem_per_cpu"] = level["memory"] + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = eval(
@@ -297,11 +346,12 @@ class SubmitterSlurm(Submitter):
         self._job_id = 0
         self.jobs = []
 
-        # Does workflow already exist?
-        if os.path.exists(self.workflow_dir):
-            raise RuntimeError(f"Workflow already exists at {self.workflow_dir}.")
-
         self.copy_files()
+
+        if self.user_installed_packages:
+            self.add_install_job()
+        else:
+            self.install_job_id = None
 
         runlist, summary = self._submit_runs()
 

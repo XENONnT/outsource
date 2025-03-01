@@ -124,6 +124,13 @@ do
 done
 echo
 
+echo "What is in the input directory:"
+ls -lah $input_path
+
+echo
+echo "Total amount of data before processing: "`du -s --si $input_path | cut -f1`
+echo
+
 # echo "Check network:"
 # echo "ping -c 5 xenon-runsdb.grid.uchicago.edu"
 # ping -c 5 xenon-runsdb.grid.uchicago.edu

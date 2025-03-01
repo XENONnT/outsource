@@ -104,7 +104,7 @@ echo "What is in the input directory:"
 ls -lah $input_path
 
 echo
-echo "Total amount of data before combine: "`du -s --si $input_path | cut -f1`
+echo "Total amount of data before combining: "`du -s --si $input_path | cut -f1`
 echo
 
 echo "Combining:"

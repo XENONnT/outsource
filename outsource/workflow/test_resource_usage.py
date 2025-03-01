@@ -24,6 +24,7 @@ parser.add_argument("--chunks_end", type=int)
 parser.add_argument("--chunks", nargs="*", type=int)
 parser.add_argument("--input_path")
 parser.add_argument("--output_path")
+parser.add_argument("--staging_dir")
 args, _ = parser.parse_known_args()
 
 suffix = "_".join(os.environ["PEGASUS_DAG_JOB_ID"].split("_")[:-1])
@@ -92,16 +93,16 @@ def get_sizes(directory):
     return sizes
 
 
-io_list = [args.input_path, args.output_path]
+io_list = [args.input_path, args.output_path, args.staging_dir]
 storage_usage = dict()
 for io in io_list:
-    storage_usage[io] = get_sizes(f"./{io}")
+    storage_usage[io] = get_sizes(io)
 
 if time_usage:
     max_storage = 0.0
     for io in io_list:
-        if os.path.abspath(f"./{io}") in storage_usage[io]:
-            max_storage += storage_usage[io][os.path.abspath(f"./{io}")]
+        if os.path.abspath(io) in storage_usage[io]:
+            max_storage += storage_usage[io][os.path.abspath(io)]
     logger.info(f"Max memory usage: {mem[:, 0].max():.1f} MB")
     logger.info(f"Max storage usage: {max_storage / 1e6:.1f} MB")
     prefix = f"{args.run_id:06d}"
