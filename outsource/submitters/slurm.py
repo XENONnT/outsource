@@ -9,8 +9,8 @@ base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
 # suggested default arguments for utilix.batchq.submit_job
 BATCHQ_DEFAULT_ARGUMENTS = {
-    "exclude_nodes": "dali001,dali002,dali003,dali019,dali027,dali[028-030],midway2-0048",
     "exclude_lc_nodes": True,
+    "exclude_nodes": uconfig.get("Outsource", "rcc_exclude_nodes", fallback=None),
     "partition": uconfig.get("Outsource", "rcc_partition"),
     "qos": uconfig.get("Outsource", "rcc_partition"),
     "bind": uconfig.getlist("Outsource", "rcc_bind"),
@@ -106,6 +106,8 @@ class SubmitterSlurm(Submitter):
             dry_run=self.debug,
             **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
         )
+        if job_id is None:
+            raise RuntimeError("Job submission failed.")
         return job_id
 
     def add_lower_processing_job(self, label, level, dbcfg):

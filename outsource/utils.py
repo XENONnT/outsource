@@ -26,7 +26,7 @@ def get_context(
     stage=False,
 ):
     """Get straxen context for given context name and xedocs_version."""
-    st = getattr(cutax.contexts, context)(output_folder=None, xedocs_version=xedocs_version)
+    st = getattr(cutax.contexts, context)(xedocs_version=xedocs_version)
     st.storage = []
     if input_path:
         st.storage.append(strax.DataDirectory(input_path, readonly=True))
