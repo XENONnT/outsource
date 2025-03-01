@@ -20,13 +20,12 @@ echo $@
 echo $*
 echo
 
-if [ -n $WORKFLOW_DIR ]; then
-    cd $WORKFLOW_DIR/scratch
-fi
-
 echo "Where am i:"
 echo $PWD
 echo
+
+# Needed by utilix DB
+export HOME=$PWD
 
 mkdir -p $input_path
 mkdir -p $output_path
@@ -60,6 +59,9 @@ if [ -e /image-build-info.txt ]; then
     echo
 fi
 
+unset http_proxy
+export XENON_CONFIG=$PWD/.xenon_config
+
 if [ -f install.sh ]; then
     # Installing customized packages
     . install.sh strax straxen cutax utilix admix outsource
@@ -72,9 +74,6 @@ echo
 if [ "X$rucio_upload" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
-
-unset http_proxy
-export XENON_CONFIG=$PWD/.xenon_config
 
 echo "PEGASUS Stuff:"
 env | grep PEGASUS

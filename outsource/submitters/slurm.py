@@ -64,6 +64,7 @@ class SubmitterSlurm(Submitter):
             os.path.basename(os.environ["X509_USER_PROXY"]),
         )
         self.job_prefix += f"export X509_USER_PROXY={x509_user_proxy}\n\n"
+        self.job_prefix += "cd $WORKFLOW_DIR/scratch\n\n"
 
     def copy_files(self):
         """Copy the necessary files to the workflow directory."""

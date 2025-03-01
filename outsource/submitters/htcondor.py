@@ -97,6 +97,9 @@ class SubmitterHTCondor(Submitter):
         relay=False,
         **kwargs,
     ):
+        # Need to know whether used self-installed packages before assigning the workflow_id
+        self._setup_packages()
+
         super().__init__(
             runlist=runlist,
             context_name=context_name,
@@ -118,8 +121,6 @@ class SubmitterHTCondor(Submitter):
         self.stage_out_upper = stage_out_upper
         self.local_transfer = self.stage_out_lower | self.stage_out_combine | self.stage_out_upper
 
-        # Need to know whether used self-installed packages before assigning the workflow_id
-        self._setup_packages()
         # Pegasus workflow directory
         self.runs_dir = os.path.join(self.workflow_dir, "runs")
 

@@ -23,13 +23,12 @@ echo $@
 echo $*
 echo
 
-if [ -n $WORKFLOW_DIR ]; then
-    cd $WORKFLOW_DIR/scratch
-fi
-
 echo "Where am i:"
 echo $PWD
 echo
+
+# Needed by utilix DB
+export HOME=$PWD
 
 echo "Processing chunks:"
 echo "$chunks_start to $chunks_end"
@@ -71,6 +70,9 @@ fi
 # Sleep random amount of time to spread out e.g. API calls and downloads
 sleep $(( RANDOM % 20 + 1 ))s
 
+unset http_proxy
+export XENON_CONFIG=$PWD/.xenon_config
+
 if [ -f install.sh ]; then
     # Installing customized packages
     . install.sh strax straxen cutax utilix admix outsource
@@ -83,9 +85,6 @@ echo
 if [ "X$rucio_upload" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
-
-unset http_proxy
-export XENON_CONFIG=$PWD/.xenon_config
 
 echo "PEGASUS Stuff:"
 env | grep PEGASUS
