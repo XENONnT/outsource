@@ -55,13 +55,12 @@ class SubmitterSlurm(Submitter):
             relay=relay,
         )
 
-        # Workflow directory
-        self.workflow_dir = os.path.join(self.work_dir, self.workflow_id)
-        self.generated_dir = os.path.join(self.workflow_dir, "generated")
-        self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
-        self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
-
         self.job_prefix = f"export WORKFLOW_DIR={self.workflow_dir}\n\n"
+        x509_user_proxy = os.path.join(
+            self.scratch_dir,
+            os.path.basename(os.environ["X509_USER_PROXY"]),
+        )
+        self.job_prefix += f"export X509_USER_PROXY={x509_user_proxy}\n\n"
 
     def copy_files(self):
         """Copy the necessary files to the workflow directory."""
@@ -75,6 +74,7 @@ class SubmitterSlurm(Submitter):
         shutil.copy2(f"{base_dir}/workflow/combine-wrapper.sh", self.scratch_dir)
         shutil.copy2(os.path.join(os.environ["HOME"], ".dbtoken"), self.scratch_dir)
         shutil.copy2(os.environ["XENON_CONFIG"], self.scratch_dir)
+        shutil.copy2(os.environ["X509_USER_PROXY"], self.scratch_dir)
         shutil.copy2(f"{base_dir}/workflow/combine.py", self.scratch_dir)
         if self.resources_test:
             shutil.copy2(
@@ -129,28 +129,30 @@ class SubmitterSlurm(Submitter):
             # Add job
             input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
             output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-            args = (
-                [f"{self.scratch_dir}/process-wrapper.sh"]
-                + [
-                    dbcfg.run_id,
-                    self.context_name,
-                    self.xedocs_version,
-                    level["chunks"][job_i][0],
-                    level["chunks"][job_i][1],
-                    f"{self.rucio_upload}".lower(),
-                    f"{self.rundb_update}".lower(),
-                    f"{self.ignore_processed}".lower(),
-                    f"{self.stage}".lower(),
-                    f"{self.remove_heavy}".lower(),
-                    input,
-                    output,
-                    "X",
-                ]
-                + list(level["data_types"])
-            )
+            staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
+            args = [f"{self.scratch_dir}/process-wrapper.sh"]
+            args += [
+                dbcfg.run_id,
+                self.context_name,
+                self.xedocs_version,
+                level["chunks"][job_i][0],
+                level["chunks"][job_i][1],
+                f"{self.rucio_upload}".lower(),
+                f"{self.rundb_update}".lower(),
+                f"{self.ignore_processed}".lower(),
+                f"{self.stage}".lower(),
+                f"{self.remove_heavy}".lower(),
+                input,
+                output,
+                staging_dir,
+                "X",
+            ]
+            args += list(level["data_types"])
             args = [str(arg) for arg in args]
             # if self.resources_test:
-            job = self.job_prefix + " ".join(args)
+            job = f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
+            job += "\n\n"
+            job += self.job_prefix + " ".join(args)
             job += "\n\n"
             job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc_per_chunk/"
             batchq_kwargs = {}
@@ -164,13 +166,16 @@ class SubmitterSlurm(Submitter):
             )
             job_id = self._submit(job, **batchq_kwargs)
             job_ids.append(job_id)
+            self._job_id += 1
 
         suffix = "_".join(label.split("_")[1:])
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-        args = [f"{self.scratch_dir}/combine-wrapper.sh"] + [
+        staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
+        args = [f"{self.scratch_dir}/combine-wrapper.sh"]
+        args += [
             dbcfg.run_id,
             self.context_name,
             self.xedocs_version,
@@ -180,11 +185,14 @@ class SubmitterSlurm(Submitter):
             f"{self.remove_heavy}".lower(),
             input,
             output,
+            staging_dir,
             "X",
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         ]
         args = [str(arg) for arg in args]
-        job = self.job_prefix + " ".join(args)
+        job = f"export PEGASUS_DAG_JOB_ID=combine_{suffix}_ID{self._job_id:07}"
+        job += "\n\n"
+        job += self.job_prefix + " ".join(args)
         job += "\n\n"
         job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
         batchq_kwargs = {}
@@ -198,6 +206,7 @@ class SubmitterSlurm(Submitter):
             uconfig.get("Outsource", "pegasus_max_hours_combine", fallback=None)
         )
         self.job_id = self._submit(job, **batchq_kwargs)
+        self._job_id += 1
 
     def add_upper_processing_job(self, label, level, dbcfg):
         """Add a processing job to the workflow."""
@@ -214,27 +223,29 @@ class SubmitterSlurm(Submitter):
         log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-        args = (
-            [f"{self.scratch_dir}/process-wrapper.sh"]
-            + [
-                dbcfg.run_id,
-                self.context_name,
-                self.xedocs_version,
-                -1,
-                -1,
-                f"{self.rucio_upload}".lower(),
-                f"{self.rundb_update}".lower(),
-                f"{self.ignore_processed}".lower(),
-                f"{self.stage}".lower(),
-                f"{self.remove_heavy}".lower(),
-                input,
-                output,
-                "X",
-            ]
-            + list(level["data_types"])
-        )
+        staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
+        args = [f"{self.scratch_dir}/process-wrapper.sh"]
+        args += [
+            dbcfg.run_id,
+            self.context_name,
+            self.xedocs_version,
+            -1,
+            -1,
+            f"{self.rucio_upload}".lower(),
+            f"{self.rundb_update}".lower(),
+            f"{self.ignore_processed}".lower(),
+            f"{self.stage}".lower(),
+            f"{self.remove_heavy}".lower(),
+            input,
+            output,
+            staging_dir,
+            "X",
+        ]
+        args += list(level["data_types"])
         args = [str(arg) for arg in args]
-        job = self.job_prefix + " ".join(args)
+        job = f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
+        job += "\n\n"
+        job += self.job_prefix + " ".join(args)
         job += "\n\n"
         job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
         batchq_kwargs = {}
@@ -248,6 +259,7 @@ class SubmitterSlurm(Submitter):
             uconfig.get("Outsource", "pegasus_max_hours_upper", fallback=None)
         )
         self._submit(job, **batchq_kwargs)
+        self._job_id += 1
 
     def _submit_run(self, group, label, level, dbcfg):
         """Submit a single run to the workflow."""
@@ -258,6 +270,8 @@ class SubmitterSlurm(Submitter):
 
     def submit(self):
         """Submit the workflow to the batch queue."""
+
+        self._job_id = 0
 
         # Does workflow already exist?
         if os.path.exists(self.workflow_dir):

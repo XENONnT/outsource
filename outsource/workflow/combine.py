@@ -47,6 +47,7 @@ def main():
     parser.add_argument("--xedocs_version", required=True)
     parser.add_argument("--input_path", required=True)
     parser.add_argument("--output_path", required=True)
+    parser.add_argument("--staging_dir", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--stage", action="store_true", dest="stage")
@@ -58,9 +59,9 @@ def main():
     run_id = f"{args.run_id:06d}"
     input_path = args.input_path
     output_path = args.output_path
+    staging_dir = args.staging_dir
 
     # Get context
-    staging_dir = "./strax_data"
     if os.path.abspath(staging_dir) == os.path.abspath(input_path):
         raise ValueError("Input path cannot be the same as staging directory")
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):

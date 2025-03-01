@@ -121,10 +121,6 @@ class SubmitterHTCondor(Submitter):
         # Need to know whether used self-installed packages before assigning the workflow_id
         self._setup_packages()
         # Pegasus workflow directory
-        self.workflow_dir = os.path.join(self.work_dir, self.workflow_id)
-        self.generated_dir = os.path.join(self.workflow_dir, "generated")
-        self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
-        self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
         self.runs_dir = os.path.join(self.workflow_dir, "runs")
 
     @property
@@ -142,14 +138,6 @@ class SubmitterHTCondor(Submitter):
     @property
     def _workflow(self):
         return os.path.join(self.generated_dir, "workflow.yml")
-
-    @property
-    def runlist(self):
-        return os.path.join(self.generated_dir, "runlist.txt")
-
-    @property
-    def summary(self):
-        return os.path.join(self.generated_dir, "summary.json")
 
     @property
     def pegasus_config(self):
@@ -274,8 +262,6 @@ class SubmitterHTCondor(Submitter):
         condorpool.add_profiles(
             Namespace.ENV, RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s"
         )
-        if not self.rucio_upload:
-            condorpool.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
 
         # Improve python logging / suppress depreciation warnings (from gfal2 for example)
         condorpool.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
@@ -328,8 +314,6 @@ class SubmitterHTCondor(Submitter):
         #     Namespace.ENV,
         #     RUCIO_LOGGING_FORMAT="%(asctime)s  %(levelname)s  %(message)s",
         # )
-        if not self.rucio_upload:
-            local.add_profiles(Namespace.ENV, RUCIO_ACCOUNT="production")
         # Improve python logging / suppress depreciation warnings (from gfal2 for example)
         local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
         local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
@@ -502,8 +486,9 @@ class SubmitterHTCondor(Submitter):
             f"{self.ignore_processed}".lower(),
             f"{self.stage}".lower(),
             f"{self.remove_heavy}".lower(),
-            "input",
-            "output",
+            "./input",
+            "./output",
+            "./strax_data",
             job_tar,
             *level["data_types"],
         )
@@ -574,8 +559,9 @@ class SubmitterHTCondor(Submitter):
             f"{self.rundb_update}".lower(),
             f"{self.stage}".lower(),
             f"{self.remove_heavy}".lower(),
-            "input",
-            "output",
+            "./input",
+            "./output",
+            "./strax_data",
             combine_tar,
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         )
@@ -630,8 +616,9 @@ class SubmitterHTCondor(Submitter):
                 f"{self.ignore_processed}".lower(),
                 f"{self.stage}".lower(),
                 f"{self.remove_heavy}".lower(),
-                "input",
-                "output",
+                "./input",
+                "./output",
+                "./strax_data",
                 job_tar,
                 *level["data_types"],
             )

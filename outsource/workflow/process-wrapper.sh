@@ -14,16 +14,22 @@ stage=$9
 remove_heavy=${10}
 input_path=${11}
 output_path=${12}
-tar_filename=${13}
+staging_dir=${13}
+tar_filename=${14}
 args=( "$@" )
-data_types=${args[@]:13}
+data_types=${args[@]:14}
+
+echo $@
+echo $*
+echo
 
 if [ -n $WORKFLOW_DIR ]; then
     cd $WORKFLOW_DIR/scratch
 fi
 
-echo $@
-echo $*
+echo "Where am i:"
+echo $PWD
+echo
 
 echo "Processing chunks:"
 echo "$chunks_start to $chunks_end"
@@ -81,6 +87,14 @@ fi
 unset http_proxy
 export XENON_CONFIG=$PWD/.xenon_config
 
+echo "PEGASUS Stuff:"
+env | grep PEGASUS
+echo
+
+echo "XENON Stuff:"
+env | grep XENON
+echo
+
 echo "RUCIO/X509 Stuff:"
 env | grep RUCIO
 env | grep X509
@@ -124,7 +138,7 @@ echo
 # echo
 
 echo "Processing:"
-time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --data_types $data_types $extraflags
+time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --staging_dir $staging_dir --data_types $data_types $extraflags
 # time admix-download $run_id raw_records --chunks $(seq -s ' ' $chunks_start $(($chunks_end - 1))) --tries 3 --threads 1 --hash rfzvpzj4mf --stage
 
 echo

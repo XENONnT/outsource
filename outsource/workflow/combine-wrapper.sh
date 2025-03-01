@@ -11,16 +11,22 @@ stage=$6
 remove_heavy=$7
 input_path=$8
 output_path=$9
-tar_filename=${10}
+staging_dir=${10}
+tar_filename=${11}
 args=( "$@" )
-chunks=${args[@]:10}
+chunks=${args[@]:11}
+
+echo $@
+echo $*
+echo
 
 if [ -n $WORKFLOW_DIR ]; then
     cd $WORKFLOW_DIR/scratch
 fi
 
-echo $@
-echo $*
+echo "Where am i:"
+echo $PWD
+echo
 
 mkdir -p $input_path
 mkdir -p $output_path
@@ -70,6 +76,14 @@ fi
 unset http_proxy
 export XENON_CONFIG=$PWD/.xenon_config
 
+echo "PEGASUS Stuff:"
+env | grep PEGASUS
+echo
+
+echo "XENON Stuff:"
+env | grep XENON
+echo
+
 echo "RUCIO/X509 Stuff:"
 env | grep RUCIO
 env | grep X509
@@ -95,7 +109,7 @@ echo "Total amount of data before combine: "`du -s --si $input_path | cut -f1`
 echo
 
 echo "Combining:"
-time python3 combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path $chunksarg $extraflags
+time python3 combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path --staging_dir $staging_dir $chunksarg $extraflags
 
 echo
 echo "Moving auxiliary files to output directory"

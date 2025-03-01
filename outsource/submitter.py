@@ -98,6 +98,20 @@ class Submitter:
         self.resources_test = resources_test
         self.debug = debug
 
+        # Workflow directory
+        self.workflow_dir = os.path.join(self.work_dir, self.workflow_id)
+        self.generated_dir = os.path.join(self.workflow_dir, "generated")
+        self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
+        self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
+
+    @property
+    def runlist(self):
+        return os.path.join(self.generated_dir, "runlist.txt")
+
+    @property
+    def summary(self):
+        return os.path.join(self.generated_dir, "summary.json")
+
     def get_key(self, dbcfg, level):
         """Get the key for the output files and check the file name."""
         # output files
