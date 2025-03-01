@@ -17,6 +17,9 @@ BATCHQ_DEFAULT_ARGUMENTS = {
 }
 
 
+CONTAINER_MEMORY_OVERHEAD = 6_000  # MB
+
+
 class SubmitterSlurm(Submitter):
 
     # This flag will always be True for the Slurm submitter
@@ -68,6 +71,8 @@ class SubmitterSlurm(Submitter):
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
         os.makedirs(self.outputs_dir, 0o755, exist_ok=True)
         os.makedirs(self.scratch_dir, 0o755, exist_ok=True)
+        # To prevent different jobs from overwriting each other's files
+        os.makedirs(os.path.join(self.scratch_dir, "strax_data"), 0o555, exist_ok=True)
         os.makedirs(os.path.join(self.outputs_dir, "strax_data_rcc"), 0o755, exist_ok=True)
         os.makedirs(
             os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk"), 0o755, exist_ok=True
@@ -158,7 +163,8 @@ class SubmitterSlurm(Submitter):
             args += list(level["data_types"])
             args = [str(arg) for arg in args]
             # if self.resources_test:
-            job = f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
+            job = "set -e\n\n"
+            job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
             job += "\n\n"
             job += self.job_prefix + " ".join(args)
             job += "\n\n"
@@ -168,7 +174,7 @@ class SubmitterSlurm(Submitter):
             batchq_kwargs["log"] = log
             batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
             batchq_kwargs["cpus_per_task"] = level["cores"]
-            batchq_kwargs["mem_per_cpu"] = level["memory"][job_i]
+            batchq_kwargs["mem_per_cpu"] = level["memory"][job_i] + CONTAINER_MEMORY_OVERHEAD
             batchq_kwargs["hours"] = eval(
                 uconfig.get("Outsource", "pegasus_max_hours_lower", fallback=None)
             )
@@ -198,7 +204,8 @@ class SubmitterSlurm(Submitter):
             " ".join(map(str, [cs[-1] for cs in level["chunks"]])),
         ]
         args = [str(arg) for arg in args]
-        job = f"export PEGASUS_DAG_JOB_ID=combine_{suffix}_ID{self._job_id:07}"
+        job = "set -e\n\n"
+        job += f"export PEGASUS_DAG_JOB_ID=combine_{suffix}_ID{self._job_id:07}"
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
         job += "\n\n"
@@ -209,7 +216,7 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
         batchq_kwargs["dependency"] = job_ids
         batchq_kwargs["cpus_per_task"] = level["combine_cores"]
-        batchq_kwargs["mem_per_cpu"] = level["combine_memory"]
+        batchq_kwargs["mem_per_cpu"] = level["combine_memory"] + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = eval(
             uconfig.get("Outsource", "pegasus_max_hours_combine", fallback=None)
         )
@@ -251,7 +258,8 @@ class SubmitterSlurm(Submitter):
         ]
         args += list(level["data_types"])
         args = [str(arg) for arg in args]
-        job = f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
+        job = "set -e\n\n"
+        job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
         job += "\n\n"
@@ -262,7 +270,7 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
         batchq_kwargs["dependency"] = [self.job_id]
         batchq_kwargs["cpus_per_task"] = level["cores"]
-        batchq_kwargs["mem_per_cpu"] = level["memory"]
+        batchq_kwargs["mem_per_cpu"] = level["memory"] + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = eval(
             uconfig.get("Outsource", "pegasus_max_hours_upper", fallback=None)
         )
