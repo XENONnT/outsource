@@ -68,6 +68,10 @@ class SubmitterSlurm(Submitter):
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
         os.makedirs(self.outputs_dir, 0o755, exist_ok=True)
         os.makedirs(self.scratch_dir, 0o755, exist_ok=True)
+        os.makedirs(os.path.join(self.outputs_dir, "strax_data_rcc"), 0o755, exist_ok=True)
+        os.makedirs(
+            os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk"), 0o755, exist_ok=True
+        )
 
         # Copy the workflow files
         shutil.copy2(f"{base_dir}/workflow/process-wrapper.sh", self.scratch_dir)
