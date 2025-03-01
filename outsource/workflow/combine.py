@@ -78,15 +78,14 @@ def main():
     )
 
     # Check what data is in the output folder
-    data_types = sorted(
-        set(
-            [
-                d.split("-")[1]
-                for d in os.listdir(input_path)
-                if os.path.isdir(os.path.join(input_path, d))
-            ]
-        )
-    )
+    data_types = []
+    for d in os.listdir(input_path):
+        if not os.path.isdir(os.path.join(input_path, d)):
+            continue
+        if run_id not in d:
+            continue
+        data_types.append(d.split("-")[1])
+    data_types = sorted(set(data_types))
 
     _chunks = [0] + args.chunks
     chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
