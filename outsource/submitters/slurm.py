@@ -115,7 +115,7 @@ class SubmitterSlurm(Submitter):
             dry_run=self.debug,
             **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
         )
-        if job_id is None:
+        if job_id is None and not self.debug:
             raise RuntimeError("Job submission failed.")
         return job_id
 
@@ -169,6 +169,7 @@ class SubmitterSlurm(Submitter):
             job += self.job_prefix + " ".join(args)
             job += "\n\n"
             job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc_per_chunk/"
+            self.jobs.append(job)
             batchq_kwargs = {}
             batchq_kwargs["jobname"] = f"{jobname}-{job_i:04d}"
             batchq_kwargs["log"] = log
@@ -210,11 +211,13 @@ class SubmitterSlurm(Submitter):
         job += self.job_prefix + " ".join(args)
         job += "\n\n"
         job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
+        self.jobs.append(job)
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
-        batchq_kwargs["dependency"] = job_ids
+        if not self.debug:
+            batchq_kwargs["dependency"] = job_ids
         batchq_kwargs["cpus_per_task"] = level["combine_cores"]
         batchq_kwargs["mem_per_cpu"] = level["combine_memory"] + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = eval(
@@ -264,11 +267,14 @@ class SubmitterSlurm(Submitter):
         job += self.job_prefix + " ".join(args)
         job += "\n\n"
         job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/"
+        self.jobs.append(job)
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
-        batchq_kwargs["dependency"] = [self.job_id]
+        if not self.debug and self.job_id is not None:
+            # self.job_id can be None if there is not lower or combine job
+            batchq_kwargs["dependency"] = [self.job_id]
         batchq_kwargs["cpus_per_task"] = level["cores"]
         batchq_kwargs["mem_per_cpu"] = level["memory"] + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = eval(
@@ -288,6 +294,7 @@ class SubmitterSlurm(Submitter):
         """Submit the workflow to the batch queue."""
 
         self._job_id = 0
+        self.jobs = []
 
         # Does workflow already exist?
         if os.path.exists(self.workflow_dir):
@@ -300,3 +307,7 @@ class SubmitterSlurm(Submitter):
         self.save_runlist(runlist)
         self.update_summary(summary)
         self.save_summary(summary)
+
+        if self.debug:
+            with open(os.path.join(self.generated_dir, "execution.sh"), "w") as f:
+                f.write("\n\n".join(self.jobs) + "\n")
