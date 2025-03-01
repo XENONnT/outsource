@@ -186,7 +186,7 @@ class SubmitterSlurm(Submitter):
         suffix = "_".join(label.split("_")[1:])
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         log = os.path.join(self.outputs_dir, f"{_key}-output.log")
-        input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
+        input = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
         staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
         args = [f"{self.scratch_dir}/combine-wrapper.sh"]
@@ -239,7 +239,7 @@ class SubmitterSlurm(Submitter):
         _key = self.get_key(dbcfg, level)
         jobname = f"{label}_{dbcfg._run_id}"
         log = os.path.join(self.outputs_dir, f"{_key}-output.log")
-        input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
+        input = os.path.join(self.outputs_dir, "strax_data_rcc")
         output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
         staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
         args = [f"{self.scratch_dir}/process-wrapper.sh"]
