@@ -133,9 +133,11 @@ class SubmitterSlurm(Submitter):
             log = os.path.join(self.outputs_dir, f"{_key}-output-{job_i:04d}.log")
 
             # Add job
-            input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
-            output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-            staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
+            input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}-{job_i:04d}", "input")
+            output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}-{job_i:04d}", "output")
+            staging_dir = os.path.join(
+                self.scratch_dir, f"{dbcfg._run_id}-{job_i:04d}", "strax_data"
+            )
             args = [f"{self.scratch_dir}/process-wrapper.sh"]
             args += [
                 dbcfg.run_id,
