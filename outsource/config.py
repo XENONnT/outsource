@@ -155,9 +155,6 @@ class RunConfig:
         # and determine which rse the input data is on
         self.data_types = self.deduce_data_types()
 
-        # Get the resources needed for each job
-        self.resources_assignment()
-
     @property
     def _run_id(self):
         return f"{self.run_id:06d}"
@@ -307,7 +304,7 @@ class RunConfig:
                 raise ValueError("Why are there duplicated data_types in different detectors?")
         return ret
 
-    def resources_assignment(self):
+    def resources_assignment(self, chunks_lists=None):
         """Adaptively assign resources based on the size of data."""
         data_kind_collection, data_type_collection = self.context.get_data_kinds()
         for detector in self.detectors:
@@ -429,27 +426,30 @@ class RunConfig:
 
             # Assign chunks to be calculated in lower jobs
             n_chunks = len(compressed_sizes)
-            if self.chunks_per_job is None:
-                # If chunks_per_job is not set, assign chunks based on disk usage
-                rough_disk = uconfig.getint("Outsource", "rough_disk")
-                chunks_list = []
-                _chunk_i = 0
-                for chunk_i in range(1, n_chunks + 1):
-                    # We are aggressive here to use more than
-                    # rough_disk assigned because storage is cheap
-                    disk = get_disk(_chunk_i, chunk_i)["lower"].sum()
-                    if disk > rough_disk or chunk_i == n_chunks:
-                        chunks_list.append([_chunk_i, chunk_i])
-                        _chunk_i = chunk_i
+            if chunks_lists is not None:
+                chunks_list = chunks_lists[detector]
             else:
-                # If chunks_per_job is set, assign chunks based on chunks_per_job
-                njobs = int(np.ceil(n_chunks / self.chunks_per_job))
-                chunks_list = []
-                for job_i in range(njobs):
-                    chunks = list(range(n_chunks))[
-                        self.chunks_per_job * job_i : self.chunks_per_job * (job_i + 1)
-                    ]
-                    chunks_list.append([chunks[0], chunks[-1] + 1])
+                if self.chunks_per_job is None:
+                    # If chunks_per_job is not set, assign chunks based on disk usage
+                    rough_disk = uconfig.getint("Outsource", "rough_disk")
+                    chunks_list = []
+                    _chunk_i = 0
+                    for chunk_i in range(1, n_chunks + 1):
+                        # We are aggressive here to use more than
+                        # rough_disk assigned because storage is cheap
+                        disk = get_disk(_chunk_i, chunk_i)["lower"].sum()
+                        if disk > rough_disk or chunk_i == n_chunks:
+                            chunks_list.append([_chunk_i, chunk_i])
+                            _chunk_i = chunk_i
+                else:
+                    # If chunks_per_job is set, assign chunks based on chunks_per_job
+                    njobs = int(np.ceil(n_chunks / self.chunks_per_job))
+                    chunks_list = []
+                    for job_i in range(njobs):
+                        chunks = list(range(n_chunks))[
+                            self.chunks_per_job * job_i : self.chunks_per_job * (job_i + 1)
+                        ]
+                        chunks_list.append([chunks[0], chunks[-1] + 1])
 
             # Calculate the disk and memory requirement in MB
             self.data_types[detector][f"lower_{detector}"]["chunks"] = chunks_list

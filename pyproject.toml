@@ -28,7 +28,8 @@ outsource = "outsource.scripts.submit:main"
 [tool.poetry.dependencies]
 python = ">=3.8,<3.13"
 xe-admix = "*"
-numpy  = "*"
+numpy = "*"
+PyYAML = "*"
 tqdm = "*"
 utilix = ">=0.9.1"
 

@@ -136,11 +136,9 @@ class SubmitterSlurm(Submitter):
             job,
             jobname=jobname,
             log=log,
-            verbose=self.debug,
-            dry_run=self.debug,
             **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
         )
-        if job_id is None and not self.debug:
+        if job_id is None:
             raise RuntimeError("Job submission failed.")
         return job_id
 
@@ -209,7 +207,15 @@ class SubmitterSlurm(Submitter):
         if len(done) == len(level["data_types"]):
             self.logger.debug(f"Skipping job for processing: {list(level['data_types'].keys())}")
             self.context.storage.pop()
+            self.lower_done = True
             return
+        else:
+            if len(done) != 0:
+                raise RuntimeError(
+                    f"Data {done} is already stored, "
+                    f"but {set(level['data_types']) - set(done)} is not. "
+                    "This is not allowed, the lower processing should be done in one go."
+                )
 
         # Loop over the chunks
         os.makedirs(
@@ -273,7 +279,7 @@ class SubmitterSlurm(Submitter):
             batchq_kwargs["log"] = log
             batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
             # The job to install the user packages is a dependency
-            if not self.debug and self.install_job_id is not None:
+            if self.install_job_id is not None:
                 batchq_kwargs["dependency"] = self.install_job_id
             batchq_kwargs["cpus_per_task"] = level["cores"]
             batchq_kwargs["mem_per_cpu"] = level["memory"][job_i] + CONTAINER_MEMORY_OVERHEAD
@@ -294,7 +300,7 @@ class SubmitterSlurm(Submitter):
         # Add combine job
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         # log = os.path.join(self.outputs_dir, f"{_key}-output.log")
-        log = os.path.join(self.outputs_dir, f"{jobname}-output.log")
+        log = os.path.join(self.outputs_dir, f"{jobname}.log")
         # Though this is a combine job, its results will be put in upper level folder
         input = os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input")
         output = os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "output")
@@ -326,16 +332,15 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
-        if not self.debug:
-            batchq_kwargs["dependency"] = []
-            for job_id in [self.install_job_id] + job_ids:
-                if job_id is None:
-                    continue
-                batchq_kwargs["dependency"].append(job_id)
-            if len(batchq_kwargs["dependency"]) == 0:
-                batchq_kwargs.pop("dependency")
-            elif len(batchq_kwargs["dependency"]) == 1:
-                batchq_kwargs["dependency"] = batchq_kwargs["dependency"][0]
+        batchq_kwargs["dependency"] = []
+        for job_id in [self.install_job_id] + job_ids:
+            if job_id is None:
+                continue
+            batchq_kwargs["dependency"].append(job_id)
+        if len(batchq_kwargs["dependency"]) == 0:
+            batchq_kwargs.pop("dependency")
+        elif len(batchq_kwargs["dependency"]) == 1:
+            batchq_kwargs["dependency"] = batchq_kwargs["dependency"][0]
         batchq_kwargs["cpus_per_task"] = level["combine_cores"]
         batchq_kwargs["mem_per_cpu"] = level["combine_memory"] + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = eval(
@@ -358,13 +363,20 @@ class SubmitterSlurm(Submitter):
 
         done = self.is_stored(dbcfg._run_id, level["data_types"])
         if len(done) == len(level["data_types"]):
+            if not self.lower_done:
+                raise RuntimeError(
+                    f"Data {done} is already stored for upper-level processing "
+                    "but lower-level processing is not done. This is not allowed. "
+                    "The lower-level results must be avaliable before the upper-level processing. "
+                    "You can remove the lower-level results and resubmit the workflow."
+                )
             self.logger.debug(f"Skipping job for processing: {list(level['data_types'].keys())}")
             return
 
         # Get the key for the job
         # _key = self.get_key(dbcfg, level)
         jobname = f"{label}_{dbcfg._run_id}"
-        log = os.path.join(self.outputs_dir, f"{jobname}-output.log")
+        log = os.path.join(self.outputs_dir, f"{jobname}.log")
         input = os.path.join(self.scratch_dir, jobname, "input")
         output = os.path.join(self.scratch_dir, jobname, "output")
         staging_dir = os.path.join(self.scratch_dir, jobname, "strax_data")
@@ -398,16 +410,15 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
-        if not self.debug:
-            batchq_kwargs["dependency"] = []
-            for job_id in [self.install_job_id, self.last_combine_job_id]:
-                if job_id is None:
-                    continue
-                batchq_kwargs["dependency"].append(job_id)
-            if len(batchq_kwargs["dependency"]) == 0:
-                batchq_kwargs.pop("dependency")
-            elif len(batchq_kwargs["dependency"]) == 1:
-                batchq_kwargs["dependency"] = batchq_kwargs["dependency"][0]
+        batchq_kwargs["dependency"] = []
+        for job_id in [self.install_job_id, self.last_combine_job_id]:
+            if job_id is None:
+                continue
+            batchq_kwargs["dependency"].append(job_id)
+        if len(batchq_kwargs["dependency"]) == 0:
+            batchq_kwargs.pop("dependency")
+        elif len(batchq_kwargs["dependency"]) == 1:
+            batchq_kwargs["dependency"] = batchq_kwargs["dependency"][0]
         batchq_kwargs["cpus_per_task"] = level["cores"]
         batchq_kwargs["mem_per_cpu"] = level["memory"] + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = eval(
@@ -419,6 +430,7 @@ class SubmitterSlurm(Submitter):
     def _submit_run(self, group, label, level, dbcfg):
         """Submit a single run to the workflow."""
         if group == 0:
+            self.lower_done = False
             self.add_lower_processing_job(label, level, dbcfg)
         else:
             self.add_upper_processing_job(label, level, dbcfg)

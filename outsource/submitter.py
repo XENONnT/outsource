@@ -180,7 +180,7 @@ class Submitter:
 
     def make_tarballs(self):
         """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
-        if self.debug and os.path.exists(self.generated_dir):
+        if self.relay and os.path.exists(self.generated_dir):
             now = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
             shutil.move(self.generated_dir, self.generated_dir + f"_{now}")
 
@@ -249,13 +249,20 @@ class Submitter:
             workflow_id = ("user", *workflow_id)
         self.workflow_id = "-".join(workflow_id)
 
+    def get_dbcfg(self, run_id):
+        """Get the run configuration."""
+        dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
+        # Get the resources needed for each job
+        dbcfg.resources_assignment()
+        return dbcfg
+
     def _submit_runs(self):
         """Loop over the runs and submit the jobs to the workflow."""
         # Keep track of what runs we submit, useful for bookkeeping
         runlist = set()
         summary = dict()
         for run_id in self._runlist:
-            dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
+            dbcfg = self.get_dbcfg(run_id)
             summary[dbcfg._run_id] = dbcfg.data_types
             self.logger.info(f"Adding {dbcfg._run_id} to the workflow.")
 
@@ -273,6 +280,8 @@ class Submitter:
                     continue
 
                 # Get data_types to process
+                # Assume that the lower level is done for upper-only workflows
+                self.lower_done = True
                 self.combine_tar = None
                 self.last_combine_job_id = None
                 for group, (label, level) in enumerate(dbcfg.data_types[detector].items()):
