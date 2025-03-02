@@ -59,6 +59,8 @@ class SubmitterSlurm(Submitter):
             relay=relay,
         )
 
+        # commands to execute before the job
+        # WORKFLOW_DIR is the directory where the job will execute
         self.job_prefix = f"export WORKFLOW_DIR={self.workflow_dir}\n\n"
         x509_user_proxy = os.path.join(
             self.scratch_dir,
@@ -105,6 +107,12 @@ class SubmitterSlurm(Submitter):
                 f"{base_dir}/workflow/combine.py",
                 os.path.join(self.scratch_dir, "combine.py"),
             )
+
+        # Copy resources because some nodes have no internet access
+        src_folder = os.path.join(os.environ["HOME"], "resource_cache")
+        dst_folder = os.path.join(self.scratch_dir, "resource_cache")
+        if not os.path.exists(dst_folder):
+            shutil.copytree(src_folder, dst_folder)
 
     def _submit(self, job, jobname, log, **kwargs):
         """Submits job to batch queue which actually runs the analysis."""
@@ -199,6 +207,9 @@ class SubmitterSlurm(Submitter):
             job += "\n\n"
             job += self.job_prefix + " ".join(args)
             job += "\n\n"
+            # All related strax data will either be in input,
+            # output or strax_data while the job is running
+            # The strax data will be moved to the output directory after the job is done
             job += f"mv {output}/* "
             job += os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
             job += "\n\n"
@@ -207,6 +218,7 @@ class SubmitterSlurm(Submitter):
             batchq_kwargs["jobname"] = f"{jobname}-{job_i:04d}"
             batchq_kwargs["log"] = log
             batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
+            # The job to install the user packages is a dependency
             if not self.debug and self.install_job_id is not None:
                 batchq_kwargs["dependency"] = self.install_job_id
             batchq_kwargs["cpus_per_task"] = level["cores"]

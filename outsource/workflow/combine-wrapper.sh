@@ -121,6 +121,7 @@ echo
 echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
 echo
 
+# There will not be storage pressure if no tarball is produced
 if [ $tar_filename != "X" ]; then
     echo "Removing inputs directory:"
     rm -r $input_path
