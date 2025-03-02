@@ -109,10 +109,10 @@ class SubmitterSlurm(Submitter):
             )
 
         # Copy resources because some nodes have no internet access
-        src_folder = os.path.join(os.environ["HOME"], "resource_cache")
-        dst_folder = os.path.join(self.scratch_dir, "resource_cache")
-        if not os.path.exists(dst_folder):
-            shutil.copytree(src_folder, dst_folder)
+        # src_folder = os.path.join(os.environ["HOME"], "resource_cache")
+        # dst_folder = os.path.join(self.scratch_dir, "resource_cache")
+        # if not os.path.exists(dst_folder):
+        #     shutil.copytree(src_folder, dst_folder)
 
     def _submit(self, job, jobname, log, **kwargs):
         """Submits job to batch queue which actually runs the analysis."""
