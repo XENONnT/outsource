@@ -387,26 +387,14 @@ class RunConfig:
             # The lower level disk usage
             lower = (ratios["lower"] * itemsizes["lower"]).sum(axis=1)
             upper = (ratios["upper"] * itemsizes["upper"]).sum(axis=1)
-            # The raw_records* disk usage is calculated in the last
-            if self.data_types[detector][f"lower_{detector}"]["data_types"]:
-                lower_raw = self.context.data_itemsize(depends_on) * compression_ratio
-                upper_raw = 0
-            else:
-                upper_raw = self.context.data_itemsize(depends_on) * compression_ratio
-                lower_raw = 0
             disk_ratio = dict()
-            disk_ratio["lower"] = np.max(
-                [
-                    lower_raw + lower,  # raw_records* + uncompressed lower
-                    2 * lower,  # uncompressed lower + compressed lower
-                ],
-                axis=0,
-            )
+            # uncompressed lower + compressed lower
+            disk_ratio["lower"] = 2 * lower
             # The upper level also needs to consider the disk usage of the lower level
             disk_ratio["upper"] = np.max(
                 [
-                    upper_raw + 2 * lower,  # compressed lower + decompressed lower
-                    upper_raw + lower + upper,  # decompressed lower + uncompressed upper
+                    2 * lower,  # compressed lower + decompressed lower
+                    lower + upper,  # decompressed lower + uncompressed upper
                     2 * upper,  # uncompressed upper + compressed upper
                 ],
                 axis=0,
@@ -415,6 +403,19 @@ class RunConfig:
             disk_ratio["combine"] = 2 * lower  # compressed lower + decompressed lower
             for k in disk_ratio:
                 disk_ratio[k] /= 1e6
+
+            # Because raw_records* can be immediately removed after processing
+            # we only need to consider the disk usage of max raw_records* chunk size
+            if self.data_types[detector][f"lower_{detector}"]["data_types"]:
+                lower_raw = self.context.data_itemsize(depends_on) * compression_ratio
+                lower_raw *= n_depends_on.max()
+                lower_raw /= 1e6
+                upper_raw = 0
+            else:
+                upper_raw = self.context.data_itemsize(depends_on) * compression_ratio
+                upper_raw *= n_depends_on.max()
+                upper_raw /= 1e6
+                lower_raw = 0
 
             # Assign chunks to be calculated in lower jobs
             n_chunks = len(compressed_sizes)
@@ -427,9 +428,9 @@ class RunConfig:
                     # We are aggressive here to use more than
                     # rough_disk assigned because storage is cheap
                     sl = slice(_chunk_i, chunk_i)
-                    if (
-                        n_depends_on[sl] * disk_ratio["lower"][sl]
-                    ).sum() > rough_disk or chunk_i == n_chunks:
+                    max_disk = (n_depends_on[sl] * disk_ratio["lower"][sl]).sum()
+                    max_disk += lower_raw
+                    if max_disk > rough_disk or chunk_i == n_chunks:
                         chunks_list.append([_chunk_i, chunk_i])
                         _chunk_i = chunk_i
             else:
@@ -457,6 +458,7 @@ class RunConfig:
                 self.data_types[detector][f"lower_{detector}"]["disk"] = np.array(
                     [
                         (n_depends_on[c[0] : c[-1]] * disk_ratio["lower"][c[0] : c[-1]]).sum()
+                        + lower_raw
                         for c in chunks_list
                     ]
                 )
@@ -478,7 +480,7 @@ class RunConfig:
                 self.data_types[detector][f"upper_{detector}"]["disk"] = UPPER_DISK
             else:
                 self.data_types[detector][f"upper_{detector}"]["disk"] = (
-                    n_depends_on * disk_ratio["upper"]
+                    n_depends_on * disk_ratio["upper"] + upper_raw
                 ).sum()
             if UPPER_MEMORY is not None:
                 self.data_types[detector][f"upper_{detector}"]["memory"] = UPPER_MEMORY
