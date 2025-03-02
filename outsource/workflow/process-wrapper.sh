@@ -12,21 +12,28 @@ rundb_update=$7
 ignore_processed=$8
 stage=$9
 remove_heavy=${10}
-tar_filename=${11}
+input_path=${11}
+output_path=${12}
+staging_dir=${13}
+tar_filename=${14}
 args=( "$@" )
-data_types=${args[@]:11}
+data_types=${args[@]:14}
 
 echo $@
 echo $*
+echo
 
+echo "Where am i:"
+echo $PWD
+echo
+
+# Needed by utilix DB
 export HOME=$PWD
 
 echo "Processing chunks:"
 echo "$chunks_start to $chunks_end"
 
-input_path="input"
 mkdir -p $input_path
-output_path="output"
 mkdir -p $output_path
 
 extraflags=""
@@ -63,8 +70,13 @@ fi
 # Sleep random amount of time to spread out e.g. API calls and downloads
 sleep $(( RANDOM % 20 + 1 ))s
 
-# Installing customized packages
-. install.sh strax straxen cutax utilix admix outsource
+unset http_proxy
+export XENON_CONFIG=$PWD/.xenon_config
+
+if [ -f install.sh ]; then
+    # Installing customized packages
+    . install.sh strax straxen cutax utilix admix outsource
+fi
 
 echo "Current dir is $PWD. Here's whats inside:"
 ls -lah .
@@ -74,8 +86,13 @@ if [ "X$rucio_upload" = "Xtrue" ]; then
     export RUCIO_ACCOUNT=production
 fi
 
-unset http_proxy
-export XENON_CONFIG=$PWD/.xenon_config
+echo "PEGASUS Stuff:"
+env | grep PEGASUS
+echo
+
+echo "XENON Stuff:"
+env | grep XENON
+echo
 
 echo "RUCIO/X509 Stuff:"
 env | grep RUCIO
@@ -107,6 +124,13 @@ do
 done
 echo
 
+echo "What is in the input directory:"
+ls -lah $input_path
+
+echo
+echo "Total amount of data before processing: "`du -s --si $input_path | cut -f1`
+echo
+
 # echo "Check network:"
 # echo "ping -c 5 xenon-runsdb.grid.uchicago.edu"
 # ping -c 5 xenon-runsdb.grid.uchicago.edu
@@ -120,7 +144,7 @@ echo
 # echo
 
 echo "Processing:"
-time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --data_types $data_types $extraflags
+time python3 process.py $run_id --context $context --xedocs_version $xedocs_version --chunks_start $chunks_start --chunks_end $chunks_end --input_path $input_path --output_path $output_path --staging_dir $staging_dir --data_types $data_types $extraflags
 # time admix-download $run_id raw_records --chunks $(seq -s ' ' $chunks_start $(($chunks_end - 1))) --tries 3 --threads 1 --hash rfzvpzj4mf --stage
 
 echo
@@ -134,8 +158,11 @@ echo
 echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
 echo
 
-echo "Removing inputs directory:"
-rm -r $input_path
+# There will not be storage pressure if no tarball is produced
+if [ $tar_filename != "X" ]; then
+    echo "Removing inputs directory:"
+    rm -r $input_path
+fi
 
 echo "Here is what is in the output directory after processing:"
 ls -lah $output_path
@@ -144,9 +171,11 @@ echo
 echo "Total amount of data in $output_path before tarballing: "`du -s --si $output_path | cut -f1`
 echo
 
-echo "We are tarballing the output directory and removing it:"
-tar czfv $tar_filename $output_path
-# tar czfv $tar_filename $output_path --remove-files
+if [ $tar_filename != "X" ]; then
+    echo "We are tarballing the output directory and removing it:"
+    tar czfv $tar_filename $output_path
+    # tar czfv $tar_filename $output_path --remove-files
+fi
 
 echo
 echo "Job is done. Here is the contents of the directory now:"

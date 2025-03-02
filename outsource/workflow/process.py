@@ -5,6 +5,7 @@ import shutil
 import gc
 from utilix import uconfig
 from utilix.config import setup_logger
+import admix
 import straxen
 
 from outsource.utils import get_context, get_processing_order, per_chunk_storage_root_data_type
@@ -21,6 +22,8 @@ logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fal
 
 if not straxen.HAVE_ADMIX:
     raise ImportError("straxen must be installed with admix to use this script")
+if not admix.manager.HAVE_GFAL2:
+    raise ImportError("admix must be installed with gfal2 to use this script")
 
 
 def get_chunk_number(st, run_id, data_type, chunks):
@@ -60,6 +63,7 @@ def main():
     parser.add_argument("--chunks_end", type=int, required=True)
     parser.add_argument("--input_path", required=True)
     parser.add_argument("--output_path", required=True)
+    parser.add_argument("--staging_dir", required=True)
     parser.add_argument("--data_types", nargs="*", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
@@ -72,9 +76,9 @@ def main():
     # Directory of input and output
     input_path = args.input_path
     output_path = args.output_path
+    staging_dir = args.staging_dir
 
     # Get context
-    staging_dir = "./strax_data"
     if os.path.abspath(staging_dir) == os.path.abspath(input_path):
         raise ValueError("Input path cannot be the same as staging directory")
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):

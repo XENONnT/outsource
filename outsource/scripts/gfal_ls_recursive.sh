@@ -7,9 +7,7 @@ recursive_ls() {
     local path=$1
     gfal-ls $path | while read -r item; do
         if [[ $path == $item ]]; then
-            if [[ $item == *-output.tar.gz ]]; then
-                echo $item
-            fi
+            echo $item
         else
             full=$path/$item
             if gfal-ls $full &>/dev/null; then

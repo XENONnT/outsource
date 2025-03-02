@@ -6,7 +6,6 @@ from utilix.io import load_runlist
 from utilix.config import setup_logger
 
 from outsource.utils import get_context, get_runlist
-from outsource.submitter import Submitter
 
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
@@ -115,10 +114,22 @@ def main():
         action="store_true",
         help="Whether to stage out the results of upper level processing",
     )
+    parser.add_argument(
+        "--relay",
+        dest="relay",
+        action="store_true",
+        help="Whether in OSG-RCC relay mode",
+    )
+    # Exclusive groups on submission destination
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--slurm", action="store_true", help="Submission for slurm")
+    group.add_argument("--htcondor", action="store_true", help="Submission for htcondor")
     args = parser.parse_args()
 
     if not args.keep_dbtoken:
-        os.remove(os.path.join(os.environ["HOME"], ".dbtoken"))
+        dbtoken = os.path.join(os.environ["HOME"], ".dbtoken")
+        if os.path.exists(dbtoken):
+            os.remove(dbtoken)
         # Remove the cached DB instance and reinitialize it
         DB._instances = dict()
         DB()
@@ -169,8 +180,22 @@ def main():
             "Cannot find any runs matching the criteria specified in your input and XENON_CONFIG!"
         )
 
+    if args.slurm:
+        from outsource.submitters.slurm import SubmitterSlurm
+
+        submitter_class = SubmitterSlurm
+    elif args.htcondor:
+        from outsource.submitters.htcondor import SubmitterHTCondor
+
+        submitter_class = SubmitterHTCondor
+    else:
+        raise ValueError(
+            "No submission destination specified. "
+            "Please specify one of the following: --slurm, --htcondor"
+        )
+
     # This object contains all the information needed to submit the workflow
-    submitter = Submitter(
+    submitter = submitter_class(
         runlist,
         context_name=args.context,
         xedocs_version=args.xedocs_version,
@@ -186,6 +211,7 @@ def main():
         stage_out_combine=args.stage_out_combine,
         stage_out_upper=args.stage_out_upper,
         debug=args.debug,
+        relay=args.relay,
     )
 
     # Finally submit the workflow

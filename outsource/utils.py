@@ -1,3 +1,4 @@
+import os
 from itertools import chain
 from copy import deepcopy
 from utilix import uconfig
@@ -25,7 +26,7 @@ def get_context(
     stage=False,
 ):
     """Get straxen context for given context name and xedocs_version."""
-    st = getattr(cutax.contexts, context)(xedocs_version=xedocs_version)
+    st = getattr(cutax.contexts, context)(output_folder=None, xedocs_version=xedocs_version)
     st.storage = []
     if input_path:
         st.storage.append(strax.DataDirectory(input_path, readonly=True))
@@ -58,6 +59,21 @@ def get_context(
                     exclude=tuple(st.root_data_types),
                 )
             )
+    if os.environ.get("WORKFLOW_DIR", None):
+        st.storage += [
+            strax.DataDirectory(
+                os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_osg"),
+                readonly=True,
+            ),
+            strax.DataDirectory(
+                os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_osg_per_chunk"),
+                readonly=True,
+            ),
+            strax.DataDirectory(
+                os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_rcc"),
+                readonly=True,
+            ),
+        ]
     st.purge_unused_configs()
     return st
 
