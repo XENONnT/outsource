@@ -347,6 +347,7 @@ class SubmitterSlurm(Submitter):
 
     def _submit_run(self, group, label, level, dbcfg):
         """Submit a single run to the workflow."""
+        self.job_id = None
         if group == 0:
             self.add_lower_processing_job(label, level, dbcfg)
         else:
