@@ -4,6 +4,8 @@ import shutil
 from copy import deepcopy
 import utilix
 from utilix import uconfig, batchq
+import strax
+from outsource.utils import get_context, get_chunk_number
 from outsource.submitter import Submitter
 
 
@@ -70,6 +72,9 @@ class SubmitterSlurm(Submitter):
         )
         self.job_prefix += f"export X509_USER_PROXY={x509_user_proxy}\n\n"
         self.job_prefix += "cd $WORKFLOW_DIR/scratch\n\n"
+
+        os.environ["WORKFLOW_DIR"] = self.workflow_dir
+        self.context = get_context(context_name, self.xedocs_version)
 
     def copy_files(self):
         """Copy the necessary files to the workflow directory."""
@@ -159,6 +164,24 @@ class SubmitterSlurm(Submitter):
         # self.install_job_id = self.__submit(job, **batchq_kwargs)
         self.n_job += 1
 
+    def is_stored(self, run_id, data_types, chunks=None, check_root_data_type=True):
+        """Check if the data is already stored."""
+        done = []
+        for data_type in data_types:
+            if self.context.is_stored(
+                run_id,
+                data_type,
+                chunk_number=get_chunk_number(
+                    self.context,
+                    run_id,
+                    data_type,
+                    chunks=chunks,
+                    check_root_data_type=check_root_data_type,
+                ),
+            ):
+                done.append(data_type)
+        return done
+
     def add_lower_processing_job(self, label, level, dbcfg):
         """Add a per-chunk processing job to the workflow."""
         rses = set.intersection(*[set(v["rses"]) for v in level["data_types"].values()])
@@ -172,6 +195,22 @@ class SubmitterSlurm(Submitter):
         jobname = f"{label}_{dbcfg._run_id}"
         suffix = "_".join(label.split("_")[1:])
 
+        # Add the upper input directory to the storage
+        # If the per-chunk processing is done, the data will be moved to the upper input directory
+        # Remember to remove it before returning
+        self.context.storage.append(
+            strax.DataDirectory(
+                os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input"),
+                readonly=True,
+            ),
+        )
+
+        done = self.is_stored(dbcfg._run_id, level["data_types"], check_root_data_type=False)
+        if len(done) == len(level["data_types"]):
+            self.logger.debug(f"Skipping job for processing: {list(level['data_types'].keys())}")
+            self.context.storage.pop()
+            return
+
         # Loop over the chunks
         os.makedirs(
             os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input"),
@@ -180,6 +219,16 @@ class SubmitterSlurm(Submitter):
         )
         job_ids = []
         for job_i in range(len(level["chunks"])):
+            done = self.is_stored(
+                dbcfg._run_id,
+                level["data_types"],
+                chunks=level["chunks"][job_i],
+            )
+            if len(done) == len(level["data_types"]):
+                self.logger.debug(
+                    f"Skipping job for per-chunk processing: {level['chunks'][job_i]}"
+                )
+                continue
             self.logger.debug(f"Adding job for per-chunk processing: {level['chunks'][job_i]}")
             # log = os.path.join(self.outputs_dir, f"{_key}-output-{job_i:04d}.log")
             log = os.path.join(self.outputs_dir, f"{jobname}-{job_i:04d}.log")
@@ -236,6 +285,13 @@ class SubmitterSlurm(Submitter):
             job_ids.append(self.n_job)
             self.n_job += 1
 
+        if not job_ids:
+            self.logger.warning(
+                f"No jobs for per-chunk processing are submitted for {level['chunks']}."
+            )
+            self.context.storage.pop()
+            return
+        # Add combine job
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         # log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         log = os.path.join(self.outputs_dir, f"{jobname}-output.log")
@@ -289,6 +345,7 @@ class SubmitterSlurm(Submitter):
         self.last_combine_job_id = self.n_job
         # self.last_combine_job_id = self.__submit(job, **batchq_kwargs)
         self.n_job += 1
+        self.context.storage.pop()
 
     def add_upper_processing_job(self, label, level, dbcfg):
         """Add a processing job to the workflow."""
@@ -298,6 +355,11 @@ class SubmitterSlurm(Submitter):
                 f"No data found as the dependency of {tuple(level['data_types'])}. "
                 f"Hopefully those will be created by the workflow."
             )
+
+        done = self.is_stored(dbcfg._run_id, level["data_types"])
+        if len(done) == len(level["data_types"]):
+            self.logger.debug(f"Skipping job for processing: {list(level['data_types'].keys())}")
+            return
 
         # Get the key for the job
         # _key = self.get_key(dbcfg, level)
@@ -363,6 +425,9 @@ class SubmitterSlurm(Submitter):
 
     def _submit(self):
         """Actually submit the workflow to the batch queue."""
+        # Do nothing if installation job is the only job
+        if len(self.jobs) == 1 and self.install_job_id is not None:
+            return
         n_jobs = sorted(list(self.jobs.keys()))
         for n_job in n_jobs:
             job = self.jobs[n_job]
@@ -403,7 +468,8 @@ class SubmitterSlurm(Submitter):
         runlist, summary = self._submit_runs()
 
         # Actually submit the jobs
-        self._submit()
+        if not self.debug:
+            self._submit()
 
         self.save_runlist(runlist)
         self.update_summary(summary)
@@ -413,6 +479,8 @@ class SubmitterSlurm(Submitter):
             f.write(json.dumps(self.jobs, indent=4))
 
         if self.debug:
-            commands = [v["command"] for v in self.jobs.values]
+            if len(self.jobs) == 1 and self.install_job_id is not None:
+                return
+            commands = [v["command"] for v in self.jobs.values()]
             with open(os.path.join(self.generated_dir, "commands.sh"), "w") as f:
                 f.write("\n\n".join(commands) + "\n")
