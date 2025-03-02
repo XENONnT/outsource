@@ -387,35 +387,45 @@ class RunConfig:
             # The lower level disk usage
             lower = (ratios["lower"] * itemsizes["lower"]).sum(axis=1)
             upper = (ratios["upper"] * itemsizes["upper"]).sum(axis=1)
-            disk_ratio = dict()
-            # uncompressed lower + compressed lower
-            disk_ratio["lower"] = 2 * lower
-            # The upper level also needs to consider the disk usage of the lower level
-            disk_ratio["upper"] = np.max(
-                [
-                    2 * lower,  # compressed lower + decompressed lower
-                    lower + upper,  # decompressed lower + uncompressed upper
-                    2 * upper,  # uncompressed upper + compressed upper
-                ],
-                axis=0,
-            )
-            # The combine level disk usage is twice of the lower level w/o raw_records*
-            disk_ratio["combine"] = 2 * lower  # compressed lower + decompressed lower
-            for k in disk_ratio:
-                disk_ratio[k] /= 1e6
-
-            # Because raw_records* can be immediately removed after processing
-            # we only need to consider the disk usage of max raw_records* chunk size
+            # The raw_records* disk usage is calculated in the last
             if self.data_types[detector][f"lower_{detector}"]["data_types"]:
                 lower_raw = self.context.data_itemsize(depends_on) * compression_ratio
-                lower_raw *= n_depends_on.max()
-                lower_raw /= 1e6
                 upper_raw = 0
             else:
                 upper_raw = self.context.data_itemsize(depends_on) * compression_ratio
-                upper_raw *= n_depends_on.max()
-                upper_raw /= 1e6
                 lower_raw = 0
+
+            def get_disk(chunk_i, chunk_j):
+                sl = slice(chunk_i, chunk_j)
+                max_n = n_depends_on[sl].max()
+                disk_ratio = dict()
+                disk_ratio["lower"] = np.max(
+                    [
+                        # (max) raw_records* + uncompressed lower
+                        lower_raw * max_n + (lower[sl] * n_depends_on[sl]).sum(),
+                        # uncompressed lower + compressed lower
+                        2 * (lower[sl] * n_depends_on[sl]).sum(),
+                    ],
+                    axis=0,
+                )
+                # The upper level also needs to consider the disk usage of the lower level
+                disk_ratio["upper"] = np.max(
+                    [
+                        # compressed lower + decompressed lower
+                        upper_raw * max_n + 2 * (lower[sl] * n_depends_on[sl]).sum(),
+                        # decompressed lower + uncompressed upper
+                        upper_raw * max_n + ((lower[sl] + upper[sl]) * n_depends_on[sl]).sum(),
+                        # uncompressed upper + compressed upper
+                        2 * (upper[sl] * n_depends_on[sl]).sum(),
+                    ],
+                    axis=0,
+                )
+                # The combine level disk usage is twice of the lower level w/o raw_records*
+                # compressed lower + decompressed lower
+                disk_ratio["combine"] = 2 * (lower[sl] * n_depends_on[sl]).sum()
+                for k in disk_ratio:
+                    disk_ratio[k] /= 1e6
+                return disk_ratio
 
             # Assign chunks to be calculated in lower jobs
             n_chunks = len(compressed_sizes)
@@ -427,10 +437,8 @@ class RunConfig:
                 for chunk_i in range(1, n_chunks + 1):
                     # We are aggressive here to use more than
                     # rough_disk assigned because storage is cheap
-                    sl = slice(_chunk_i, chunk_i)
-                    max_disk = (n_depends_on[sl] * disk_ratio["lower"][sl]).sum()
-                    max_disk += lower_raw
-                    if max_disk > rough_disk or chunk_i == n_chunks:
+                    disk = get_disk(_chunk_i, chunk_i).sum()
+                    if disk > rough_disk or chunk_i == n_chunks:
                         chunks_list.append([_chunk_i, chunk_i])
                         _chunk_i = chunk_i
             else:
@@ -456,11 +464,7 @@ class RunConfig:
                 )
             else:
                 self.data_types[detector][f"lower_{detector}"]["disk"] = np.array(
-                    [
-                        (n_depends_on[c[0] : c[-1]] * disk_ratio["lower"][c[0] : c[-1]]).sum()
-                        + lower_raw
-                        for c in chunks_list
-                    ]
+                    [get_disk(c[0], c[-1])["lower"].sum() for c in chunks_list]
                 )
             if LOWER_MEMORY is not None:
                 self.data_types[detector][f"lower_{detector}"]["memory"] = np.full(
@@ -479,9 +483,9 @@ class RunConfig:
             if UPPER_DISK is not None:
                 self.data_types[detector][f"upper_{detector}"]["disk"] = UPPER_DISK
             else:
-                self.data_types[detector][f"upper_{detector}"]["disk"] = (
-                    n_depends_on * disk_ratio["upper"] + upper_raw
-                ).sum()
+                self.data_types[detector][f"upper_{detector}"]["disk"] = get_disk(0, n_chunks)[
+                    "upper"
+                ].sum()
             if UPPER_MEMORY is not None:
                 self.data_types[detector][f"upper_{detector}"]["memory"] = UPPER_MEMORY
             else:
@@ -491,9 +495,9 @@ class RunConfig:
             if COMBINE_DISK is not None:
                 self.data_types[detector][f"lower_{detector}"]["combine_disk"] = COMBINE_DISK
             else:
-                self.data_types[detector][f"lower_{detector}"]["combine_disk"] = (
-                    n_depends_on * disk_ratio["combine"]
-                ).sum()
+                self.data_types[detector][f"lower_{detector}"]["combine_disk"] = get_disk(
+                    0, n_chunks
+                )["combine"].sum()
             if COMBINE_MEMORY is not None:
                 self.data_types[detector][f"lower_{detector}"]["combine_memory"] = COMBINE_MEMORY
             else:
