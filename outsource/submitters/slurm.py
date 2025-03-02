@@ -1,5 +1,7 @@
 import os
+import json
 import shutil
+from copy import deepcopy
 import utilix
 from utilix import uconfig, batchq
 from outsource.submitter import Submitter
@@ -114,7 +116,7 @@ class SubmitterSlurm(Submitter):
         # if not os.path.exists(dst_folder):
         #     shutil.copytree(src_folder, dst_folder)
 
-    def _submit(self, job, jobname, log, **kwargs):
+    def __submit(self, job, jobname, log, **kwargs):
         """Submits job to batch queue which actually runs the analysis."""
 
         kwargs_to_pop = []
@@ -152,9 +154,10 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["cpus_per_task"] = 1
         batchq_kwargs["mem_per_cpu"] = 2_000 + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = 1
-        self.install_job_id = self._submit(job, **batchq_kwargs)
-        self.jobs.append(job)
-        self._job_id += 1
+        self.jobs[self.n_job] = {"command": job, "batchq_kwargs": deepcopy(batchq_kwargs)}
+        self.install_job_id = self.n_job
+        # self.install_job_id = self.__submit(job, **batchq_kwargs)
+        self.n_job += 1
 
     def add_lower_processing_job(self, label, level, dbcfg):
         """Add a per-chunk processing job to the workflow."""
@@ -206,7 +209,7 @@ class SubmitterSlurm(Submitter):
             args += list(level["data_types"])
             args = [str(arg) for arg in args]
             job = "set -e\n\n"
-            job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
+            job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self.n_job:07}"
             job += "\n\n"
             job += self.job_prefix + " ".join(args)
             job += "\n\n"
@@ -216,7 +219,6 @@ class SubmitterSlurm(Submitter):
             job += f"mv {output}/* "
             job += os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input")
             job += "\n\n"
-            self.jobs.append(job)
             batchq_kwargs = {}
             batchq_kwargs["jobname"] = f"{jobname}-{job_i:04d}"
             batchq_kwargs["log"] = log
@@ -229,9 +231,10 @@ class SubmitterSlurm(Submitter):
             batchq_kwargs["hours"] = eval(
                 uconfig.get("Outsource", "pegasus_max_hours_lower", fallback=None)
             )
-            job_id = self._submit(job, **batchq_kwargs)
-            job_ids.append(job_id)
-            self._job_id += 1
+            self.jobs[self.n_job] = {"command": job, "batchq_kwargs": deepcopy(batchq_kwargs)}
+            # job_id = self.__submit(job, **batchq_kwargs)
+            job_ids.append(self.n_job)
+            self.n_job += 1
 
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         # log = os.path.join(self.outputs_dir, f"{_key}-output.log")
@@ -258,12 +261,11 @@ class SubmitterSlurm(Submitter):
         ]
         args = [str(arg) for arg in args]
         job = "set -e\n\n"
-        job += f"export PEGASUS_DAG_JOB_ID=combine_{suffix}_ID{self._job_id:07}"
+        job += f"export PEGASUS_DAG_JOB_ID=combine_{suffix}_ID{self.n_job:07}"
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
         job += "\n\n"
         job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/\n"
-        self.jobs.append(job)
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
@@ -283,8 +285,10 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["hours"] = eval(
             uconfig.get("Outsource", "pegasus_max_hours_combine", fallback=None)
         )
-        self.job_id = self._submit(job, **batchq_kwargs)
-        self._job_id += 1
+        self.jobs[self.n_job] = {"command": job, "batchq_kwargs": deepcopy(batchq_kwargs)}
+        self.last_combine_job_id = self.n_job
+        # self.last_combine_job_id = self.__submit(job, **batchq_kwargs)
+        self.n_job += 1
 
     def add_upper_processing_job(self, label, level, dbcfg):
         """Add a processing job to the workflow."""
@@ -313,7 +317,7 @@ class SubmitterSlurm(Submitter):
             f"{self.rundb_update}".lower(),
             f"{self.ignore_processed}".lower(),
             f"{self.stage}".lower(),
-            f"{self.job_id is None}".lower(),
+            f"{self.last_combine_job_id is None}".lower(),
             f"{self.remove_heavy}".lower(),
             input,
             output,
@@ -323,19 +327,18 @@ class SubmitterSlurm(Submitter):
         args += list(level["data_types"])
         args = [str(arg) for arg in args]
         job = "set -e\n\n"
-        job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self._job_id:07}"
+        job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self.n_job:07}"
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
         job += "\n\n"
         job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/\n"
-        self.jobs.append(job)
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
         batchq_kwargs["container"] = f"xenonnt-{self.image_tag}.simg"
         if not self.debug:
             batchq_kwargs["dependency"] = []
-            for job_id in [self.install_job_id, self.job_id]:
+            for job_id in [self.install_job_id, self.last_combine_job_id]:
                 if job_id is None:
                     continue
                 batchq_kwargs["dependency"].append(job_id)
@@ -348,8 +351,8 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["hours"] = eval(
             uconfig.get("Outsource", "pegasus_max_hours_upper", fallback=None)
         )
-        self._submit(job, **batchq_kwargs)
-        self._job_id += 1
+        self.jobs[self.n_job] = {"command": job, "batchq_kwargs": deepcopy(batchq_kwargs)}
+        self.n_job += 1
 
     def _submit_run(self, group, label, level, dbcfg):
         """Submit a single run to the workflow."""
@@ -358,25 +361,58 @@ class SubmitterSlurm(Submitter):
         else:
             self.add_upper_processing_job(label, level, dbcfg)
 
+    def _submit(self):
+        """Actually submit the workflow to the batch queue."""
+        n_jobs = sorted(list(self.jobs.keys()))
+        for n_job in n_jobs:
+            job = self.jobs[n_job]
+            if "dependency" not in job["batchq_kwargs"]:
+                dependency = None
+            elif "dependency" in job["batchq_kwargs"] is None:
+                dependency = None
+            elif isinstance(job["batchq_kwargs"]["dependency"], int):
+                dependency = self.jobs[job["batchq_kwargs"]["dependency"]]["job_id"]
+            elif isinstance(job["batchq_kwargs"]["dependency"], list):
+                dependency = [
+                    self.jobs[job_id]["job_id"] for job_id in job["batchq_kwargs"]["dependency"]
+                ]
+            self.jobs[n_job]["job_id"] = self.__submit(
+                job["command"],
+                **{
+                    **job["batchq_kwargs"],
+                    "dependency": dependency,
+                },
+            )
+
     def submit(self):
         """Submit the workflow to the batch queue."""
 
-        self._job_id = 0
-        self.jobs = []
+        self.n_job = 0
+        self.jobs = {}
 
+        # Copy the necessary files to the workflow directory
         self.copy_files()
 
+        # Install user specified packages
         if self.user_installed_packages:
             self.add_install_job()
         else:
             self.install_job_id = None
 
+        # Prepare for the job submission instruction
         runlist, summary = self._submit_runs()
+
+        # Actually submit the jobs
+        self._submit()
 
         self.save_runlist(runlist)
         self.update_summary(summary)
         self.save_summary(summary)
 
+        with open(os.path.join(self.generated_dir, "workflow.json"), mode="w") as f:
+            f.write(json.dumps(self.jobs, indent=4))
+
         if self.debug:
-            with open(os.path.join(self.generated_dir, "execution.sh"), "w") as f:
-                f.write("\n\n".join(self.jobs) + "\n")
+            commands = [v["command"] for v in self.jobs.values]
+            with open(os.path.join(self.generated_dir, "commands.sh"), "w") as f:
+                f.write("\n\n".join(commands) + "\n")

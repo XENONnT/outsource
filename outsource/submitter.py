@@ -268,7 +268,7 @@ class Submitter:
 
                 # Get data_types to process
                 self.combine_tar = None
-                self.job_id = None
+                self.last_combine_job_id = None
                 for group, (label, level) in enumerate(dbcfg.data_types[detector].items()):
                     if not level["data_types"].not_processed:
                         self.logger.debug(
