@@ -17,6 +17,9 @@ if not straxen.HAVE_ADMIX:
 if not admix.manager.HAVE_GFAL2:
     raise ImportError("admix must be installed with gfal2 to use this script")
 
+# Add more heavy data_types
+straxen.RucioRemoteBackend.heavy_types = straxen.DAQReader.provides
+
 
 def merge(st, run_id, data_type, chunk_number_group):
     """Merge per-chunk storage for a given data_type.

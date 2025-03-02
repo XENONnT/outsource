@@ -25,6 +25,9 @@ if not straxen.HAVE_ADMIX:
 if not admix.manager.HAVE_GFAL2:
     raise ImportError("admix must be installed with gfal2 to use this script")
 
+# Add more heavy data_types
+straxen.RucioRemoteBackend.heavy_types = straxen.DAQReader.provides
+
 
 def get_chunk_number(st, run_id, data_type, chunks):
     """Get chunk_number for per-chunk storage."""
@@ -78,6 +81,13 @@ def main():
     output_path = args.output_path
     staging_dir = args.staging_dir
 
+    if args.chunks_start == args.chunks_end:
+        chunks = None
+        download_heavy = False
+    else:
+        chunks = list(range(args.chunks_start, args.chunks_end))
+        download_heavy = True
+
     # Get context
     if os.path.abspath(staging_dir) == os.path.abspath(input_path):
         raise ValueError("Input path cannot be the same as staging directory")
@@ -90,6 +100,7 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=args.ignore_processed,
+        download_heavy=download_heavy,
         remove_heavy=args.remove_heavy,
         stage=args.stage,
     )
@@ -98,11 +109,6 @@ def main():
 
     run_id = f"{args.run_id:06d}"
     data_types = args.data_types
-
-    if args.chunks_start == args.chunks_end:
-        chunks = None
-    else:
-        chunks = list(range(args.chunks_start, args.chunks_end))
 
     # Get the order of data_types in processing
     data_types = get_processing_order(st, data_types, rm_lower=chunks is None)
