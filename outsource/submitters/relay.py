@@ -22,10 +22,10 @@ class SubmitterRelay(SubmitterSlurm):
         super().__init__(*arg, **kwargs)
         if not self.relay:
             raise ValueError(
-                "OSG-RCC mode must be used with --relay flag. Please specify --osg-rcc --relay"
+                "OSG-RCC mode must be used with --relay flag. Please specify --osg_rcc --relay"
             )
         if self._runlist:
-            raise ValueError("Runlist cannot be specified with --osg-rcc")
+            raise ValueError("Runlist cannot be specified with --osg_rcc")
         if not os.path.exists(self._workflow):
             raise FileNotFoundError(f"Workflow file not found: {self._workflow}")
         self._runlist, self.chunks_lists = self.parse_workflow(self._workflow)
