@@ -54,7 +54,6 @@ def main():
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--stage", action="store_true", dest="stage")
-    parser.add_argument("--remove_heavy", action="store_true", dest="remove_heavy")
     parser.add_argument("--chunks", required=True, nargs="*", type=int)
 
     args = parser.parse_args()
@@ -76,7 +75,8 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=True,
-        remove_heavy=args.remove_heavy,
+        download_heavy=False,
+        remove_heavy=True,
         stage=args.stage,
     )
 

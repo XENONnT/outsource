@@ -245,7 +245,7 @@ class SubmitterSlurm(Submitter):
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             f"{self.stage}".lower(),
-            f"{self.remove_heavy}".lower(),
+            "false",
             input,
             output,
             staging_dir,
