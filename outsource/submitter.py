@@ -268,6 +268,7 @@ class Submitter:
 
                 # Get data_types to process
                 self.combine_tar = None
+                self.job_id = None
                 for group, (label, level) in enumerate(dbcfg.data_types[detector].items()):
                     if not level["data_types"].not_processed:
                         self.logger.debug(
@@ -292,6 +293,12 @@ class Submitter:
                     self._submit_run(group, label, level, dbcfg)
 
         return runlist, summary
+
+    def add_lower_processing_job(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def add_upper_processing_job(self, *args, **kwargs):
+        raise NotImplementedError
 
     def save_runlist(self, runlist):
         """Save the runlist."""

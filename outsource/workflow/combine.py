@@ -17,6 +17,9 @@ if not straxen.HAVE_ADMIX:
 if not admix.manager.HAVE_GFAL2:
     raise ImportError("admix must be installed with gfal2 to use this script")
 
+# Add more heavy data_types
+straxen.RucioRemoteBackend.heavy_types = straxen.DAQReader.provides
+
 
 def merge(st, run_id, data_type, chunk_number_group):
     """Merge per-chunk storage for a given data_type.
@@ -51,7 +54,6 @@ def main():
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--stage", action="store_true", dest="stage")
-    parser.add_argument("--remove_heavy", action="store_true", dest="remove_heavy")
     parser.add_argument("--chunks", required=True, nargs="*", type=int)
 
     args = parser.parse_args()
@@ -73,7 +75,8 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=True,
-        remove_heavy=args.remove_heavy,
+        download_heavy=False,
+        remove_heavy=True,
         stage=args.stage,
     )
 

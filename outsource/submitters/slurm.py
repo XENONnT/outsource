@@ -109,10 +109,10 @@ class SubmitterSlurm(Submitter):
             )
 
         # Copy resources because some nodes have no internet access
-        src_folder = os.path.join(os.environ["HOME"], "resource_cache")
-        dst_folder = os.path.join(self.scratch_dir, "resource_cache")
-        if not os.path.exists(dst_folder):
-            shutil.copytree(src_folder, dst_folder)
+        # src_folder = os.path.join(os.environ["HOME"], "resource_cache")
+        # dst_folder = os.path.join(self.scratch_dir, "resource_cache")
+        # if not os.path.exists(dst_folder):
+        #     shutil.copytree(src_folder, dst_folder)
 
     def _submit(self, job, jobname, log, **kwargs):
         """Submits job to batch queue which actually runs the analysis."""
@@ -165,24 +165,26 @@ class SubmitterSlurm(Submitter):
             )
 
         # Get the key for the job
-        _key = self.get_key(dbcfg, level)
+        # _key = self.get_key(dbcfg, level)
         jobname = f"{label}_{dbcfg._run_id}"
+        suffix = "_".join(label.split("_")[1:])
 
         # Loop over the chunks
         os.makedirs(
-            os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input"), 0o755, exist_ok=True
+            os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input"),
+            0o755,
+            exist_ok=True,
         )
         job_ids = []
         for job_i in range(len(level["chunks"])):
             self.logger.debug(f"Adding job for per-chunk processing: {level['chunks'][job_i]}")
-            log = os.path.join(self.outputs_dir, f"{_key}-output-{job_i:04d}.log")
+            # log = os.path.join(self.outputs_dir, f"{_key}-output-{job_i:04d}.log")
+            log = os.path.join(self.outputs_dir, f"{jobname}-{job_i:04d}.log")
 
             # Add job
-            input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}-{job_i:04d}", "input")
-            output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}-{job_i:04d}", "output")
-            staging_dir = os.path.join(
-                self.scratch_dir, f"{dbcfg._run_id}-{job_i:04d}", "strax_data"
-            )
+            input = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "input")
+            output = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "output")
+            staging_dir = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "strax_data")
             args = [f"{self.scratch_dir}/process-wrapper.sh"]
             args += [
                 dbcfg.run_id,
@@ -194,6 +196,7 @@ class SubmitterSlurm(Submitter):
                 f"{self.rundb_update}".lower(),
                 f"{self.ignore_processed}".lower(),
                 f"{self.stage}".lower(),
+                "true",
                 f"{self.remove_heavy}".lower(),
                 input,
                 output,
@@ -211,7 +214,7 @@ class SubmitterSlurm(Submitter):
             # output or strax_data while the job is running
             # The strax data will be moved to the output directory after the job is done
             job += f"mv {output}/* "
-            job += os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
+            job += os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input")
             job += "\n\n"
             self.jobs.append(job)
             batchq_kwargs = {}
@@ -230,12 +233,15 @@ class SubmitterSlurm(Submitter):
             job_ids.append(job_id)
             self._job_id += 1
 
-        suffix = "_".join(label.split("_")[1:])
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
-        log = os.path.join(self.outputs_dir, f"{_key}-output.log")
-        input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
-        output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-        staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
+        # log = os.path.join(self.outputs_dir, f"{_key}-output.log")
+        log = os.path.join(self.outputs_dir, f"{jobname}-output.log")
+        # Though this is a combine job, its results will be put in upper level folder
+        input = os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input")
+        output = os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "output")
+        staging_dir = os.path.join(
+            self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "strax_data"
+        )
         args = [f"{self.scratch_dir}/combine-wrapper.sh"]
         args += [
             dbcfg.run_id,
@@ -244,7 +250,6 @@ class SubmitterSlurm(Submitter):
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             f"{self.stage}".lower(),
-            f"{self.remove_heavy}".lower(),
             input,
             output,
             staging_dir,
@@ -291,12 +296,12 @@ class SubmitterSlurm(Submitter):
             )
 
         # Get the key for the job
-        _key = self.get_key(dbcfg, level)
+        # _key = self.get_key(dbcfg, level)
         jobname = f"{label}_{dbcfg._run_id}"
-        log = os.path.join(self.outputs_dir, f"{_key}-output.log")
-        input = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "input")
-        output = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "output")
-        staging_dir = os.path.join(self.scratch_dir, f"{dbcfg._run_id}", "strax_data")
+        log = os.path.join(self.outputs_dir, f"{jobname}-output.log")
+        input = os.path.join(self.scratch_dir, jobname, "input")
+        output = os.path.join(self.scratch_dir, jobname, "output")
+        staging_dir = os.path.join(self.scratch_dir, jobname, "strax_data")
         args = [f"{self.scratch_dir}/process-wrapper.sh"]
         args += [
             dbcfg.run_id,
@@ -308,6 +313,7 @@ class SubmitterSlurm(Submitter):
             f"{self.rundb_update}".lower(),
             f"{self.ignore_processed}".lower(),
             f"{self.stage}".lower(),
+            f"{self.job_id is None}".lower(),
             f"{self.remove_heavy}".lower(),
             input,
             output,
@@ -347,7 +353,6 @@ class SubmitterSlurm(Submitter):
 
     def _submit_run(self, group, label, level, dbcfg):
         """Submit a single run to the workflow."""
-        self.job_id = None
         if group == 0:
             self.add_lower_processing_job(label, level, dbcfg)
         else:
