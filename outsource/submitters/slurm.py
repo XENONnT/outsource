@@ -93,7 +93,10 @@ class SubmitterSlurm(Submitter):
         shutil.copy2(f"{base_dir}/workflow/process-wrapper.sh", self.scratch_dir)
         shutil.copy2(f"{base_dir}/workflow/combine-wrapper.sh", self.scratch_dir)
         shutil.copy2(os.path.join(os.environ["HOME"], ".dbtoken"), self.scratch_dir)
-        shutil.copy2(os.environ["XENON_CONFIG"], self.scratch_dir)
+        shutil.copy2(
+            os.environ["XENON_CONFIG"],
+            os.path.join(self.scratch_dir, ".xenon_config"),
+        )
         shutil.copy2(os.environ["X509_USER_PROXY"], self.scratch_dir)
         shutil.copy2(f"{base_dir}/workflow/combine.py", self.scratch_dir)
         if self.resources_test:
