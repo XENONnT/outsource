@@ -19,6 +19,7 @@ from Pegasus.api import (
     ReplicaCatalog,
 )
 
+from outsource.utils import get_context
 from outsource.submitter import Submitter
 from outsource.meta import DETECTOR_DATA_TYPES
 from outsource.utils import get_resources_retry
@@ -118,6 +119,8 @@ class SubmitterHTCondor(Submitter):
 
         # Pegasus workflow directory
         self.runs_dir = os.path.join(self.workflow_dir, "runs")
+
+        self.context = get_context(context_name, self.xedocs_version)
 
     @property
     def x509_user_proxy(self):

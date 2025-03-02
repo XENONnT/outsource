@@ -314,6 +314,20 @@ def per_chunk_storage_root_data_type(st, run_id, data_type):
         return None
 
 
+def get_chunk_number(st, run_id, data_type, chunks=None, check_root_data_type=True):
+    """Get chunk_number for per-chunk storage."""
+    root_data_type = per_chunk_storage_root_data_type(st, run_id, data_type)
+    if chunks:
+        assert root_data_type is not None
+        chunk_number = {root_data_type: list(range(chunks[0], chunks[1]))}
+    else:
+        if check_root_data_type:
+            # This is used for the case when the data_type is per-chunk storage
+            assert root_data_type is None
+        chunk_number = None
+    return chunk_number
+
+
 def get_processing_order(st, data_types, rm_lower=False):
     """Instruction on which data need to be processed first to avoid duplicated computing.
 

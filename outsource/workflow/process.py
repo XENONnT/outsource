@@ -8,7 +8,7 @@ from utilix.config import setup_logger
 import admix
 import straxen
 
-from outsource.utils import get_context, get_processing_order, per_chunk_storage_root_data_type
+from outsource.utils import get_context, get_processing_order, get_chunk_number
 from outsource.upload import upload_to_rucio
 
 from rframe.interfaces.mongo import MongoAggregation
@@ -29,18 +29,6 @@ if not admix.manager.HAVE_GFAL2:
 straxen.RucioRemoteBackend.heavy_types = straxen.DAQReader.provides
 
 
-def get_chunk_number(st, run_id, data_type, chunks):
-    """Get chunk_number for per-chunk storage."""
-    root_data_type = per_chunk_storage_root_data_type(st, run_id, data_type)
-    if chunks:
-        assert root_data_type is not None
-        chunk_number = {root_data_type: chunks}
-    else:
-        assert root_data_type is None
-        chunk_number = None
-    return chunk_number
-
-
 def process(st, run_id, data_type, chunks):
     t0 = time.time()
 
@@ -48,7 +36,7 @@ def process(st, run_id, data_type, chunks):
         run_id,
         data_type,
         save=data_type,
-        chunk_number=get_chunk_number(st, run_id, data_type, chunks),
+        chunk_number=get_chunk_number(st, run_id, data_type, chunks=chunks),
         progress_bar=True,
     )
     gc.collect()
@@ -107,7 +95,7 @@ def main():
     if args.chunks_start == args.chunks_end:
         chunks = None
     else:
-        chunks = list(range(args.chunks_start, args.chunks_end))
+        chunks = (args.chunks_start, args.chunks_end)
 
     # Get the order of data_types in processing
     data_types = get_processing_order(st, data_types, rm_lower=chunks is None)

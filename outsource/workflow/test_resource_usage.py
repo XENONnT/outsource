@@ -9,8 +9,9 @@ from memory_profiler import memory_usage
 from utilix import uconfig
 from utilix.config import setup_logger
 import outsource
+from outsource.utils import get_chunk_number
 from outsource.workflow.process import main as process_main
-from outsource.workflow.process import get_chunk_number, process
+from outsource.workflow.process import process
 from outsource.workflow.combine import main as combine_main
 from outsource.workflow.combine import merge
 
@@ -44,11 +45,12 @@ time_usage = dict()
 
 
 def wrapper(func):
+    # only_combine guide the function to only merge the data
     def wrapped(st, run_id, data_type, chunks):
         if not only_combine and st.is_stored(
             run_id,
             data_type,
-            chunk_number=get_chunk_number(st, run_id, data_type, chunks),
+            chunk_number=get_chunk_number(st, run_id, data_type, chunks=chunks),
         ):
             return
         time_usage[data_type] = dict()
