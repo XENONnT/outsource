@@ -125,7 +125,7 @@ def main():
     group.add_argument("--htcondor", action="store_true", help="Submission for htcondor")
     group.add_argument("--slurm", action="store_true", help="Submission for slurm")
     group.add_argument(
-        "--osg-rcc",
+        "--osg_rcc",
         dest="osg_rcc",
         action="store_true",
         help="Submission for slurm, but in OSG-RCC relay mode",
@@ -172,7 +172,7 @@ def main():
     elif args.osg_rcc:
         if not args.relay:
             raise ValueError(
-                "OSG-RCC mode must be used with --relay flag. Please specify --osg-rcc --relay"
+                "OSG-RCC mode must be used with --relay flag. Please specify --osg_rcc --relay"
             )
         from outsource.submitters.relay import SubmitterRelay
 
@@ -180,7 +180,7 @@ def main():
     else:
         raise ValueError(
             "No submission destination specified. "
-            "Please specify one of the following: --slurm, --htcondor, --osg-rcc"
+            "Please specify one of the following: --slurm, --htcondor, --osg_rcc"
         )
 
     if not args.osg_rcc:
