@@ -122,8 +122,14 @@ def main():
     )
     # Exclusive groups on submission destination
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument("--slurm", action="store_true", help="Submission for slurm")
     group.add_argument("--htcondor", action="store_true", help="Submission for htcondor")
+    group.add_argument("--slurm", action="store_true", help="Submission for slurm")
+    group.add_argument(
+        "--osg-rcc",
+        dest="osg_rcc",
+        action="store_true",
+        help="Submission for slurm, but in OSG-RCC relay mode",
+    )
     args = parser.parse_args()
 
     if not args.keep_dbtoken:
@@ -153,46 +159,60 @@ def main():
     elif args.runlist:
         _runlist = load_runlist(args.runlist)
     else:
-        _runlist = None
+        _runlist = []
 
-    runlist = get_runlist(
-        st,
-        detector=args.detector,
-        runlist=_runlist,
-        number_from=args.number_from,
-        number_to=args.number_to,
-        ignore_processed=args.ignore_processed,
-    )
-
-    max_num = uconfig.getint("Outsource", "max_num", fallback=None)
-    if max_num:
-        rng = np.random.default_rng(seed=max_num)
-        runlist = sorted(rng.choice(runlist, min(max_num, len(runlist)), replace=False).tolist())
-    logger.info(f"The following {len(runlist)} runs will be processed: {sorted(runlist)}")
-    missing_runlist = set(_runlist) - set(runlist)
-    if missing_runlist:
-        logger.warning(
-            f"The following {len(missing_runlist)} run_ids will not be processed "
-            f"after checking dependeicies in the RunDB: {sorted(missing_runlist)}"
-        )
-    if not runlist:
-        raise RuntimeError(
-            "Cannot find any runs matching the criteria specified in your input and XENON_CONFIG!"
-        )
-
-    if args.slurm:
-        from outsource.submitters.slurm import SubmitterSlurm
-
-        submitter_class = SubmitterSlurm
-    elif args.htcondor:
+    if args.htcondor:
         from outsource.submitters.htcondor import SubmitterHTCondor
 
         submitter_class = SubmitterHTCondor
+    elif args.slurm:
+        from outsource.submitters.slurm import SubmitterSlurm
+
+        submitter_class = SubmitterSlurm
+    elif args.osg_rcc:
+        if not args.relay:
+            raise ValueError(
+                "OSG-RCC mode must be used with --relay flag. Please specify --osg-rcc --relay"
+            )
+        from outsource.submitters.relay import SubmitterRelay
+
+        submitter_class = SubmitterRelay
     else:
         raise ValueError(
             "No submission destination specified. "
-            "Please specify one of the following: --slurm, --htcondor"
+            "Please specify one of the following: --slurm, --htcondor, --osg-rcc"
         )
+
+    if not args.osg_rcc:
+        runlist = get_runlist(
+            st,
+            detector=args.detector,
+            runlist=_runlist,
+            number_from=args.number_from,
+            number_to=args.number_to,
+            ignore_processed=args.ignore_processed,
+        )
+
+        max_num = uconfig.getint("Outsource", "max_num", fallback=None)
+        if max_num:
+            rng = np.random.default_rng(seed=max_num)
+            runlist = sorted(
+                rng.choice(runlist, min(max_num, len(runlist)), replace=False).tolist()
+            )
+        logger.info(f"The following {len(runlist)} runs will be processed: {sorted(runlist)}")
+        missing_runlist = set(_runlist) - set(runlist)
+        if missing_runlist:
+            logger.warning(
+                f"The following {len(missing_runlist)} run_ids will not be processed "
+                f"after checking dependeicies in the RunDB: {sorted(missing_runlist)}"
+            )
+        if not runlist:
+            raise RuntimeError(
+                "Cannot find any runs matching the criteria "
+                "specified in your input and XENON_CONFIG!"
+            )
+    else:
+        runlist = _runlist
 
     # This object contains all the information needed to submit the workflow
     submitter = submitter_class(

@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import shutil
 from itertools import chain
 from datetime import datetime, timezone
 import numpy as np
@@ -10,7 +11,6 @@ from utilix.config import setup_logger, set_logging_level
 import cutax
 
 from outsource.config import RunConfig
-from outsource.utils import get_context
 from outsource.utils import get_to_save_data_types
 
 
@@ -68,7 +68,6 @@ class Submitter:
         # Setup context
         self.context_name = context_name
         self.xedocs_version = xedocs_version
-        self.context = get_context(context_name, self.xedocs_version)
 
         # Need to know whether used self-installed packages before assigning the workflow_id
         self._setup_packages()
@@ -106,8 +105,11 @@ class Submitter:
         # Workflow directory
         self.workflow_dir = os.path.join(self.work_dir, self.workflow_id)
         # Does workflow already exist?
-        if os.path.exists(self.workflow_dir):
-            raise RuntimeError(f"Workflow already exists at {self.workflow_dir}.")
+        if os.path.exists(self.workflow_dir) and not self.relay:
+            raise RuntimeError(
+                f"Workflow already exists at {self.workflow_dir}. "
+                "Please remove it or use a different workflow_id."
+            )
         self.generated_dir = os.path.join(self.workflow_dir, "generated")
         self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
@@ -178,6 +180,10 @@ class Submitter:
 
     def make_tarballs(self):
         """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
+        if self.relay and os.path.exists(self.generated_dir):
+            now = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+            shutil.move(self.generated_dir, self.generated_dir + f"_{now}")
+
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
         self.tarballs = []
         self.tarball_paths = []
@@ -243,13 +249,20 @@ class Submitter:
             workflow_id = ("user", *workflow_id)
         self.workflow_id = "-".join(workflow_id)
 
+    def get_dbcfg(self, run_id):
+        """Get the run configuration."""
+        dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
+        # Get the resources needed for each job
+        dbcfg.resources_assignment()
+        return dbcfg
+
     def _submit_runs(self):
         """Loop over the runs and submit the jobs to the workflow."""
         # Keep track of what runs we submit, useful for bookkeeping
         runlist = set()
         summary = dict()
         for run_id in self._runlist:
-            dbcfg = RunConfig(self.context, run_id, ignore_processed=self.ignore_processed)
+            dbcfg = self.get_dbcfg(run_id)
             summary[dbcfg._run_id] = dbcfg.data_types
             self.logger.info(f"Adding {dbcfg._run_id} to the workflow.")
 
@@ -267,8 +280,10 @@ class Submitter:
                     continue
 
                 # Get data_types to process
+                # Assume that the lower level is done for upper-only workflows
+                self.lower_done = True
                 self.combine_tar = None
-                self.job_id = None
+                self.last_combine_job_id = None
                 for group, (label, level) in enumerate(dbcfg.data_types[detector].items()):
                     if not level["data_types"].not_processed:
                         self.logger.debug(
