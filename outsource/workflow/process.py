@@ -72,6 +72,7 @@ def main():
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--ignore_processed", action="store_true", dest="ignore_processed")
     parser.add_argument("--stage", action="store_true", dest="stage")
+    parser.add_argument("--download_heavy", action="store_true", dest="download_heavy")
     parser.add_argument("--remove_heavy", action="store_true", dest="remove_heavy")
 
     args = parser.parse_args()
@@ -80,13 +81,6 @@ def main():
     input_path = args.input_path
     output_path = args.output_path
     staging_dir = args.staging_dir
-
-    if args.chunks_start == args.chunks_end:
-        chunks = None
-        download_heavy = False
-    else:
-        chunks = list(range(args.chunks_start, args.chunks_end))
-        download_heavy = True
 
     # Get context
     if os.path.abspath(staging_dir) == os.path.abspath(input_path):
@@ -100,7 +94,7 @@ def main():
         output_path,
         staging_dir,
         ignore_processed=args.ignore_processed,
-        download_heavy=download_heavy,
+        download_heavy=args.download_heavy,
         remove_heavy=args.remove_heavy,
         stage=args.stage,
     )
@@ -109,6 +103,11 @@ def main():
 
     run_id = f"{args.run_id:06d}"
     data_types = args.data_types
+
+    if args.chunks_start == args.chunks_end:
+        chunks = None
+    else:
+        chunks = list(range(args.chunks_start, args.chunks_end))
 
     # Get the order of data_types in processing
     data_types = get_processing_order(st, data_types, rm_lower=chunks is None)

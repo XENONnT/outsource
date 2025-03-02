@@ -11,13 +11,14 @@ rucio_upload=$6
 rundb_update=$7
 ignore_processed=$8
 stage=$9
-remove_heavy=${10}
-input_path=${11}
-output_path=${12}
-staging_dir=${13}
-tar_filename=${14}
+download_heavy=${10}
+remove_heavy=${11}
+input_path=${12}
+output_path=${13}
+staging_dir=${14}
+tar_filename=${15}
 args=( "$@" )
-data_types=${args[@]:14}
+data_types=${args[@]:15}
 
 echo $@
 echo $*
@@ -52,6 +53,10 @@ fi
 
 if [ "X$stage" = "Xtrue" ]; then
     extraflags="$extraflags --stage"
+fi
+
+if [ "X$download_heavy" = "Xtrue" ]; then
+    extraflags="$extraflags --download_heavy"
 fi
 
 if [ "X$remove_heavy" = "Xtrue" ]; then

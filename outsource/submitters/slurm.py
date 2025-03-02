@@ -170,7 +170,11 @@ class SubmitterSlurm(Submitter):
         suffix = "_".join(label.split("_")[1:])
 
         # Loop over the chunks
-        os.makedirs(os.path.join(self.scratch_dir, jobname, "input"), 0o755, exist_ok=True)
+        os.makedirs(
+            os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input"),
+            0o755,
+            exist_ok=True,
+        )
         job_ids = []
         for job_i in range(len(level["chunks"])):
             self.logger.debug(f"Adding job for per-chunk processing: {level['chunks'][job_i]}")
@@ -192,6 +196,7 @@ class SubmitterSlurm(Submitter):
                 f"{self.rundb_update}".lower(),
                 f"{self.ignore_processed}".lower(),
                 f"{self.stage}".lower(),
+                "true",
                 f"{self.remove_heavy}".lower(),
                 input,
                 output,
@@ -245,7 +250,6 @@ class SubmitterSlurm(Submitter):
             f"{self.rucio_upload}".lower(),
             f"{self.rundb_update}".lower(),
             f"{self.stage}".lower(),
-            "false",
             input,
             output,
             staging_dir,
@@ -309,6 +313,7 @@ class SubmitterSlurm(Submitter):
             f"{self.rundb_update}".lower(),
             f"{self.ignore_processed}".lower(),
             f"{self.stage}".lower(),
+            f"{self.job_id is None}".lower(),
             f"{self.remove_heavy}".lower(),
             input,
             output,

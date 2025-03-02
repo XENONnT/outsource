@@ -294,6 +294,12 @@ class Submitter:
 
         return runlist, summary
 
+    def add_lower_processing_job(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def add_upper_processing_job(self, *args, **kwargs):
+        raise NotImplementedError
+
     def save_runlist(self, runlist):
         """Save the runlist."""
         np.savetxt(self.runlist, sorted(runlist), fmt="%0d")
