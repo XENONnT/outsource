@@ -437,7 +437,7 @@ class RunConfig:
                 for chunk_i in range(1, n_chunks + 1):
                     # We are aggressive here to use more than
                     # rough_disk assigned because storage is cheap
-                    disk = get_disk(_chunk_i, chunk_i).sum()
+                    disk = get_disk(_chunk_i, chunk_i)["lower"].sum()
                     if disk > rough_disk or chunk_i == n_chunks:
                         chunks_list.append([_chunk_i, chunk_i])
                         _chunk_i = chunk_i
