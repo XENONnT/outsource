@@ -291,12 +291,7 @@ class SubmitterSlurm(Submitter):
             job_ids.append(self.n_job)
             self.n_job += 1
 
-        if not job_ids:
-            self.logger.warning(
-                f"No jobs for per-chunk processing are submitted for {level['chunks']}."
-            )
-            self.context.storage.pop()
-            return
+        # job_ids can be empty in relay mode
         # Add combine job
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         # log = os.path.join(self.outputs_dir, f"{_key}-output.log")
