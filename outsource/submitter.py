@@ -115,7 +115,8 @@ class Submitter:
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
 
         # All submitters need to make tarballs
-        self.make_tarballs()
+        if not (self.relay and self.debug):
+            self.make_tarballs()
 
     @property
     def runlist(self):

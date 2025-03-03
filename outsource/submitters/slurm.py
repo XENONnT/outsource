@@ -279,7 +279,11 @@ class SubmitterSlurm(Submitter):
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         # log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         log = os.path.join(self.outputs_dir, f"{jobname}.log")
-        input = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
+        if job_ids:
+            input = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
+        else:
+            # This might be a combine-only job
+            input = os.path.join(self.outputs_dir, "strax_data_osg_per_chunk")
         output = os.path.join(self.outputs_dir, "strax_data_rcc")
         staging_dir = os.path.join(
             self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "strax_data"
@@ -433,6 +437,11 @@ class SubmitterSlurm(Submitter):
                 },
             )
 
+    def save_workflow(self):
+        """Save the workflow to a file."""
+        with open(os.path.join(self.generated_dir, "workflow.json"), mode="w") as f:
+            f.write(json.dumps(self.jobs, indent=4))
+
     def submit(self):
         """Submit the workflow to the batch queue."""
 
@@ -440,7 +449,8 @@ class SubmitterSlurm(Submitter):
         self.jobs = {}
 
         # Copy the necessary files to the workflow directory
-        self.copy_files()
+        if not (self.relay and self.debug):
+            self.copy_files()
 
         # Install user specified packages
         if self.user_installed_packages:
@@ -451,6 +461,9 @@ class SubmitterSlurm(Submitter):
         # Prepare for the job submission instruction
         runlist, summary = self._submit_runs()
 
+        # Save wotkflow.json first, because job submission may fail
+        self.save_workflow()
+
         # Actually submit the jobs
         if not self.debug:
             self._submit()
@@ -458,9 +471,7 @@ class SubmitterSlurm(Submitter):
         self.save_runlist(runlist)
         self.update_summary(summary)
         self.save_summary(summary)
-
-        with open(os.path.join(self.generated_dir, "workflow.json"), mode="w") as f:
-            f.write(json.dumps(self.jobs, indent=4))
+        self.save_workflow()
 
         if self.debug:
             if len(self.jobs) == 1 and self.install_job_id is not None:
