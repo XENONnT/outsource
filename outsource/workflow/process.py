@@ -2,6 +2,7 @@ import os
 import argparse
 import time
 import shutil
+from glob import glob
 import gc
 from utilix import uconfig
 from utilix.config import setup_logger
@@ -111,7 +112,12 @@ def main():
     logger.info("Done processing. Now check if we should upload to rucio")
 
     # Now loop over data_type we just made and upload the data
-    processed_data = os.listdir(output_path)
+    if chunks is None:
+        processed_data = glob(os.path.join(output_path, f"{run_id}-*"))
+    else:
+        processed_data = glob(
+            os.path.join(output_path, f"{run_id}-*_{args.chunks_start}_{args.chunks_end}")
+        )
     logger.info(f"Processed data: {processed_data}")
 
     if chunks:
