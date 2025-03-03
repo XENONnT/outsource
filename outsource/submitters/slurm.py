@@ -2,6 +2,7 @@ import os
 import json
 import shutil
 from copy import deepcopy
+import numpy as np
 import utilix
 from utilix import uconfig, batchq
 from outsource.utils import get_context, get_chunk_number
@@ -74,6 +75,9 @@ class SubmitterSlurm(Submitter):
 
         os.environ["SLURM_WORKFLOW_DIR"] = self.workflow_dir
         self.context = get_context(context_name, self.xedocs_version)
+
+        # The finished runs
+        self._done = []
 
     def copy_files(self):
         """Copy the necessary files to the workflow directory."""
@@ -348,6 +352,7 @@ class SubmitterSlurm(Submitter):
                     "The lower-level results must be avaliable before the upper-level processing. "
                     "You can remove the lower-level results and resubmit the workflow."
                 )
+            self.upper_done = True
             self.logger.debug(f"Skipping job for processing: {list(level['data_types'].keys())}")
             return
 
@@ -409,7 +414,10 @@ class SubmitterSlurm(Submitter):
             self.lower_done = False
             self.add_lower_processing_job(label, level, dbcfg)
         else:
+            self.upper_done = False
             self.add_upper_processing_job(label, level, dbcfg)
+            if self.upper_done:
+                self._done.append(dbcfg._run_id)
 
     def _submit(self):
         """Actually submit the workflow to the batch queue."""
@@ -437,6 +445,10 @@ class SubmitterSlurm(Submitter):
                 },
             )
 
+    def save_finished(self, runlist):
+        """Save the runlist."""
+        np.savetxt(self.finished, sorted(runlist), fmt="%0d")
+
     def save_workflow(self):
         """Save the workflow to a file."""
         with open(os.path.join(self.generated_dir, "workflow.json"), mode="w") as f:
@@ -444,6 +456,10 @@ class SubmitterSlurm(Submitter):
 
     def submit(self):
         """Submit the workflow to the batch queue."""
+
+        # All submitters need to make tarballs
+        if not (self.relay and self.debug):
+            self.make_tarballs()
 
         self.n_job = 0
         self.jobs = {}
@@ -472,6 +488,7 @@ class SubmitterSlurm(Submitter):
         self.update_summary(summary)
         self.save_summary(summary)
         self.save_workflow()
+        self.save_finished(self._done)
 
         if self.debug:
             if len(self.jobs) == 1 and self.install_job_id is not None:

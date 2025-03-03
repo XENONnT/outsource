@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 import yaml
+import numpy as np
 from outsource.meta import DETECTOR_DATA_TYPES
 from outsource.config import RunConfig
 from outsource.submitters.slurm import SubmitterSlurm
@@ -31,6 +32,15 @@ class SubmitterRelay(SubmitterSlurm):
         self._runlist, self.chunks_lists = self.parse_workflow(self._workflow)
         self.logger.info(f"Workflow file {self._workflow} parsed successfully.")
         self.logger.info(f"Found {len(self._runlist)} runs in the workflow.")
+        if os.path.exists(self.finished):
+            self._done = np.loadtxt(self.finished, dtype=int, ndmin=1).tolist()
+        self.logger.info(f"{len(self._done)} runs has been processed.")
+        self._runlist = sorted(set(self._runlist) - set(self._done))
+        self.logger.info(f"Found {len(self._runlist)} runs to process.")
+
+    @property
+    def finished(self):
+        return os.path.join(self.generated_dir, "finished.txt")
 
     @property
     def _workflow(self):
