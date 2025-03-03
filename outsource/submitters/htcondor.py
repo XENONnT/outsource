@@ -112,6 +112,11 @@ class SubmitterHTCondor(Submitter):
             relay=relay,
         )
 
+        if self.relay:
+            raise ValueError(
+                "HTCondor mode must be used without --relay flag. Please remove --relay"
+            )
+
         self.stage_out_lower = stage_out_lower
         self.stage_out_combine = stage_out_combine
         self.stage_out_upper = stage_out_upper
@@ -697,6 +702,10 @@ class SubmitterHTCondor(Submitter):
 
     def submit(self):
         """Main interface to submitting a new workflow."""
+        # All submitters need to make tarballs
+        if not (self.relay and self.debug):
+            self.make_tarballs()
+
         # Ensure we have a proxy with enough time left
         _validate_x509_proxy(
             min_valid_hours=eval(uconfig.get("Outsource", "x509_min_valid_hours", fallback=96))

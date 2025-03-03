@@ -114,10 +114,6 @@ class Submitter:
         self.outputs_dir = os.path.join(self.workflow_dir, "outputs")
         self.scratch_dir = os.path.join(self.workflow_dir, "scratch")
 
-        # All submitters need to make tarballs
-        if not (self.relay and self.debug):
-            self.make_tarballs()
-
     @property
     def runlist(self):
         return os.path.join(self.generated_dir, "runlist.txt")
@@ -283,6 +279,7 @@ class Submitter:
                 # Get data_types to process
                 # Assume that the lower level is done for upper-only workflows
                 self.lower_done = True
+                self.upper_done = True
                 self.combine_tar = None
                 self.last_combine_job_id = None
                 for group, (label, level) in enumerate(dbcfg.data_types[detector].items()):
