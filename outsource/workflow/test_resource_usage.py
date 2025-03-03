@@ -98,7 +98,11 @@ def get_sizes(directory):
 io_list = [args.input_path, args.output_path, args.staging_dir]
 storage_usage = dict()
 for io in io_list:
-    storage_usage[io] = get_sizes(io)
+    if "SLURM_WORKFLOW_DIR" not in os.environ:
+        storage_usage[io] = get_sizes(io)
+    else:
+        # Do not scan storage for slurm job because storage is shared
+        storage_usage[io] = dict()
 
 if time_usage:
     max_storage = 0.0
@@ -108,8 +112,10 @@ if time_usage:
     logger.info(f"Max memory usage: {mem[:, 0].max():.1f} MB")
     logger.info(f"Max storage usage: {max_storage / 1e6:.1f} MB")
     prefix = f"{args.run_id:06d}"
-    np.save(f"{prefix}_memory_usage_{suffix}.npy", mem)
-    with open(f"{prefix}_time_usage_{suffix}.json", mode="w") as f:
+    np.save(os.path.join(args.output_path, f"{prefix}_memory_usage_{suffix}.npy"), mem)
+    with open(os.path.join(args.output_path, f"{prefix}_time_usage_{suffix}.json"), mode="w") as f:
         f.write(json.dumps(time_usage, indent=4))
-    with open(f"{prefix}_storage_usage_{suffix}.json", mode="w") as f:
+    with open(
+        os.path.join(args.output_path, f"{prefix}_storage_usage_{suffix}.json"), mode="w"
+    ) as f:
         f.write(json.dumps(storage_usage, indent=4))

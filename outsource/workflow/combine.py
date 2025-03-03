@@ -1,5 +1,6 @@
 import argparse
 import os
+from glob import glob
 from utilix import uconfig
 from utilix.config import setup_logger
 import admix
@@ -85,22 +86,23 @@ def main():
 
     # Check what data_type has to be merged
     data_types = []
-    for d in os.listdir(input_path):
-        if not os.path.isdir(os.path.join(input_path, d)):
+    for directory in glob(os.path.join(input_path, f"{run_id}-*")):
+        if not os.path.isdir(directory):
             continue
-        if run_id not in d:
+        data_type = os.path.basename(directory).split("-")[1]
+        if st.is_stored(run_id, data_type):
+            # Logic kept for slurm jobs
+            logger.info(f"Data type {data_type} already stored.")
             continue
-        data_types.append(d.split("-")[1])
+        data_types.append(data_type)
     data_types = sorted(set(data_types))
+    if len(data_types) == 0:
+        raise ValueError("No data type found to be merged.")
     logger.info(f"{data_types} have to be merged.")
 
     # Merge
     for data_type in data_types:
         logger.info(f"Merging {data_type}")
-        if st.is_stored(run_id, data_type):
-            # Logic kept for slurm jobs
-            logger.info(f"Data type {data_type} already stored.")
-            continue
         merge(st, run_id, data_type, chunk_number_group)
 
     if not args.rucio_upload:

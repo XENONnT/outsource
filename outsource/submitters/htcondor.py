@@ -553,7 +553,7 @@ class SubmitterHTCondor(Submitter):
 
     def add_transformations(self, tc, source, destination, name):
         """Add transformations to the transformation catalog."""
-        shutil.copy(source, destination)
+        shutil.copy2(source, destination)
         t = Transformation(
             name,
             site="local",
@@ -564,7 +564,7 @@ class SubmitterHTCondor(Submitter):
 
     def add_replica(self, rc, source, destination, site, lfn):
         """Add a replica to the replica catalog."""
-        shutil.copy(source, destination)
+        shutil.copy2(source, destination)
         rc.add_replica(site, lfn, f"file://{destination}")
 
     def _submit_run(self, group, label, level, dbcfg):

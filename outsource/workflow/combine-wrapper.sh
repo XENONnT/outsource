@@ -26,8 +26,10 @@ echo
 # Needed by utilix DB
 export HOME=$PWD
 
-mkdir -p $input_path
-mkdir -p $output_path
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
+    mkdir -p $input_path
+    mkdir -p $output_path
+fi
 
 extraflags=""
 
@@ -95,41 +97,57 @@ do
     rm $tarball
 done
 
-echo "What is in the input directory:"
-ls -lah $input_path
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
+    echo
+    echo "Total amount of data before combining: "`du -s --si $input_path | cut -f1`
+    echo
 
+    echo "What is in the input directory:"
+    ls -lah $input_path
+fi
+
+# echo "Check network:"
+# echo "ping -c 5 xenon-runsdb.grid.uchicago.edu"
+# ping -c 5 xenon-runsdb.grid.uchicago.edu
+# echo
+echo "Checking if we have .dbtoken:"
+echo "ls -lah $PWD/.dbtoken"
+ls -lah $PWD/.dbtoken
 echo
-echo "Total amount of data before combining: "`du -s --si $input_path | cut -f1`
-echo
+# echo "nmap xenon-runsdb.grid.uchicago.edu"
+# map -p5000 xenon-runsdb.grid.uchicago.edu
+# echo
 
 echo "Combining:"
 time python3 combine.py $run_id --context $context --xedocs_version $xedocs_version --input_path $input_path --output_path $output_path --staging_dir $staging_dir $chunksarg $extraflags
 
 echo
 echo "Moving auxiliary files to output directory"
-if ls $input_path/*.npy >/dev/null 2>&1; then mv $input_path/*.npy $output_path; fi
-if ls $input_path/*.json >/dev/null 2>&1; then mv $input_path/*.json $output_path; fi
-if ls *.npy >/dev/null 2>&1; then mv *.npy $output_path; fi
-if ls *.json >/dev/null 2>&1; then mv *.json $output_path; fi
-
-echo
-echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
-echo
-
-# There will not be storage pressure if no tarball is produced
-if [ $tar_filename != "X" ]; then
-    echo "Removing inputs directory:"
-    rm -r $input_path
+if [ $input_path != $output_path ]; then
+    if ls $input_path/$run_id_pad*.npy >/dev/null 2>&1; then
+        mv $input_path/$run_id_pad*.npy $output_path
+    fi
+    if ls $input_path/$run_id_pad*.json >/dev/null 2>&1; then
+        mv $input_path/$run_id_pad*.json $output_path
+    fi
 fi
 
-echo "Here is what is in the output directory after combining:"
-ls -lah $output_path
+# There will not be storage pressure if no tarball is produced
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
+    echo
+    echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
+    echo
 
-echo
-echo "Total amount of data in $output_path before tarballing: "`du -s --si $output_path | cut -f1`
-echo
+    echo "Removing inputs directory:"
+    rm -r $input_path
 
-if [ $tar_filename != "X" ]; then
+    echo "Here is what is in the output directory after combining:"
+    ls -lah $output_path
+
+    echo
+    echo "Total amount of data in $output_path before tarballing: "`du -s --si $output_path | cut -f1`
+    echo
+
     echo "We are tarballing the output directory and removing it:"
     tar czfv $tar_filename $output_path
     # tar czfv $tar_filename $output_path --remove-files

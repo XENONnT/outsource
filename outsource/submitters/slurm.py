@@ -4,7 +4,6 @@ import shutil
 from copy import deepcopy
 import utilix
 from utilix import uconfig, batchq
-import strax
 from outsource.utils import get_context, get_chunk_number
 from outsource.submitter import Submitter
 
@@ -64,16 +63,16 @@ class SubmitterSlurm(Submitter):
         )
 
         # commands to execute before the job
-        # WORKFLOW_DIR is the directory where the job will execute
-        self.job_prefix = f"export WORKFLOW_DIR={self.workflow_dir}\n\n"
+        # SLURM_WORKFLOW_DIR is the directory where the job will execute
+        self.job_prefix = f"export SLURM_WORKFLOW_DIR={self.workflow_dir}\n\n"
         x509_user_proxy = os.path.join(
             self.scratch_dir,
             os.path.basename(os.environ["X509_USER_PROXY"]),
         )
         self.job_prefix += f"export X509_USER_PROXY={x509_user_proxy}\n\n"
-        self.job_prefix += "cd $WORKFLOW_DIR/scratch\n\n"
+        self.job_prefix += "cd $SLURM_WORKFLOW_DIR/scratch\n\n"
 
-        os.environ["WORKFLOW_DIR"] = self.workflow_dir
+        os.environ["SLURM_WORKFLOW_DIR"] = self.workflow_dir
         self.context = get_context(context_name, self.xedocs_version)
 
     def copy_files(self):
@@ -85,6 +84,9 @@ class SubmitterSlurm(Submitter):
         # To prevent different jobs from overwriting each other's files
         os.makedirs(os.path.join(self.scratch_dir, "strax_data"), 0o555, exist_ok=True)
         os.makedirs(os.path.join(self.outputs_dir, "strax_data_rcc"), 0o755, exist_ok=True)
+        os.makedirs(
+            os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk"), 0o755, exist_ok=True
+        )
 
         # Copy the workflow files
         shutil.copy2(
@@ -150,8 +152,8 @@ class SubmitterSlurm(Submitter):
         log = os.path.join(self.outputs_dir, "install.log")
         job = "set -e\n\n"
         job += self.job_prefix
-        job += "cd $WORKFLOW_DIR/generated\n\n"
-        job += "export HOME=$WORKFLOW_DIR/scratch\n\n"
+        job += "cd $SLURM_WORKFLOW_DIR/generated\n\n"
+        job += "export HOME=$SLURM_WORKFLOW_DIR/scratch\n\n"
         job += ". install.sh strax straxen cutax utilix admix outsource\n"
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = "install"
@@ -196,20 +198,9 @@ class SubmitterSlurm(Submitter):
         jobname = f"{label}_{dbcfg._run_id}"
         suffix = "_".join(label.split("_")[1:])
 
-        # Add the upper input directory to the storage
-        # If the per-chunk processing is done, the data will be moved to the upper input directory
-        # Remember to remove it before returning
-        self.context.storage.append(
-            strax.DataDirectory(
-                os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input"),
-                readonly=True,
-            ),
-        )
-
         done = self.is_stored(dbcfg._run_id, level["data_types"], check_root_data_type=False)
         if len(done) == len(level["data_types"]):
             self.logger.debug(f"Skipping job for processing: {list(level['data_types'].keys())}")
-            self.context.storage.pop()
             self.lower_done = True
             return
         else:
@@ -221,11 +212,6 @@ class SubmitterSlurm(Submitter):
                 )
 
         # Loop over the chunks
-        os.makedirs(
-            os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input"),
-            0o755,
-            exist_ok=True,
-        )
         job_ids = []
         for job_i in range(len(level["chunks"])):
             done = self.is_stored(
@@ -244,7 +230,7 @@ class SubmitterSlurm(Submitter):
 
             # Add job
             input = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "input")
-            output = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "output")
+            output = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
             staging_dir = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "strax_data")
             args = [f"{self.scratch_dir}/process-wrapper.sh"]
             args += [
@@ -271,12 +257,6 @@ class SubmitterSlurm(Submitter):
             job += "\n\n"
             job += self.job_prefix + " ".join(args)
             job += "\n\n"
-            # All related strax data will either be in input,
-            # output or strax_data while the job is running
-            # The strax data will be moved to the output directory after the job is done
-            job += f"mv {output}/* "
-            job += os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input")
-            job += "\n\n"
             batchq_kwargs = {}
             batchq_kwargs["jobname"] = f"{jobname}-{job_i:04d}"
             batchq_kwargs["log"] = log
@@ -299,9 +279,8 @@ class SubmitterSlurm(Submitter):
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         # log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         log = os.path.join(self.outputs_dir, f"{jobname}.log")
-        # Though this is a combine job, its results will be put in upper level folder
-        input = os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input")
-        output = os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "output")
+        input = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
+        output = os.path.join(self.outputs_dir, "strax_data_rcc")
         staging_dir = os.path.join(
             self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "strax_data"
         )
@@ -324,8 +303,6 @@ class SubmitterSlurm(Submitter):
         job += f"export PEGASUS_DAG_JOB_ID=combine_{suffix}_ID{self.n_job:07}"
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
-        job += "\n\n"
-        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/\n"
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
@@ -348,7 +325,6 @@ class SubmitterSlurm(Submitter):
         self.last_combine_job_id = self.n_job
         # self.last_combine_job_id = self.__submit(job, **batchq_kwargs)
         self.n_job += 1
-        self.context.storage.pop()
 
     def add_upper_processing_job(self, label, level, dbcfg):
         """Add a processing job to the workflow."""
@@ -375,8 +351,8 @@ class SubmitterSlurm(Submitter):
         # _key = self.get_key(dbcfg, level)
         jobname = f"{label}_{dbcfg._run_id}"
         log = os.path.join(self.outputs_dir, f"{jobname}.log")
-        input = os.path.join(self.scratch_dir, jobname, "input")
-        output = os.path.join(self.scratch_dir, jobname, "output")
+        input = os.path.join(self.outputs_dir, "strax_data_rcc")
+        output = os.path.join(self.outputs_dir, "strax_data_rcc")
         staging_dir = os.path.join(self.scratch_dir, jobname, "strax_data")
         args = [f"{self.scratch_dir}/process-wrapper.sh"]
         args += [
@@ -402,8 +378,6 @@ class SubmitterSlurm(Submitter):
         job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self.n_job:07}"
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
-        job += "\n\n"
-        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/\n"
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
