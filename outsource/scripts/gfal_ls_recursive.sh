@@ -2,12 +2,20 @@
 
 set -e
 
+relay=$2
+
 # the core function to list the files recursively
 recursive_ls() {
     local path=$1
     gfal-ls $path | while read -r item; do
         if [[ $path == $item ]]; then
-            echo $item
+            if [ "X$relay" = "Xrelay" ]; then
+                if [[ $item == *-output.tar.gz ]]; then
+                    echo $item
+                fi
+            else
+                echo $item
+            fi
         else
             full=$path/$item
             if gfal-ls $full &>/dev/null; then
