@@ -47,7 +47,7 @@ DETECTOR_DATA_TYPES = {
             "peaks": 0.03,
             "events": 0.001,
             "led_cal": 1.0,
-            "afterpulses": None,
+            "afterpulses": 1.0,
         },
         "compression": {
             "peaklets": 0.25,
@@ -56,7 +56,7 @@ DETECTOR_DATA_TYPES = {
             "peaks": 0.75,
             "events": 0.60,
             "led_cal": 0.30,
-            "afterpulses": None,
+            "afterpulses": 0.45,
         },
         "memory": {
             "lower": [1.0, 1.6e3],
@@ -124,7 +124,7 @@ DETECTOR_DATA_TYPES = {
 LED_MODES = {
     "tpc_pmtap": {
         "possible": ["afterpulses"],
-        "memory": None,
+        "memory": [7.0, 0.8e3],
     },
     "tpc_pmtgain": {
         "possible": ["led_calibration"],
@@ -132,7 +132,7 @@ LED_MODES = {
     },
     "tpc_commissioning_pmtap": {
         "possible": ["afterpulses"],
-        "memory": None,
+        "memory": [7.0, 0.8e3],
     },
 }
 
