@@ -39,7 +39,7 @@ def merge(st, run_id, data_type, chunk_number_group):
         data_type,
         root_data_type,
         chunk_number_group=chunk_number_group,
-        rechunk_to_mb=st._plugin_class_registry[root_data_type].chunk_target_size_mb,
+        rechunk_to_mb=st._plugin_class_registry[data_type].chunk_target_size_mb,
         check_is_stored=False,
     )
     if not st.is_stored(run_id, data_type):
