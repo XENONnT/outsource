@@ -51,7 +51,7 @@ def main():
     parser.add_argument("--xedocs_version", required=True)
     parser.add_argument("--input_path", required=True)
     parser.add_argument("--output_path", required=True)
-    parser.add_argument("--staging_dir", required=True)
+    parser.add_argument("--staging_dir", default="./strax_data")
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
     parser.add_argument("--stage", action="store_true", dest="stage")

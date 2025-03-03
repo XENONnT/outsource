@@ -25,7 +25,7 @@ parser.add_argument("--chunks_end", type=int)
 parser.add_argument("--chunks", nargs="*", type=int)
 parser.add_argument("--input_path")
 parser.add_argument("--output_path")
-parser.add_argument("--staging_dir")
+parser.add_argument("--staging_dir", default="./strax_data")
 args, _ = parser.parse_known_args()
 
 suffix = "_".join(os.environ["PEGASUS_DAG_JOB_ID"].split("_")[:-1])

@@ -54,7 +54,7 @@ def main():
     parser.add_argument("--chunks_end", type=int, required=True)
     parser.add_argument("--input_path", required=True)
     parser.add_argument("--output_path", required=True)
-    parser.add_argument("--staging_dir", required=True)
+    parser.add_argument("--staging_dir", default="./strax_data")
     parser.add_argument("--data_types", nargs="*", required=True)
     parser.add_argument("--rucio_upload", action="store_true", dest="rucio_upload")
     parser.add_argument("--rundb_update", action="store_true", dest="rundb_update")
