@@ -1,6 +1,7 @@
 import argparse
 import os
 from glob import glob
+from tqdm import tqdm
 from utilix import uconfig
 from utilix.config import setup_logger
 import admix
@@ -38,6 +39,7 @@ def merge(st, run_id, data_type, chunk_number_group):
         data_type,
         root_data_type,
         chunk_number_group=chunk_number_group,
+        rechunk_to_mb=st._plugin_class_registry[root_data_type].chunk_target_size_mb,
         check_is_stored=False,
     )
     if not st.is_stored(run_id, data_type):
@@ -101,7 +103,7 @@ def main():
     logger.info(f"{data_types} have to be merged.")
 
     # Merge
-    for data_type in data_types:
+    for data_type in tqdm(data_types):
         logger.info(f"Merging {data_type}")
         merge(st, run_id, data_type, chunk_number_group)
 

@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import shutil
 from copy import deepcopy
 import numpy as np
@@ -86,7 +87,7 @@ class SubmitterSlurm(Submitter):
         os.makedirs(self.outputs_dir, 0o755, exist_ok=True)
         os.makedirs(self.scratch_dir, 0o755, exist_ok=True)
         # To prevent different jobs from overwriting each other's files
-        os.makedirs(os.path.join(self.scratch_dir, "strax_data"), 0o555, exist_ok=True)
+        os.makedirs(os.path.join(self.scratch_dir, "strax_data"), 0o755, exist_ok=True)
         os.makedirs(os.path.join(self.outputs_dir, "strax_data_rcc"), 0o755, exist_ok=True)
         os.makedirs(
             os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk"), 0o755, exist_ok=True
@@ -141,14 +142,17 @@ class SubmitterSlurm(Submitter):
         for kw in kwargs_to_pop:
             kwargs.pop(kw)
 
-        job_id = batchq.submit_job(
-            job,
-            jobname=jobname,
-            log=log,
-            **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
-        )
-        if job_id is None:
-            raise RuntimeError("Job submission failed.")
+        rcc_retries_sleep = uconfig.getint("Outsource", "rcc_retries_sleep", fallback=10)
+        job_id = None
+        while job_id is None:
+            job_id = batchq.submit_job(
+                job,
+                jobname=jobname,
+                log=log,
+                **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
+            )
+            if job_id is None:
+                time.sleep(rcc_retries_sleep)
         return job_id
 
     def add_install_job(self):
@@ -207,13 +211,6 @@ class SubmitterSlurm(Submitter):
             self.logger.debug(f"Skipping job for processing: {list(level['data_types'].keys())}")
             self.lower_done = True
             return
-        else:
-            if len(done) != 0:
-                raise RuntimeError(
-                    f"Data {done} of {dbcfg._run_id} is already stored, "
-                    f"but {set(level['data_types']) - set(done)} is not. "
-                    "This is not allowed, the lower processing should be done in one go."
-                )
 
         # Loop over the chunks
         job_ids = []
@@ -233,9 +230,9 @@ class SubmitterSlurm(Submitter):
             log = os.path.join(self.outputs_dir, f"{jobname}-{job_i:04d}.log")
 
             # Add job
-            input = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "input")
+            input = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
             output = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
-            staging_dir = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "strax_data")
+            staging_dir = os.path.join(self.scratch_dir, "strax_data")
             args = [f"{self.scratch_dir}/process-wrapper.sh"]
             args += [
                 dbcfg.run_id,
@@ -289,9 +286,7 @@ class SubmitterSlurm(Submitter):
             # This might be a combine-only job
             input = os.path.join(self.outputs_dir, "strax_data_osg_per_chunk")
         output = os.path.join(self.outputs_dir, "strax_data_rcc")
-        staging_dir = os.path.join(
-            self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "strax_data"
-        )
+        staging_dir = os.path.join(self.scratch_dir, "strax_data")
         args = [f"{self.scratch_dir}/combine-wrapper.sh"]
         args += [
             dbcfg.run_id,
@@ -362,7 +357,7 @@ class SubmitterSlurm(Submitter):
         log = os.path.join(self.outputs_dir, f"{jobname}.log")
         input = os.path.join(self.outputs_dir, "strax_data_rcc")
         output = os.path.join(self.outputs_dir, "strax_data_rcc")
-        staging_dir = os.path.join(self.scratch_dir, jobname, "strax_data")
+        staging_dir = os.path.join(self.scratch_dir, "strax_data")
         args = [f"{self.scratch_dir}/process-wrapper.sh"]
         args += [
             dbcfg.run_id,
@@ -417,7 +412,7 @@ class SubmitterSlurm(Submitter):
             self.upper_done = False
             self.add_upper_processing_job(label, level, dbcfg)
             if self.upper_done:
-                self._done.append(dbcfg._run_id)
+                self._done.append(dbcfg.run_id)
 
     def _submit(self):
         """Actually submit the workflow to the batch queue."""
@@ -447,7 +442,7 @@ class SubmitterSlurm(Submitter):
 
     def save_finished(self, runlist):
         """Save the runlist."""
-        np.savetxt(self.finished, sorted(runlist), fmt="%0d")
+        np.savetxt(self.finished, sorted(runlist), fmt="%d")
 
     def save_workflow(self):
         """Save the workflow to a file."""
@@ -479,6 +474,7 @@ class SubmitterSlurm(Submitter):
 
         # Save wotkflow.json first, because job submission may fail
         self.save_workflow()
+        self.save_finished(self._done)
 
         # Actually submit the jobs
         if not self.debug:
@@ -488,7 +484,6 @@ class SubmitterSlurm(Submitter):
         self.update_summary(summary)
         self.save_summary(summary)
         self.save_workflow()
-        self.save_finished(self._done)
 
         if self.debug:
             if len(self.jobs) == 1 and self.install_job_id is not None:
