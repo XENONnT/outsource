@@ -5,7 +5,10 @@ set -e
 workflow=$1
 
 mkdir -p $workflow/outputs/logs
-mv $workflow/outputs/*.log $workflow/outputs/logs/.
+
+if ls $workflow/outputs/*.log >/dev/null 2>&1; then
+    mv $workflow/outputs/*.log $workflow/outputs/logs/.
+fi
 
 mkdir -p $workflow/outputs/strax_data_osg
 mkdir -p $workflow/outputs/strax_data_osg_per_chunk
