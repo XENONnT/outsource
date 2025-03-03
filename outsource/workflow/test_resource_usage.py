@@ -98,7 +98,11 @@ def get_sizes(directory):
 io_list = [args.input_path, args.output_path, args.staging_dir]
 storage_usage = dict()
 for io in io_list:
-    storage_usage[io] = get_sizes(io)
+    if "SLURM_WORKFLOW_DIR" not in os.environ:
+        storage_usage[io] = get_sizes(io)
+    else:
+        # Do not scan storage for slurm job because storage is shared
+        storage_usage[io] = dict()
 
 if time_usage:
     max_storage = 0.0

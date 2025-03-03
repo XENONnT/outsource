@@ -95,7 +95,7 @@ do
     rm $tarball
 done
 
-if [ $tar_filename != "X" ]; then
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
     echo
     echo "Total amount of data before combining: "`du -s --si $input_path | cut -f1`
     echo
@@ -121,11 +121,17 @@ time python3 combine.py $run_id --context $context --xedocs_version $xedocs_vers
 
 echo
 echo "Moving auxiliary files to output directory"
-if ls $input_path/$run_id_pad*.npy >/dev/null 2>&1; then mv $input_path/$run_id_pad*.npy $output_path; fi
-if ls $input_path/$run_id_pad*.json >/dev/null 2>&1; then mv $input_path/$run_id_pad*.json $output_path; fi
+if [ $input_path != $output_path ]; then
+    if ls $input_path/$run_id_pad*.npy >/dev/null 2>&1; then
+        mv $input_path/$run_id_pad*.npy $output_path
+    fi
+    if ls $input_path/$run_id_pad*.json >/dev/null 2>&1; then
+        mv $input_path/$run_id_pad*.json $output_path
+    fi
+fi
 
 # There will not be storage pressure if no tarball is produced
-if [ $tar_filename != "X" ]; then
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
     echo
     echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
     echo

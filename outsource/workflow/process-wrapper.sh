@@ -129,7 +129,7 @@ do
 done
 echo
 
-if [ $tar_filename != "X" ]; then
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
     echo
     echo "Total amount of data before processing: "`du -s --si $input_path | cut -f1`
     echo
@@ -156,11 +156,27 @@ time python3 process.py $run_id --context $context --xedocs_version $xedocs_vers
 
 echo
 echo "Moving auxiliary files to output directory"
-if ls $input_path/$run_id_pad*.npy >/dev/null 2>&1; then mv $input_path/$run_id_pad*.npy $output_path; fi
-if ls $input_path/$run_id_pad*.json >/dev/null 2>&1; then mv $input_path/$run_id_pad*.json $output_path; fi
+if [ $input_path != $output_path ]; then
+    if [ $chunks_start -eq -1 ]; then
+        if ls $input_path/$run_id_pad*.npy >/dev/null 2>&1; then
+            mv $input_path/$run_id_pad*.npy $output_path
+        fi
+        if ls $input_path/$run_id_pad*.json >/dev/null 2>&1; then
+            mv $input_path/$run_id_pad*.json $output_path
+        fi
+    else
+        suffix="_$chunks_start_$chunks_end"
+        if ls $input_path/$run_id_pad*_$suffix.npy >/dev/null 2>&1; then
+            mv $input_path/$run_id_pad*_$suffix.npy $output_path
+        fi
+        if ls $input_path/$run_id_pad*_$suffix.json >/dev/null 2>&1; then
+            mv $input_path/$run_id_pad*_$suffix.json $output_path
+        fi
+    fi
+fi
 
 # There will not be storage pressure if no tarball is produced
-if [ $tar_filename != "X" ]; then
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
     echo
     echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
     echo

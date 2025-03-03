@@ -60,22 +60,26 @@ def get_context(
                     exclude=tuple(st.root_data_types),
                 )
             )
-    if os.environ.get("WORKFLOW_DIR", None):
+    if os.environ.get("SLURM_WORKFLOW_DIR", None):
         st.storage += [
             strax.DataDirectory(
-                os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_osg"),
+                os.path.join(os.environ["SLURM_WORKFLOW_DIR"], "outputs", "strax_data_osg"),
                 readonly=True,
             ),
             strax.DataDirectory(
-                os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_osg_per_chunk"),
+                os.path.join(
+                    os.environ["SLURM_WORKFLOW_DIR"], "outputs", "strax_data_osg_per_chunk"
+                ),
                 readonly=True,
             ),
             strax.DataDirectory(
-                os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_rcc"),
+                os.path.join(os.environ["SLURM_WORKFLOW_DIR"], "outputs", "strax_data_rcc"),
                 readonly=True,
             ),
             strax.DataDirectory(
-                os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_rcc_per_chunk"),
+                os.path.join(
+                    os.environ["SLURM_WORKFLOW_DIR"], "outputs", "strax_data_rcc_per_chunk"
+                ),
                 readonly=True,
             ),
         ]
