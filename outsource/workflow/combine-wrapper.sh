@@ -26,8 +26,10 @@ echo
 # Needed by utilix DB
 export HOME=$PWD
 
-mkdir -p $input_path
-mkdir -p $output_path
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
+    mkdir -p $input_path
+    mkdir -p $output_path
+fi
 
 extraflags=""
 

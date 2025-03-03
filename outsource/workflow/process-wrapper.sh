@@ -34,8 +34,10 @@ export HOME=$PWD
 echo "Processing chunks:"
 echo "$chunks_start to $chunks_end"
 
-mkdir -p $input_path
-mkdir -p $output_path
+if [ -z "$SLURM_WORKFLOW_DIR" ]; then
+    mkdir -p $input_path
+    mkdir -p $output_path
+fi
 
 extraflags=""
 
