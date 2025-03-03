@@ -60,7 +60,7 @@ DETECTOR_DATA_TYPES = {
         },
         "memory": {
             "lower": [1.0, 1.6e3],
-            "combine": [0.0, 4.0e3],
+            "combine": [0.0, 8.0e3],
             "upper": [0.0, 8.0e3],
         },
         "redundancy": {
@@ -87,8 +87,8 @@ DETECTOR_DATA_TYPES = {
         },
         "memory": {
             "lower": [0.1, 7.0e3],
-            "combine": [0.0, 2.0e3],
-            "upper": [0.0, 4.0e3],
+            "combine": [0.0, 4.0e3],
+            "upper": [0.0, 8.0e3],
         },
         "redundancy": {
             "disk": 1.2,
