@@ -108,8 +108,10 @@ if time_usage:
     logger.info(f"Max memory usage: {mem[:, 0].max():.1f} MB")
     logger.info(f"Max storage usage: {max_storage / 1e6:.1f} MB")
     prefix = f"{args.run_id:06d}"
-    np.save(f"{prefix}_memory_usage_{suffix}.npy", mem)
-    with open(f"{prefix}_time_usage_{suffix}.json", mode="w") as f:
+    np.save(os.path.join(args.output_path, f"{prefix}_memory_usage_{suffix}.npy"), mem)
+    with open(os.path.join(args.output_path, f"{prefix}_time_usage_{suffix}.json"), mode="w") as f:
         f.write(json.dumps(time_usage, indent=4))
-    with open(f"{prefix}_storage_usage_{suffix}.json", mode="w") as f:
+    with open(
+        os.path.join(args.output_path, f"{prefix}_storage_usage_{suffix}.json"), mode="w"
+    ) as f:
         f.write(json.dumps(storage_usage, indent=4))

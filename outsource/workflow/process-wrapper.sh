@@ -129,12 +129,14 @@ do
 done
 echo
 
-echo "What is in the input directory:"
-ls -lah $input_path
+if [ $tar_filename != "X" ]; then
+    echo
+    echo "Total amount of data before processing: "`du -s --si $input_path | cut -f1`
+    echo
 
-echo
-echo "Total amount of data before processing: "`du -s --si $input_path | cut -f1`
-echo
+    echo "What is in the input directory:"
+    ls -lah $input_path
+fi
 
 # echo "Check network:"
 # echo "ping -c 5 xenon-runsdb.grid.uchicago.edu"
@@ -154,29 +156,25 @@ time python3 process.py $run_id --context $context --xedocs_version $xedocs_vers
 
 echo
 echo "Moving auxiliary files to output directory"
-if ls $input_path/*.npy >/dev/null 2>&1; then mv $input_path/*.npy $output_path; fi
-if ls $input_path/*.json >/dev/null 2>&1; then mv $input_path/*.json $output_path; fi
-if ls *.npy >/dev/null 2>&1; then mv *.npy $output_path; fi
-if ls *.json >/dev/null 2>&1; then mv *.json $output_path; fi
-
-echo
-echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
-echo
+if ls $input_path/$run_id_pad*.npy >/dev/null 2>&1; then mv $input_path/$run_id_pad*.npy $output_path; fi
+if ls $input_path/$run_id_pad*.json >/dev/null 2>&1; then mv $input_path/$run_id_pad*.json $output_path; fi
 
 # There will not be storage pressure if no tarball is produced
 if [ $tar_filename != "X" ]; then
+    echo
+    echo "Total amount of data in $input_path before removing: "`du -s --si $input_path | cut -f1`
+    echo
+
     echo "Removing inputs directory:"
     rm -r $input_path
-fi
 
-echo "Here is what is in the output directory after processing:"
-ls -lah $output_path
+    echo "Here is what is in the output directory after processing:"
+    ls -lah $output_path
 
-echo
-echo "Total amount of data in $output_path before tarballing: "`du -s --si $output_path | cut -f1`
-echo
+    echo
+    echo "Total amount of data in $output_path before tarballing: "`du -s --si $output_path | cut -f1`
+    echo
 
-if [ $tar_filename != "X" ]; then
     echo "We are tarballing the output directory and removing it:"
     tar czfv $tar_filename $output_path
     # tar czfv $tar_filename $output_path --remove-files

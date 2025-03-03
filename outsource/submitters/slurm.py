@@ -85,6 +85,9 @@ class SubmitterSlurm(Submitter):
         # To prevent different jobs from overwriting each other's files
         os.makedirs(os.path.join(self.scratch_dir, "strax_data"), 0o555, exist_ok=True)
         os.makedirs(os.path.join(self.outputs_dir, "strax_data_rcc"), 0o755, exist_ok=True)
+        os.makedirs(
+            os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk"), 0o755, exist_ok=True
+        )
 
         # Copy the workflow files
         shutil.copy2(
@@ -221,11 +224,6 @@ class SubmitterSlurm(Submitter):
                 )
 
         # Loop over the chunks
-        os.makedirs(
-            os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input"),
-            0o755,
-            exist_ok=True,
-        )
         job_ids = []
         for job_i in range(len(level["chunks"])):
             done = self.is_stored(
@@ -244,7 +242,7 @@ class SubmitterSlurm(Submitter):
 
             # Add job
             input = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "input")
-            output = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "output")
+            output = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
             staging_dir = os.path.join(self.scratch_dir, f"{jobname}-{job_i:04d}", "strax_data")
             args = [f"{self.scratch_dir}/process-wrapper.sh"]
             args += [
@@ -274,8 +272,6 @@ class SubmitterSlurm(Submitter):
             # All related strax data will either be in input,
             # output or strax_data while the job is running
             # The strax data will be moved to the output directory after the job is done
-            job += f"mv {output}/* "
-            job += os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input")
             job += "\n\n"
             batchq_kwargs = {}
             batchq_kwargs["jobname"] = f"{jobname}-{job_i:04d}"
@@ -299,9 +295,8 @@ class SubmitterSlurm(Submitter):
         jobname = f"combine_{suffix}_{dbcfg._run_id}"
         # log = os.path.join(self.outputs_dir, f"{_key}-output.log")
         log = os.path.join(self.outputs_dir, f"{jobname}.log")
-        # Though this is a combine job, its results will be put in upper level folder
-        input = os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "input")
-        output = os.path.join(self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "output")
+        input = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
+        output = os.path.join(self.outputs_dir, "strax_data_rcc")
         staging_dir = os.path.join(
             self.scratch_dir, f"upper_{suffix}_{dbcfg._run_id}", "strax_data"
         )
@@ -324,8 +319,6 @@ class SubmitterSlurm(Submitter):
         job += f"export PEGASUS_DAG_JOB_ID=combine_{suffix}_ID{self.n_job:07}"
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
-        job += "\n\n"
-        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/\n"
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log
@@ -375,8 +368,8 @@ class SubmitterSlurm(Submitter):
         # _key = self.get_key(dbcfg, level)
         jobname = f"{label}_{dbcfg._run_id}"
         log = os.path.join(self.outputs_dir, f"{jobname}.log")
-        input = os.path.join(self.scratch_dir, jobname, "input")
-        output = os.path.join(self.scratch_dir, jobname, "output")
+        input = os.path.join(self.outputs_dir, "strax_data_rcc")
+        output = os.path.join(self.outputs_dir, "strax_data_rcc")
         staging_dir = os.path.join(self.scratch_dir, jobname, "strax_data")
         args = [f"{self.scratch_dir}/process-wrapper.sh"]
         args += [
@@ -402,8 +395,6 @@ class SubmitterSlurm(Submitter):
         job += f"export PEGASUS_DAG_JOB_ID={label}_ID{self.n_job:07}"
         job += "\n\n"
         job += self.job_prefix + " ".join(args)
-        job += "\n\n"
-        job += f"mv {output}/* {self.outputs_dir}/strax_data_rcc/\n"
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = jobname
         batchq_kwargs["log"] = log

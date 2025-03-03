@@ -74,6 +74,10 @@ def get_context(
                 os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_rcc"),
                 readonly=True,
             ),
+            strax.DataDirectory(
+                os.path.join(os.environ["WORKFLOW_DIR"], "outputs", "strax_data_rcc_per_chunk"),
+                readonly=True,
+            ),
         ]
     st.purge_unused_configs()
     return st

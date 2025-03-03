@@ -92,6 +92,8 @@ def main():
             continue
         data_types.append(d.split("-")[1])
     data_types = sorted(set(data_types))
+    if len(data_types) == 0:
+        raise ValueError("No data type found to be merged.")
     logger.info(f"{data_types} have to be merged.")
 
     # Merge
