@@ -703,8 +703,7 @@ class SubmitterHTCondor(Submitter):
     def submit(self):
         """Main interface to submitting a new workflow."""
         # All submitters need to make tarballs
-        if not (self.relay and self.debug):
-            self.make_tarballs()
+        self.make_tarballs()
 
         # Ensure we have a proxy with enough time left
         _validate_x509_proxy(
