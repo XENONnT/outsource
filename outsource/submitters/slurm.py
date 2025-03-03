@@ -210,7 +210,7 @@ class SubmitterSlurm(Submitter):
         else:
             if len(done) != 0:
                 raise RuntimeError(
-                    f"Data {done} is already stored, "
+                    f"Data {done} of {dbcfg._run_id} is already stored, "
                     f"but {set(level['data_types']) - set(done)} is not. "
                     "This is not allowed, the lower processing should be done in one go."
                 )
@@ -347,7 +347,7 @@ class SubmitterSlurm(Submitter):
         if len(done) == len(level["data_types"]):
             if not self.lower_done:
                 raise RuntimeError(
-                    f"Data {done} is already stored for upper-level processing "
+                    f"Data {done} of {dbcfg._run_id} is already stored for upper-level processing "
                     "but lower-level processing is not done. This is not allowed. "
                     "The lower-level results must be avaliable before the upper-level processing. "
                     "You can remove the lower-level results and resubmit the workflow."
