@@ -7,6 +7,7 @@ import gc
 from utilix import uconfig
 from utilix.config import setup_logger
 import admix
+import strax
 import straxen
 
 from outsource.utils import get_context, get_processing_order, get_chunk_number
@@ -66,6 +67,15 @@ def main():
 
     args = parser.parse_args()
 
+    # Use smaller chunk size to save memory
+    if args.chunks_start == args.chunks_end:
+        chunks = None
+    else:
+        # Because anyway later they will be rechunked
+        straxen.Peaklets.chunk_target_size_mb = strax.DEFAULT_CHUNK_SIZE_MB
+        straxen.nVETOHitlets.chunk_target_size_mb = strax.DEFAULT_CHUNK_SIZE_MB
+        chunks = (args.chunks_start, args.chunks_end)
+
     # Directory of input and output
     input_path = args.input_path
     output_path = args.output_path
@@ -92,11 +102,6 @@ def main():
 
     run_id = f"{args.run_id:06d}"
     data_types = args.data_types
-
-    if args.chunks_start == args.chunks_end:
-        chunks = None
-    else:
-        chunks = (args.chunks_start, args.chunks_end)
 
     # Get the order of data_types in processing
     data_types = get_processing_order(st, data_types, rm_lower=chunks is None)
