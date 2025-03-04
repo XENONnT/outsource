@@ -47,7 +47,7 @@ class SubmitterRelay(SubmitterSlurm):
 
     @property
     def _workflow(self):
-        return os.path.join(self.workflow_dir, "workflow.yml")
+        return os.path.join(self.generated_dir, "workflow.yml")
 
     @staticmethod
     def parse_workflow(workflow):
