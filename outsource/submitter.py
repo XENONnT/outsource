@@ -21,6 +21,8 @@ class Submitter:
 
     # Whether in OSG-RCC relay mode
     relay = False
+    # Whether only submit high-level jobs when lower-level is completed
+    upper_only = False
 
     # This is a flag to indicate that the user has installed the packages
     user_installed_packages = True

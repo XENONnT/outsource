@@ -2,6 +2,7 @@ import os
 from copy import deepcopy
 import yaml
 import numpy as np
+from utilix import uconfig
 from outsource.meta import DETECTOR_DATA_TYPES
 from outsource.config import RunConfig
 from outsource.submitters.slurm import SubmitterSlurm
@@ -25,6 +26,8 @@ class SubmitterRelay(SubmitterSlurm):
             raise ValueError(
                 "OSG-RCC mode must be used with --relay flag. Please specify --osg_rcc --relay"
             )
+        self.upper_only = uconfig.getboolean("Outsource", "rcc_upper_only", fallback=False)
+
         if self._runlist:
             raise ValueError("Runlist cannot be specified with --osg_rcc")
         if not os.path.exists(self._workflow):
