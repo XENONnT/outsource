@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import shutil
 from itertools import chain
 from datetime import datetime, timezone
 import numpy as np
@@ -21,6 +20,8 @@ class Submitter:
 
     # Whether in OSG-RCC relay mode
     relay = False
+    # Whether only submit high-level jobs when lower-level is completed
+    upper_only = False
 
     # This is a flag to indicate that the user has installed the packages
     user_installed_packages = True
@@ -177,10 +178,6 @@ class Submitter:
 
     def make_tarballs(self):
         """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
-        if self.relay and os.path.exists(self.generated_dir):
-            now = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
-            shutil.move(self.generated_dir, self.generated_dir + f"_{now}")
-
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
         self.tarballs = []
         self.tarball_paths = []
@@ -193,7 +190,7 @@ class Submitter:
                     raise RuntimeError(
                         f"When using user_install_package, rucio_upload must be False!"
                     )
-                _tarball.create_tarball()
+                _tarball.create_tarball(overwrite=self.relay)
                 tarball = _tarball.tarball_name
                 tarball_path = _tarball.tarball_path
                 self.logger.warning(

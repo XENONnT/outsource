@@ -211,6 +211,9 @@ class SubmitterSlurm(Submitter):
             self.logger.debug(f"Skipping job for processing: {list(level['data_types'].keys())}")
             self.lower_done = True
             return
+        if self.upper_only:
+            self.logger.debug(f"Skipping lower-level processing for {dbcfg._run_id}.")
+            return
 
         # Loop over the chunks
         job_ids = []
@@ -410,6 +413,9 @@ class SubmitterSlurm(Submitter):
             self.add_lower_processing_job(label, level, dbcfg)
         else:
             self.upper_done = False
+            if self.upper_only and not self.lower_done:
+                self.logger.debug(f"Skipping upper-level processing for {dbcfg._run_id}.")
+                return
             self.add_upper_processing_job(label, level, dbcfg)
             if self.upper_done:
                 self._done.append(dbcfg.run_id)
