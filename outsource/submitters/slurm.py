@@ -143,8 +143,12 @@ class SubmitterSlurm(Submitter):
             kwargs.pop(kw)
 
         rcc_retries_sleep = uconfig.getint("Outsource", "rcc_retries_sleep", fallback=10)
+        rcc_max_jobs = uconfig.getint("Outsource", "rcc_max_jobs", fallback=None)
         job_id = None
         while job_id is None:
+            if rcc_max_jobs is not None:
+                while batchq.count_jobs(uconfig.get("Outsource", "rcc_partition")) >= rcc_max_jobs:
+                    time.sleep(rcc_retries_sleep)
             job_id = batchq.submit_job(
                 job,
                 jobname=jobname,
