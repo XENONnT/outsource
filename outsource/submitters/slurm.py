@@ -145,10 +145,19 @@ class SubmitterSlurm(Submitter):
         rcc_retries_sleep = uconfig.getint("Outsource", "rcc_retries_sleep", fallback=10)
         rcc_max_jobs = uconfig.getint("Outsource", "rcc_max_jobs", fallback=None)
         job_id = None
+        partition = uconfig.get("Outsource", "rcc_partition")
         while job_id is None:
             if rcc_max_jobs is not None:
-                while batchq.count_jobs(uconfig.get("Outsource", "rcc_partition")) >= rcc_max_jobs:
+                n_jobs = batchq.count_jobs(partition)
+                while n_jobs >= rcc_max_jobs:
+                    self.logger.info(
+                        f"Too many jobs ({n_jobs}) on {partition} partition. "
+                        f"Waiting for {rcc_retries_sleep} seconds. "
+                        "Job submittion will resume when the number of jobs "
+                        f"is less than {rcc_max_jobs}."
+                    )
                     time.sleep(rcc_retries_sleep)
+                    n_jobs = batchq.count_jobs(partition)
             job_id = batchq.submit_job(
                 job,
                 jobname=jobname,
@@ -156,6 +165,10 @@ class SubmitterSlurm(Submitter):
                 **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
             )
             if job_id is None:
+                self.logger.info(
+                    f"Job submission failed on {partition} partition. "
+                    f"Waiting for {rcc_retries_sleep} seconds."
+                )
                 time.sleep(rcc_retries_sleep)
         return job_id
 
