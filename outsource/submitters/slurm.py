@@ -158,18 +158,24 @@ class SubmitterSlurm(Submitter):
                     )
                     time.sleep(rcc_retries_sleep)
                     n_jobs = batchq.count_jobs(partition)
-            job_id = batchq.submit_job(
-                job,
-                jobname=jobname,
-                log=log,
-                **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
-            )
-            if job_id is None:
+
+            def submit():
+                job_id = batchq.submit_job(
+                    job,
+                    jobname=jobname,
+                    log=log,
+                    **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
+                )
+                return job_id
+
+            job_id = submit()
+            while job_id is None:
                 self.logger.info(
                     f"Job submission failed on {partition} partition. "
                     f"Waiting for {rcc_retries_sleep} seconds."
                 )
                 time.sleep(rcc_retries_sleep)
+                job_id = submit()
         return job_id
 
     def add_install_job(self):
