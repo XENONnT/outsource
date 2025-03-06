@@ -41,6 +41,7 @@ class Submitter:
         resources_test=False,
         debug=False,
         relay=False,
+        resubmit=False,
         **kwargs,
     ):
         self.logger = setup_logger(
@@ -53,6 +54,8 @@ class Submitter:
 
         # Whether in OSG-RCC relay mode
         self.relay = relay
+        # Whether resubmitting the workflow
+        self.resubmit = resubmit
 
         if not isinstance(runlist, list):
             raise RuntimeError("Outsource expects a list of run_id")
@@ -122,6 +125,10 @@ class Submitter:
     @property
     def summary(self):
         return os.path.join(self.generated_dir, "summary.json")
+
+    @property
+    def _workflow(self):
+        return os.path.join(self.generated_dir, "workflow.yml")
 
     def get_key(self, dbcfg, level):
         """Get the key for the output files and check the file name."""
