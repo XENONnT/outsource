@@ -46,6 +46,7 @@ class SubmitterSlurm(Submitter):
         resources_test=False,
         debug=False,
         relay=False,
+        resubmit=False,
         **kwargs,
     ):
         super().__init__(
@@ -62,6 +63,7 @@ class SubmitterSlurm(Submitter):
             resources_test=resources_test,
             debug=debug,
             relay=relay,
+            resubmit=resubmit,
         )
 
         # commands to execute before the job
@@ -79,6 +81,10 @@ class SubmitterSlurm(Submitter):
 
         # The finished runs
         self._done = []
+
+    @property
+    def _submission(self):
+        return os.path.join(self.generated_dir, "submission.json")
 
     def copy_files(self):
         """Copy the necessary files to the workflow directory."""
@@ -473,46 +479,63 @@ class SubmitterSlurm(Submitter):
         """Save the runlist."""
         np.savetxt(self.finished, sorted(runlist), fmt="%d")
 
-    def save_workflow(self):
-        """Save the workflow to a file."""
-        with open(os.path.join(self.generated_dir, "workflow.json"), mode="w") as f:
+    def save_submission(self):
+        """Save the submission to a file."""
+        with open(self._submission, mode="w") as f:
             f.write(json.dumps(self.jobs, indent=4))
+
+    def recover_submission(self):
+        """Load the submission from a file."""
+        with open(self._submission, "r") as file:
+            self.jobs = json.load(file)
+        if self.jobs[0]["jobname"] == "install":
+            self.install_job_id = 0
+        else:
+            self.install_job_id = None
+        # Convert the keys to integers
+        self.jobs = {int(k): v for k, v in self.jobs.items()}
 
     def submit(self):
         """Submit the workflow to the batch queue."""
 
-        # All submitters need to make tarballs
-        if not (self.relay and self.debug):
-            self.make_tarballs()
+        if not self.resubmit:
+            # All submitters need to make tarballs
+            if not (self.relay and self.debug):
+                self.make_tarballs()
 
-        self.n_job = 0
-        self.jobs = {}
+            self.n_job = 0
+            self.jobs = {}
 
-        # Copy the necessary files to the workflow directory
-        if not (self.relay and self.debug):
-            self.copy_files()
+            # Copy the necessary files to the workflow directory
+            if not (self.relay and self.debug):
+                self.copy_files()
 
-        # Install user specified packages
-        if self.user_installed_packages:
-            self.add_install_job()
+            # Install user specified packages
+            if self.user_installed_packages:
+                self.add_install_job()
+            else:
+                self.install_job_id = None
+
+            # Prepare for the job submission instruction
+            runlist, summary = self._submit_runs()
+
+            # Save wotkflow.json first, because job submission may fail
+            self.save_submission()
+            self.save_finished(self._done)
+
+            # Actually submit the jobs
+            if not self.debug:
+                self._submit()
+
+            self.save_runlist(runlist)
+            self.update_summary(summary)
+            self.save_summary(summary)
+            self.save_submission()
         else:
-            self.install_job_id = None
-
-        # Prepare for the job submission instruction
-        runlist, summary = self._submit_runs()
-
-        # Save wotkflow.json first, because job submission may fail
-        self.save_workflow()
-        self.save_finished(self._done)
-
-        # Actually submit the jobs
-        if not self.debug:
-            self._submit()
-
-        self.save_runlist(runlist)
-        self.update_summary(summary)
-        self.save_summary(summary)
-        self.save_workflow()
+            self.jobs = self.recover_submission()
+            if not self.debug:
+                self._submit()
+            self.save_submission()
 
         if self.debug:
             if len(self.jobs) == 1 and self.install_job_id is not None:

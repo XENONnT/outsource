@@ -94,8 +94,18 @@ class SubmitterHTCondor(Submitter):
         stage_out_upper=False,
         debug=False,
         relay=False,
+        resubmit=False,
         **kwargs,
     ):
+        if relay:
+            raise ValueError(
+                "HTCondor mode must be used without --relay flag. Please remove --relay"
+            )
+        if resubmit:
+            raise ValueError(
+                "HTCondor mode must be used without --resubmit flag. Please remove --resubmit"
+            )
+
         super().__init__(
             runlist=runlist,
             context_name=context_name,
@@ -110,12 +120,8 @@ class SubmitterHTCondor(Submitter):
             resources_test=resources_test,
             debug=debug,
             relay=relay,
+            resubmit=resubmit,
         )
-
-        if self.relay:
-            raise ValueError(
-                "HTCondor mode must be used without --relay flag. Please remove --relay"
-            )
 
         self.stage_out_lower = stage_out_lower
         self.stage_out_combine = stage_out_combine
@@ -138,10 +144,6 @@ class SubmitterHTCondor(Submitter):
     @property
     def xenon_config(self):
         return os.path.join(self.generated_dir, ".xenon_config")
-
-    @property
-    def _workflow(self):
-        return os.path.join(self.generated_dir, "workflow.yml")
 
     @property
     def pegasus_config(self):

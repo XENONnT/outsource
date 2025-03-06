@@ -115,6 +115,12 @@ def main():
         help="Whether to stage out the results of upper level processing",
     )
     parser.add_argument(
+        "--resubmit",
+        dest="resubmit",
+        action="store_true",
+        help="Resubmit the workflow for the runlist",
+    )
+    parser.add_argument(
         "--relay",
         dest="relay",
         action="store_true",
@@ -232,6 +238,7 @@ def main():
         stage_out_upper=args.stage_out_upper,
         debug=args.debug,
         relay=args.relay,
+        resubmit=args.resubmit,
     )
 
     # Finally submit the workflow
