@@ -41,10 +41,6 @@ class SubmitterRelay(SubmitterSlurm):
         self._runlist = sorted(set(self._runlist) - set(self._done))
         self.logger.info(f"Found {len(self._runlist)} runs to process.")
 
-    @property
-    def finished(self):
-        return os.path.join(self.generated_dir, "finished.txt")
-
     @staticmethod
     def parse_workflow(workflow):
         """Parse the workflow."""
