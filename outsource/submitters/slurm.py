@@ -74,6 +74,9 @@ class SubmitterSlurm(Submitter):
             os.path.basename(os.environ["X509_USER_PROXY"]),
         )
         self.job_prefix += f"export X509_USER_PROXY={x509_user_proxy}\n\n"
+        # To use the installed cutax
+        self.job_prefix += "unset CUTAX_LOCATION\n\n"
+        self.job_prefix += "unset PYTHONPATH\n\n"
         self.job_prefix += "cd $SLURM_WORKFLOW_DIR/scratch\n\n"
 
         os.environ["SLURM_WORKFLOW_DIR"] = self.workflow_dir
@@ -81,6 +84,10 @@ class SubmitterSlurm(Submitter):
 
         # The finished runs
         self._done = []
+
+    @property
+    def finished(self):
+        return os.path.join(self.generated_dir, "finished.txt")
 
     @property
     def _submission(self):
