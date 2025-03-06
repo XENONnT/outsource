@@ -495,12 +495,12 @@ class SubmitterSlurm(Submitter):
         """Load the submission from a file."""
         with open(self._submission, "r") as file:
             self.jobs = json.load(file)
-        if self.jobs[0]["jobname"] == "install":
+        # Convert the keys to integers
+        self.jobs = {int(k): v for k, v in self.jobs.items()}
+        if self.jobs[0]["batchq_kwargs"]["jobname"] == "install":
             self.install_job_id = 0
         else:
             self.install_job_id = None
-        # Convert the keys to integers
-        self.jobs = {int(k): v for k, v in self.jobs.items()}
 
     def submit(self):
         """Submit the workflow to the batch queue."""
@@ -539,7 +539,7 @@ class SubmitterSlurm(Submitter):
             self.save_summary(summary)
             self.save_submission()
         else:
-            self.jobs = self.recover_submission()
+            self.recover_submission()
             if not self.debug:
                 self._submit()
             self.save_submission()
