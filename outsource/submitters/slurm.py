@@ -29,6 +29,7 @@ CONTAINER_MEMORY_OVERHEAD = 6_000  # MB
 class SubmitterSlurm(Submitter):
 
     # This flag will always be True for the Slurm submitter
+    # Because the software environment will be set up in the scratch directory
     user_installed_packages = True
 
     def __init__(
@@ -509,17 +510,15 @@ class SubmitterSlurm(Submitter):
     def submit(self):
         """Submit the workflow to the batch queue."""
 
-        if not self.resubmit:
+        if not (self.relay and self.debug):
             # All submitters need to make tarballs
-            if not (self.relay and self.debug):
-                self.make_tarballs()
+            self.make_tarballs()
+            # Copy the necessary files to the workflow directory
+            self.copy_files()
 
+        if not self.resubmit:
             self.n_job = 0
             self.jobs = {}
-
-            # Copy the necessary files to the workflow directory
-            if not (self.relay and self.debug):
-                self.copy_files()
 
             # Install user specified packages
             if self.user_installed_packages:
