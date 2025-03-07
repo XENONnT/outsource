@@ -177,7 +177,7 @@ class SubmitterSlurm(Submitter):
                     job,
                     jobname=jobname,
                     log=log,
-                    **{**BATCHQ_DEFAULT_ARGUMENTS, **kwargs},
+                    **kwargs,
                 )
                 return job_id
 
@@ -206,6 +206,7 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["cpus_per_task"] = 1
         batchq_kwargs["mem_per_cpu"] = 2_000 + CONTAINER_MEMORY_OVERHEAD
         batchq_kwargs["hours"] = 1
+        batchq_kwargs = {**BATCHQ_DEFAULT_ARGUMENTS, **batchq_kwargs}
         self.jobs[self.n_job] = {"command": job, "batchq_kwargs": deepcopy(batchq_kwargs)}
         self.install_job_id = self.n_job
         # self.install_job_id = self.__submit(job, **batchq_kwargs)
@@ -309,6 +310,7 @@ class SubmitterSlurm(Submitter):
             batchq_kwargs["hours"] = eval(
                 uconfig.get("Outsource", "pegasus_max_hours_lower", fallback=None)
             )
+            batchq_kwargs = {**BATCHQ_DEFAULT_ARGUMENTS, **batchq_kwargs}
             self.jobs[self.n_job] = {"command": job, "batchq_kwargs": deepcopy(batchq_kwargs)}
             # job_id = self.__submit(job, **batchq_kwargs)
             job_ids.append(self.n_job)
@@ -363,6 +365,7 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["hours"] = eval(
             uconfig.get("Outsource", "pegasus_max_hours_combine", fallback=None)
         )
+        batchq_kwargs = {**BATCHQ_DEFAULT_ARGUMENTS, **batchq_kwargs}
         self.jobs[self.n_job] = {"command": job, "batchq_kwargs": deepcopy(batchq_kwargs)}
         self.last_combine_job_id = self.n_job
         # self.last_combine_job_id = self.__submit(job, **batchq_kwargs)
@@ -439,6 +442,7 @@ class SubmitterSlurm(Submitter):
         batchq_kwargs["hours"] = eval(
             uconfig.get("Outsource", "pegasus_max_hours_upper", fallback=None)
         )
+        batchq_kwargs = {**BATCHQ_DEFAULT_ARGUMENTS, **batchq_kwargs}
         self.jobs[self.n_job] = {"command": job, "batchq_kwargs": deepcopy(batchq_kwargs)}
         self.n_job += 1
 
