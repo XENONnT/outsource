@@ -361,8 +361,11 @@ class RunConfig:
             if keep_seconds == 0:
                 repeats = [len(n_depends_on)]
             else:
-                repeats = np.searchsorted(seconds, keep_seconds) + 1
-                repeats = [repeats, len(n_depends_on) - repeats]
+                if keep_seconds > seconds[-1]:
+                    repeats = [len(n_depends_on), 0]
+                else:
+                    index = np.searchsorted(seconds, keep_seconds) + 1
+                    repeats = [index, len(n_depends_on) - index]
             assert sum(repeats) == len(n_depends_on)
 
             # Calculate the disk usage ratio in MB
