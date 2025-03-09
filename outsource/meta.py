@@ -7,7 +7,6 @@ PER_CHUNK_DATA_TYPES = [
     "peaklet_classification",
     "peaklet_positions_cnf",
     "peaklet_positions_mlp",
-    "hitlets_nv",
     "afterpulses",
     "led_calibration",
 ]
@@ -70,7 +69,7 @@ DETECTOR_DATA_TYPES = {
     },
     "neutron_veto": {
         "raw": "raw_records_nv",
-        "per_chunk": True,
+        "per_chunk": False,
         "possible": ["hitlets_nv", "events_nv", "event_positions_nv", "event_waveform_nv"],
         "keep_seconds": straxen.nVETORecorder.takes_config["keep_n_seconds_for_monitoring"].default,
         "rate": {
