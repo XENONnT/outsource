@@ -8,7 +8,7 @@
 #SBATCH --account=pi-lgrandi
 #SBATCH --partition=caslake
 #SBATCH --qos=caslake
-#SBATCH --mem-per-cpu=8GB
+#SBATCH --mem-per-cpu=16GB
 #SBATCH --cpus-per-task=1
 
 set -e
