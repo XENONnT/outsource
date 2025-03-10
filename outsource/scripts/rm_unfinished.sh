@@ -8,9 +8,10 @@ relay=$2
 # Define directories
 outputs=$workflow/outputs
 del=$workflow/del
-lower_log=lower_done.log
-upper_log=upper_done.log
-done_log=done.log
+id=$(basename $workflow)
+lower_log=lower_done_$id.log
+upper_log=upper_done_$id.log
+done_log=done_$id.log
 
 # Ensure the delete folder exists
 mkdir -p $del
