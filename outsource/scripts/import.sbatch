@@ -22,6 +22,8 @@ if [ -z $workflow ]; then
     exit 1
 fi
 
+echo "Workflow: $workflow"
+
 folder=/project/lgrandi/xenonnt/hub/$workflow
 
 strax_data_osg=$folder/outputs/strax_data_osg
