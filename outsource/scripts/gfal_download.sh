@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 list=$1
 workflow=$2
 relay=$3

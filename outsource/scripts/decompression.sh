@@ -28,7 +28,13 @@ for tarball in $(ls $workflow/outputs | grep output); do
         echo "Unknown tarball format: $tarball"
         exit 1
     fi
-    tar -xvzf $workflow/outputs/$tarball -C $destination --strip-components=1
+    # tar -xvzf $workflow/outputs/$tarball -C $destination --strip-components=1
+    if ! tar -xvzf $workflow/outputs/$tarball -C $destination --strip-components=1; then
+        echo "Failed to extract: $workflow/outputs/$tarball"
+        exit 1
+    else
+        rm $workflow/outputs/$tarball
+    fi
     # Move resources testing files to the outputs folder
     mv $destination/*.npy $workflow/outputs/.
     mv $destination/*.json $workflow/outputs/.
