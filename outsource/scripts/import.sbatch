@@ -27,7 +27,7 @@ folder=/project/lgrandi/xenonnt/hub/$workflow
 strax_data_osg=$folder/outputs/strax_data_osg
 strax_data_osg_per_chunk=$folder/outputs/strax_data_osg_per_chunk
 
-if [ -n $(ls -A $strax_data_osg 2>/dev/null) ] || [ -n $(ls -A $strax_data_osg_per_chunk 2>/dev/null) ]; then
+if [ -n "$(ls -A $strax_data_osg 2>/dev/null)" ] || [ -n "$(ls -A $strax_data_osg_per_chunk 2>/dev/null)" ]; then
     echo "Previous data exists. Skipping downloading."
 else
     module load apptainer
