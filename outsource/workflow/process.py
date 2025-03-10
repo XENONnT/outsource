@@ -119,11 +119,7 @@ def main():
     # Now loop over data_type we just made and upload the data
     if chunks is None:
         processed_data = glob(os.path.join(output_path, f"{run_id}-*"))
-    else:
-        processed_data = glob(
-            os.path.join(output_path, f"{run_id}-*_{args.chunks_start}_{args.chunks_end}")
-        )
-    logger.info(f"Processed data: {processed_data}")
+        logger.info(f"Processed data: {processed_data}")
 
     if chunks:
         logger.warning("Skipping upload since we used per-chunk storage")
