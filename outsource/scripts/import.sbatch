@@ -47,3 +47,5 @@ echo
 
 bash $HOME/outsource/outsource/scripts/decompression.sh $folder
 echo
+
+echo "ALL DONE"
