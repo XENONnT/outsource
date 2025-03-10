@@ -8,9 +8,10 @@ relay=$2
 # Define directories
 outputs=$workflow/outputs
 del=$workflow/del
-lower_log=lower_done.log
-upper_log=upper_done.log
-done_log=done.log
+id=$(basename $workflow)
+lower_log=lower_done_$id.log
+upper_log=upper_done_$id.log
+done_log=done_$id.log
 
 # Ensure the delete folder exists
 mkdir -p $del
@@ -19,6 +20,11 @@ mkdir -p $del
 ls $outputs | grep output.tar.gz | grep -v log | grep let | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $lower_log
 ls $outputs | grep output.tar.gz | grep -v log | grep event | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $upper_log
 comm -12 $lower_log $upper_log > $done_log
+
+if [ ! -s "$lower_log" ]; then
+    echo "Upper-level only"
+    exit 0
+fi
 
 # Read and store unique run IDs into an array
 if [ "X$relay" = "Xrelay" ]; then
