@@ -23,6 +23,7 @@ if [ -z $workflow ]; then
 fi
 
 echo "Workflow: $workflow"
+echo
 
 folder=/project/lgrandi/xenonnt/hub/$workflow
 
