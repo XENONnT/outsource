@@ -22,16 +22,25 @@ if [ -z $workflow ]; then
     exit 1
 fi
 
-module load apptainer
-for i in 1 2 3; do
-    echo "$i round downloading"
-    apptainer exec --bind /project --bind /project2 /project2/lgrandi/xenonnt/singularity-images/xenonnt-el7.2025.03.1.simg \
-        bash $HOME/outsource/outsource/scripts/gfal_download.sh $log /project/lgrandi/xenonnt/hub/$workflow $relay
-    echo
-done
+folder=/project/lgrandi/xenonnt/hub/$workflow
 
-bash $HOME/outsource/outsource/scripts/rm_unfinished.sh /project/lgrandi/xenonnt/hub/$workflow $relay
+strax_data_osg=$folder/outputs/strax_data_osg
+strax_data_osg_per_chunk=$folder/outputs/strax_data_osg_per_chunk
+
+if [ -n $(ls -A $strax_data_osg 2>/dev/null) ] || [ -n $(ls -A $strax_data_osg_per_chunk 2>/dev/null) ]; then
+    echo "Previous data exists. Skipping downloading."
+else
+    module load apptainer
+    for i in 1 2 3; do
+        echo "$i round downloading"
+        apptainer exec --bind /project --bind /project2 /project2/lgrandi/xenonnt/singularity-images/xenonnt-el7.2025.03.1.simg \
+            bash $HOME/outsource/outsource/scripts/gfal_download.sh $log $folder $relay
+        echo
+    done
+fi
+
+bash $HOME/outsource/outsource/scripts/rm_unfinished.sh $folder $relay
 echo
 
-bash $HOME/outsource/outsource/scripts/decompression.sh /project/lgrandi/xenonnt/hub/$workflow
+bash $HOME/outsource/outsource/scripts/decompression.sh $folder
 echo
