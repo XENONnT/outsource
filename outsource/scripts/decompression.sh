@@ -29,11 +29,13 @@ for tarball in $(ls $workflow/outputs | grep output); do
         exit 1
     fi
     # tar -xvzf $workflow/outputs/$tarball -C $destination --strip-components=1
-    if ! tar -xvzf $workflow/outputs/$tarball -C $destination --strip-components=1; then
+    if ! tar -xzf $workflow/outputs/$tarball -C $destination --strip-components=1; then
         echo "Failed to extract: $workflow/outputs/$tarball"
         exit 1
     else
+        echo "Extracted: $workflow/outputs/$tarball -> $destination"
         rm $workflow/outputs/$tarball
+        echo "Removed: $workflow/outputs/$tarball"
     fi
     # Move resources testing files to the outputs folder
     mv $destination/*.npy $workflow/outputs/.

@@ -20,6 +20,11 @@ ls $outputs | grep output.tar.gz | grep -v log | grep let | cut -d'/' -f11 | cut
 ls $outputs | grep output.tar.gz | grep -v log | grep event | cut -d'/' -f11 | cut -d'-' -f1 | sort | uniq > $upper_log
 comm -12 $lower_log $upper_log > $done_log
 
+if [ ! -s "$lower_log" ]; then
+    echo "Upper-level only"
+    exit 0
+fi
+
 # Read and store unique run IDs into an array
 if [ "X$relay" = "Xrelay" ]; then
     # IF OSG-RCC relay, remove runs whose upper finished only
