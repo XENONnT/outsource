@@ -1,13 +1,13 @@
 #!/bin/bash
 
 #SBATCH --job-name=import
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=/home/%u/outsource/outsource/scripts/import_%j.log
 #SBATCH --error=/home/%u/outsource/outsource/scripts/import_%j.log
 #SBATCH --open-mode=append
 #SBATCH --account=pi-lgrandi
-#SBATCH --partition=caslake
-#SBATCH --qos=caslake
+#SBATCH --partition=lgrandi
+#SBATCH --qos=lgrandi
 #SBATCH --mem-per-cpu=16GB
 #SBATCH --cpus-per-task=1
 
