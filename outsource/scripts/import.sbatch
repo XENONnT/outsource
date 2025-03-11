@@ -40,10 +40,10 @@ else
             bash $HOME/outsource/outsource/scripts/gfal_download.sh $log $folder $relay
         echo
     done
-fi
 
-bash $HOME/outsource/outsource/scripts/rm_unfinished.sh $folder $relay
-echo
+    bash $HOME/outsource/outsource/scripts/rm_unfinished.sh $folder $relay
+    echo
+fi
 
 bash $HOME/outsource/outsource/scripts/decompression.sh $folder
 echo
