@@ -1,6 +1,5 @@
 import straxen
 
-
 # These data_types need per-chunk storage, so don't upload to rucio here!
 PER_CHUNK_DATA_TYPES = [
     "peaklets",
