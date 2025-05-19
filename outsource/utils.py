@@ -14,12 +14,15 @@ from outsource.meta import get_clean_detector_data_types, get_clean_per_chunk_da
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 coll = xent_collection()
 
+NO_REMOTE = uconfig.getboolean("Outsource", "no_remote", fallback=False)
+
 
 def get_context(
     context,
     xedocs_version,
     input_path=None,
     output_path=None,
+    no_remote=NO_REMOTE,
     staging_dir=None,
     ignore_processed=False,
     download_heavy=True,
@@ -28,12 +31,19 @@ def get_context(
 ):
     """Get straxen context for given context name and xedocs_version."""
     st = getattr(cutax.contexts, context)(output_folder=None, xedocs_version=xedocs_version)
-    st.storage = []
+    if no_remote:
+        storages = []
+        for storage in st.storage:
+            if isinstance(storage, strax.DataDirectory):
+                if os.path.exists(storage.path):
+                    storages.append(storage)
+    else:
+        st.storage = []
     if input_path:
         st.storage.append(strax.DataDirectory(input_path, readonly=True))
     if output_path:
         st.storage.append(strax.DataDirectory(output_path))
-    if staging_dir:
+    if staging_dir and not no_remote:
         tries = uconfig.getint("Outsource", "admix_tries", fallback=3)
         num_threads = uconfig.getint("Outsource", "admix_num_threads", fallback=5)
         st.storage.append(
