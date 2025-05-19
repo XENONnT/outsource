@@ -27,7 +27,6 @@ UPPER_CPUS = uconfig.getint("Outsource", "upper_cpus", fallback=1)
 US_ONLY = uconfig.getboolean("Outsource", "us_only", fallback=False)
 EU_ONLY = uconfig.getboolean("Outsource", "eu_only", fallback=False)
 SITE_ONLY = uconfig.getboolean("Outsource", "site_only", fallback=False)
-NO_PER_CHUNK = uconfig.getboolean("Outsource", "no_per_chunk", fallback=False)
 
 # Data availability to site selection map.
 # This puts constraints on the sites that can be used for
@@ -135,10 +134,7 @@ class RunConfig:
         self.ignore_processed = ignore_processed
 
         # Sometimes we do not do per-chunk processing
-        if NO_PER_CHUNK:
-            self._per_chunk_data_types = []
-        else:
-            self._per_chunk_data_types = get_clean_per_chunk_data_types(self.context)
+        self._per_chunk_data_types = get_clean_per_chunk_data_types(self.context)
         self._detector_data_types = get_clean_detector_data_types(self.context)
 
         # Default job priority - workflows will be given priority
