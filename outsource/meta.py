@@ -1,15 +1,23 @@
+from utilix import uconfig
 import straxen
 
 
-# These data_types need per-chunk storage, so don't upload to rucio here!
-PER_CHUNK_DATA_TYPES = [
-    "peaklets",
-    "peaklet_classification",
-    "peaklet_positions_cnf",
-    "peaklet_positions_mlp",
-    "afterpulses",
-    "led_calibration",
-]
+NO_PER_CHUNK = uconfig.getboolean("Outsource", "no_per_chunk", fallback=False)
+
+
+if NO_PER_CHUNK:
+    # If no per_chunk data_types are allowed, set to empty list
+    PER_CHUNK_DATA_TYPES = []
+else:
+    # These data_types need per-chunk storage, so don't upload to rucio here!
+    PER_CHUNK_DATA_TYPES = [
+        "peaklets",
+        "peaklet_classification",
+        "peaklet_positions_cnf",
+        "peaklet_positions_mlp",
+        "afterpulses",
+        "led_calibration",
+    ]
 
 
 # Do a query to see if these data_types are present
