@@ -79,7 +79,7 @@ class Submitter:
         # Load from XENON_CONFIG
         self.work_dir = uconfig.get("Outsource", "work_dir")
         # The current time will always be part of the workflow_id, except in relay mode
-        if self.relay:
+        if self.relay or self.resubmit:
             # If in relay mode, use the workflow_id passed in
             if workflow_id is None:
                 raise RuntimeError("Workflow ID must be passed in relay mode.")
@@ -109,7 +109,7 @@ class Submitter:
         # Workflow directory
         self.workflow_dir = os.path.join(self.work_dir, self.workflow_id)
         # Does workflow already exist?
-        if os.path.exists(self.workflow_dir) and not self.relay:
+        if os.path.exists(self.workflow_dir) and not self.relay and not self.resubmit:
             raise RuntimeError(
                 f"Workflow already exists at {self.workflow_dir}. "
                 "Please remove it or use a different workflow_id."
@@ -197,7 +197,7 @@ class Submitter:
                     raise RuntimeError(
                         f"When using user_install_package, rucio_upload must be False!"
                     )
-                _tarball.create_tarball(overwrite=self.relay)
+                _tarball.create_tarball(overwrite=self.relay or self.resubmit)
                 tarball = _tarball.tarball_name
                 tarball_path = _tarball.tarball_path
                 self.logger.warning(
