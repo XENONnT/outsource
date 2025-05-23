@@ -89,9 +89,9 @@ def main():
     st = get_context(
         args.context,
         args.xedocs_version,
-        input_path,
-        output_path,
-        staging_dir,
+        input_path=input_path,
+        output_path=output_path,
+        staging_dir=staging_dir,
         ignore_processed=args.ignore_processed,
         download_heavy=args.download_heavy,
         remove_heavy=args.remove_heavy,
