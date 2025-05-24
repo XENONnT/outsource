@@ -21,6 +21,7 @@ MongoAggregation.allow_disk_use = True
 MultiMongoAggregation.allow_disk_use = True
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
+admix.clients._init_clients()
 
 if not straxen.HAVE_ADMIX:
     raise ImportError("straxen must be installed with admix to use this script")
