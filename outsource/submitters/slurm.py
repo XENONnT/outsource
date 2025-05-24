@@ -510,7 +510,7 @@ class SubmitterSlurm(Submitter):
     def submit(self):
         """Submit the workflow to the batch queue."""
 
-        if not (self.relay and self.debug):
+        if not ((self.relay or self.resubmit) and self.debug):
             # All submitters need to make tarballs
             self.make_tarballs()
             # Copy the necessary files to the workflow directory
