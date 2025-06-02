@@ -14,7 +14,6 @@ from outsource.utils import (
     per_chunk_storage_root_data_type,
 )
 
-
 LOWER_DISK = uconfig.getint("Outsource", "lower_disk", fallback=None)
 LOWER_MEMORY = uconfig.getint("Outsource", "lower_memory", fallback=None)
 COMBINE_DISK = uconfig.getint("Outsource", "combine_disk", fallback=None)
