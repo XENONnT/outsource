@@ -1,7 +1,6 @@
 from utilix import uconfig
 import straxen
 
-
 NO_PER_CHUNK = uconfig.getboolean("Outsource", "no_per_chunk", fallback=False)
 
 
