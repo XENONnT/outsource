@@ -1,3 +1,4 @@
+from packaging import version
 from utilix import uconfig
 import straxen
 
@@ -20,6 +21,18 @@ else:
     ]
 
 
+if version.parse(straxen.__version__.split("-")[0]) >= version.parse("2.2.6"):
+    EVENT_SE_STRENGTH = "event_se_score"
+else:
+    EVENT_SE_STRENGTH = "event_se_density"
+
+
+if version.parse(straxen.__version__.split("-")[0]) >= version.parse("3.0.3"):
+    KEEP_SECONDS = straxen.nVETORecorder.takes_config["keep_n_seconds_for_monitoring"].default
+else:
+    KEEP_SECONDS = None
+
+
 # Do a query to see if these data_types are present
 DETECTOR_DATA_TYPES = {
     "tpc": {
@@ -39,7 +52,7 @@ DETECTOR_DATA_TYPES = {
             "veto_proximity",
             "event_ambience",
             "event_shadow",
-            "event_se_score",
+            EVENT_SE_STRENGTH,
             "cuts_basic",
             "peak_s1_positions_cnn",
             "peak_basics_he",
@@ -79,7 +92,7 @@ DETECTOR_DATA_TYPES = {
         "raw": "raw_records_nv",
         "per_chunk": False,
         "possible": ["hitlets_nv", "events_nv", "event_positions_nv", "event_waveform_nv"],
-        "keep_seconds": straxen.nVETORecorder.takes_config["keep_n_seconds_for_monitoring"].default,
+        "keep_seconds": KEEP_SECONDS,
         "rate": {
             "lone_raw_record_statistics_nv": [0, 0],
             "raw_records_coin_nv": [1.0, 0.02],
