@@ -37,6 +37,7 @@ def get_context(
             if isinstance(storage, strax.DataDirectory):
                 if os.path.exists(storage.path):
                     storages.append(storage)
+        st.storage = storages
     else:
         st.storage = []
     if input_path:
