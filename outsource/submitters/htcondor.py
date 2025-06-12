@@ -198,9 +198,8 @@ class SubmitterHTCondor(Submitter):
         job.add_profiles(Namespace.ENV, TF_NUM_INTRAOP_THREADS=f"{cores}")
         job.add_profiles(Namespace.ENV, TF_NUM_INTEROP_THREADS=f"{cores}")
         # User installed packages
-        job.add_profiles(
-            Namespace.ENV, USER_INSTALL_PACKAGE='"' + " ".join(self.user_install_package) + '"'
-        )
+        user_install_package = '"' + " ".join(self.user_install_package) + '"'
+        job.add_profiles(Namespace.ENV, "USER_INSTALL_PACKAGE", user_install_package)
         # For unknown reason, this does not work on limiting CPU usage of JAX
         job.add_profiles(
             Namespace.ENV,
