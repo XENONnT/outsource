@@ -61,7 +61,7 @@ export XENON_CONFIG=$PWD/.xenon_config
 
 if [ -f install.sh ]; then
     # Installing customized packages
-    . install.sh strax straxen cutax utilix admix outsource
+    . install.sh $USER_INSTALL_PACKAGE
 fi
 
 echo "Current dir is $PWD. Here's whats inside:"

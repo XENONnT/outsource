@@ -199,7 +199,7 @@ class SubmitterSlurm(Submitter):
         job += self.job_prefix
         job += "cd $SLURM_WORKFLOW_DIR/generated\n\n"
         job += "export HOME=$SLURM_WORKFLOW_DIR/scratch\n\n"
-        job += ". install.sh strax straxen cutax utilix admix outsource\n"
+        job += f". install.sh {' '.join(self.user_install_package)}\n"
         batchq_kwargs = {}
         batchq_kwargs["jobname"] = "install"
         batchq_kwargs["log"] = log

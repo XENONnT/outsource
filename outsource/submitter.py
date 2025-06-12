@@ -186,6 +186,7 @@ class Submitter:
     def make_tarballs(self):
         """Make tarballs of Ax-based packages if they are in editable user-installed mode."""
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
+        self.user_install_package = []
         self.tarballs = []
         self.tarball_paths = []
 
@@ -224,6 +225,7 @@ class Submitter:
                     )
                 else:
                     continue
+            self.user_install_package.append(package_name)
             self.tarballs.append(tarball)
             self.tarball_paths.append(tarball_path)
 
