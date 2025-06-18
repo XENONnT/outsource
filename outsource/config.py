@@ -81,8 +81,10 @@ RSE_SITE_MAP = {
     "NIKHEF2_USERDISK": "SURFsara",
     "SURFSARA_USERDISK": "SURFsara",
     "SURFSARA2_USERDISK": "SURFsara",
-    "CCIN2P3_USERDISK": "CCIN2P3",
-    "CCIN2P32_USERDISK": "CCIN2P3",
+    # "CCIN2P3_USERDISK": "CCIN2P3",
+    "CCIN2P3_USERDISK": "SURFsara",
+    # "CCIN2P32_USERDISK": "CCIN2P3",
+    "CCIN2P32_USERDISK": "SURFsara",
 }
 
 MAX_MEMORY = uconfig.getint("Outsource", "max_memory", fallback=12_000)  # in MB
