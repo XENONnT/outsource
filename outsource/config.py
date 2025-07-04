@@ -293,7 +293,7 @@ class RunConfig:
                 ret[detector][label]["data_types"] = DataTypes(
                     sorted(
                         ret[detector][label]["data_types"].items(),
-                        key=lambda item: self.context.tree_levels[item[0]]["order"],
+                        key=lambda item: self.context.tree_levels[False][item[0]]["order"],
                     )
                 )
             # Summarize the submitted data_types for a detector
@@ -302,7 +302,7 @@ class RunConfig:
             )
             ret["submitted"] = sorted(
                 ret["submitted"],
-                key=lambda item: self.context.tree_levels[item]["order"],
+                key=lambda item: self.context.tree_levels[False][item]["order"],
             )
             if len(ret["submitted"]) != len(set(ret["submitted"])):
                 raise ValueError("Why are there duplicated data_types in different detectors?")
