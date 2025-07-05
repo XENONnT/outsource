@@ -369,7 +369,7 @@ def get_processing_order(st, data_types, rm_lower=False):
         # Remove all data_types to be saved when processing PER_CHUNK_DATA_TYPES
         per_chunk_data_types = get_clean_per_chunk_data_types(st)
         _data_types -= set(get_processing_order(st, per_chunk_data_types, False))
-    _data_types = sorted(_data_types, key=lambda x: st.tree_levels[x]["order"])
+    _data_types = sorted(_data_types, key=lambda x: st.tree_levels[False][x]["order"])
     return _data_types
 
 

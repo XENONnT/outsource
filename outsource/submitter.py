@@ -327,7 +327,7 @@ class Submitter:
         """Update the job summary."""
         summary["include_data_types"] = sorted(
             uconfig.getlist("Outsource", "include_data_types"),
-            key=lambda item: self.context.tree_levels[item]["order"],
+            key=lambda item: self.context.tree_levels[False][item]["order"],
         )
         summary["save_data_types"] = sorted(
             get_to_save_data_types(
@@ -339,7 +339,7 @@ class Submitter:
                 ),
                 rm_lower=False,
             ),
-            key=lambda item: self.context.tree_levels[item]["order"],
+            key=lambda item: self.context.tree_levels[False][item]["order"],
         )
         summary["save_data_types"] = [
             "-".join(str(self.context.key_for("0", d)).split("-")[1:])
