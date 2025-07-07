@@ -77,6 +77,7 @@ def main():
         straxen.nVETOHitlets.chunk_target_size_mb = strax.DEFAULT_CHUNK_SIZE_MB
         chunks = (args.chunks_start, args.chunks_end)
 
+    run_id = f"{args.run_id:06d}"
     # Directory of input and output
     input_path = args.input_path
     output_path = args.output_path
@@ -87,6 +88,7 @@ def main():
         raise ValueError("Input path cannot be the same as staging directory")
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):
         raise ValueError("Output path cannot be the same as staging directory")
+
     st = get_context(
         args.context,
         args.xedocs_version,
@@ -101,7 +103,6 @@ def main():
 
     logger.info("Context is set up!")
 
-    run_id = f"{args.run_id:06d}"
     data_types = args.data_types
 
     # Get the order of data_types in processing
