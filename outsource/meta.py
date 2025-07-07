@@ -61,7 +61,11 @@ DETECTOR_DATA_TYPES = {
             "led_calibration",
         ],
         "rate": {
-            "raw_records_simu": 0.3,
+            # raw_records_simu rate ratio is compatible with flat ER spectrum
+            # within (0.2, 15.0) defined by saltax.instructions.generator.DEFAULT_EN_RANGE
+            # actual raw_records_simu rate ratio is 0.3
+            # but saltax disk is doubled in RunConfig.resources_assignment
+            "raw_records_simu": 0.15,
             "peaklets": 0.015,
             "lone_hits": 0.10,
             "merged_s2s": 0.003,
