@@ -113,7 +113,7 @@ def main():
 
         if not args.rucio_upload:
             logger.warning("Ignoring rucio upload")
-            return
+            continue
 
         # Now loop over data_type we just made and upload the data
         processed_data = os.listdir(output_path)
