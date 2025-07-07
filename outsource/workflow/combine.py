@@ -75,7 +75,7 @@ def main():
     _chunks = [0] + args.chunks
     chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
 
-    for saltax_mode in ["salt", "simu"] if SALTAX else [None]:
+    for saltax_mode in ["simu", "salt"] if SALTAX else [None]:
         st = get_context(
             args.context,
             args.xedocs_version,

@@ -89,7 +89,7 @@ def main():
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):
         raise ValueError("Output path cannot be the same as staging directory")
 
-    for saltax_mode in ["salt", "simu"] if SALTAX else [None]:
+    for saltax_mode in ["simu", "salt"] if SALTAX else [None]:
         st = get_context(
             args.context,
             args.xedocs_version,
