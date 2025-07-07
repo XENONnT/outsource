@@ -71,6 +71,7 @@ def main():
         raise ValueError("Input path cannot be the same as staging directory")
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):
         raise ValueError("Output path cannot be the same as staging directory")
+
     st = get_context(
         args.context,
         args.xedocs_version,
