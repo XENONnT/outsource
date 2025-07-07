@@ -61,6 +61,7 @@ DETECTOR_DATA_TYPES = {
             "led_calibration",
         ],
         "rate": {
+            "raw_records_simu": 0.3,
             "peaklets": 0.015,
             "lone_hits": 0.10,
             "merged_s2s": 0.003,
@@ -70,6 +71,7 @@ DETECTOR_DATA_TYPES = {
             "afterpulses": 1.0,
         },
         "compression": {
+            "raw_records_simu": 0.5,
             "peaklets": 0.25,
             "lone_hits": 0.35,
             "merged_s2s": 0.35,

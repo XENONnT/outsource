@@ -15,6 +15,7 @@ logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fal
 coll = xent_collection()
 
 NO_REMOTE = uconfig.getboolean("Outsource", "no_remote", fallback=False)
+SALTAX = uconfig.getboolean("Outsource", "saltax", fallback=False)
 
 
 def get_context(
@@ -28,9 +29,30 @@ def get_context(
     download_heavy=True,
     remove_heavy=True,
     stage=False,
+    saltax_mode="salt",
+    run_id=None,
 ):
     """Get straxen context for given context name and xedocs_version."""
-    st = getattr(cutax.contexts, context)(output_folder=None, xedocs_version=xedocs_version)
+    if SALTAX:
+        if context != "xenonnt_offline":
+            raise ValueError(
+                "When using saltax, the context must be 'xenonnt_offline'. "
+                f"Other contexts like {context} are not supported."
+            )
+        import saltax
+
+        st = saltax.contexts.sxenonnt(
+            runid=run_id,
+            saltax_mode=saltax_mode,
+            generator_name=uconfig.get("Outsource", "generator_name", fallback="flat"),
+            recoil=uconfig.getint("Outsource", "recoil", fallback=8),
+            simu_mode=uconfig.get("Outsource", "simu_mode", fallback="all"),
+            simulation_config=uconfig.get("Outsource", "simulation_config"),
+            corrections_version=xedocs_version,
+            output_folder=output_path,
+        )
+    else:
+        st = getattr(cutax.contexts, context)(output_folder=None, xedocs_version=xedocs_version)
     if no_remote:
         storages = []
         for storage in st.storage:
@@ -95,6 +117,8 @@ def get_context(
             ),
         ]
     st.purge_unused_configs()
+    if "raw_records_simu" in st._plugin_class_registry:
+        st._plugin_class_registry["raw_records_simu"].save_when = strax.SaveWhen.ALWAYS
     return st
 
 
