@@ -10,7 +10,7 @@ import admix
 import strax
 import straxen
 
-from outsource.utils import get_context, get_processing_order, get_chunk_number
+from outsource.utils import get_context, get_processing_order, get_chunk_number, SALTAX
 from outsource.upload import upload_to_rucio
 
 from rframe.interfaces.mongo import MongoAggregation
@@ -89,54 +89,57 @@ def main():
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):
         raise ValueError("Output path cannot be the same as staging directory")
 
-    st = get_context(
-        args.context,
-        args.xedocs_version,
-        input_path=input_path,
-        output_path=output_path,
-        staging_dir=staging_dir,
-        ignore_processed=args.ignore_processed,
-        download_heavy=args.download_heavy,
-        remove_heavy=args.remove_heavy,
-        stage=args.stage,
-    )
+    for saltax_mode in ["simu", "salt"] if SALTAX else [None]:
+        st = get_context(
+            args.context,
+            args.xedocs_version,
+            input_path=input_path,
+            output_path=output_path,
+            staging_dir=staging_dir,
+            ignore_processed=args.ignore_processed,
+            download_heavy=args.download_heavy,
+            remove_heavy=args.remove_heavy,
+            stage=args.stage,
+            saltax_mode=saltax_mode,
+            run_id=run_id,
+        )
 
-    logger.info("Context is set up!")
+        logger.info("Context is set up!")
 
-    data_types = args.data_types
+        data_types = args.data_types
 
-    # Get the order of data_types in processing
-    data_types = get_processing_order(st, data_types, rm_lower=chunks is None)
+        # Get the order of data_types in processing
+        data_types = get_processing_order(st, data_types, rm_lower=chunks is None)
 
-    if not data_types:
-        raise ValueError("No data types to process, something is wrong")
+        if not data_types:
+            raise ValueError("No data types to process, something is wrong")
 
-    logger.info(f"To process: {data_types}")
-    for data_type in data_types:
-        logger.info(f"Processing: {data_type}")
-        process(st, run_id, data_type, chunks)
+        logger.info(f"To process: {data_types}")
+        for data_type in data_types:
+            logger.info(f"Processing: {data_type}")
+            process(st, run_id, data_type, chunks)
 
-    logger.info("Done processing. Now check if we should upload to rucio")
+        logger.info("Done processing. Now check if we should upload to rucio")
 
-    # Now loop over data_type we just made and upload the data
-    if chunks is None:
-        processed_data = glob(os.path.join(output_path, f"{run_id}-*"))
-        logger.info(f"Processed data: {processed_data}")
+        # Now loop over data_type we just made and upload the data
+        if chunks is None:
+            processed_data = glob(os.path.join(output_path, f"{run_id}-*"))
+            logger.info(f"Processed data: {processed_data}")
 
-    if chunks:
-        logger.warning("Skipping upload since we used per-chunk storage")
-    if not args.rucio_upload:
-        logger.warning("Ignoring rucio upload")
-    else:
-        for dirname in processed_data:
-            path = os.path.join(output_path, dirname)
+        if chunks:
+            logger.warning("Skipping upload since we used per-chunk storage")
+        if not args.rucio_upload:
+            logger.warning("Ignoring rucio upload")
+        else:
+            for dirname in processed_data:
+                path = os.path.join(output_path, dirname)
 
-            # Upload to rucio
-            if os.path.isdir(path):
-                upload_to_rucio(st, path, args.rundb_update)
+                # Upload to rucio
+                if os.path.isdir(path):
+                    upload_to_rucio(st, path, args.rundb_update)
 
-            # Cleanup the files we uploaded
-            shutil.rmtree(path)
+                # Cleanup the files we uploaded
+                shutil.rmtree(path)
 
     logger.info("ALL DONE!")
 

@@ -12,6 +12,7 @@ from outsource.utils import (
     get_possible_dependencies,
     get_to_save_data_types,
     per_chunk_storage_root_data_type,
+    SALTAX,
 )
 
 
@@ -429,6 +430,9 @@ class RunConfig:
                 disk_ratio["combine"] = 2 * (lower[sl] * n_depends_on[sl]).sum()
                 for k in disk_ratio:
                     disk_ratio[k] /= 1e6
+                    # both salt and simu mode takes storage
+                    if SALTAX:
+                        disk_ratio[k] *= 2
                 return disk_ratio
 
             # Assign chunks to be calculated in lower jobs

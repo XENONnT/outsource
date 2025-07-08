@@ -5,7 +5,7 @@ from utilix import xent_collection, uconfig, DB
 from utilix.io import load_runlist
 from utilix.config import setup_logger
 
-from outsource.utils import get_context, get_runlist
+from outsource.utils import get_context, get_runlist, SALTAX
 
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
@@ -154,6 +154,12 @@ def main():
 
     if not args.rucio_upload and args.rundb_update:
         raise RuntimeError("Cannot update RunDB without uploading to rucio.")
+
+    if SALTAX and args.rucio_upload:
+        raise RuntimeError("Cannot upload to rucio in SALTAX mode.")
+
+    if SALTAX and args.rundb_update:
+        raise RuntimeError("Cannot update RunDB in SALTAX mode.")
 
     st = get_context(args.context, args.xedocs_version)
 

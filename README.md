@@ -141,6 +141,8 @@ pegasus_max_hours_upper = 6
 stream_output = True
 ```
 
+If using [saltax](https://github.com/XENONnT/saltax), must set `saltax = True` and specify `simulation_config`.
+
 ## Add a setup script
 For convenience, we recommend writing a simple bash script to make it easy to setup the outsource environment. Below is an example called `setup_outsource.sh`, but note you will need to change things like usernames and container.
 

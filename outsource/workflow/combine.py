@@ -7,7 +7,7 @@ from utilix.config import setup_logger
 import admix
 import straxen
 
-from outsource.utils import get_context, per_chunk_storage_root_data_type
+from outsource.utils import get_context, per_chunk_storage_root_data_type, SALTAX
 from outsource.upload import upload_to_rucio
 
 
@@ -72,54 +72,59 @@ def main():
     if os.path.abspath(staging_dir) == os.path.abspath(output_path):
         raise ValueError("Output path cannot be the same as staging directory")
 
-    st = get_context(
-        args.context,
-        args.xedocs_version,
-        input_path=input_path,
-        output_path=output_path,
-        staging_dir=staging_dir,
-        ignore_processed=True,
-        download_heavy=False,
-        remove_heavy=True,
-        stage=args.stage,
-    )
-
     _chunks = [0] + args.chunks
     chunk_number_group = [list(range(_chunks[i], _chunks[i + 1])) for i in range(len(args.chunks))]
 
-    # Check what data_type has to be merged
-    data_types = []
-    for directory in glob(os.path.join(input_path, f"{run_id}-*")):
-        if not os.path.isdir(directory):
+    for saltax_mode in ["simu", "salt"] if SALTAX else [None]:
+        st = get_context(
+            args.context,
+            args.xedocs_version,
+            input_path=input_path,
+            output_path=output_path,
+            staging_dir=staging_dir,
+            ignore_processed=True,
+            download_heavy=False,
+            remove_heavy=True,
+            stage=args.stage,
+            saltax_mode=saltax_mode,
+            run_id=run_id,
+        )
+
+        # Check what data_type has to be merged
+        data_types = []
+        for directory in glob(os.path.join(input_path, f"{run_id}-*")):
+            if not os.path.isdir(directory):
+                continue
+            data_type = os.path.basename(directory).split("-")[1]
+            if st.is_stored(run_id, data_type):
+                # Logic kept for slurm jobs
+                logger.info(f"Data type {data_type} already stored.")
+                continue
+            data_types.append(data_type)
+        data_types = sorted(set(data_types))
+        if len(data_types) == 0:
+            raise ValueError("No data type found to be merged.")
+        logger.info(f"{data_types} have to be merged.")
+
+        # Merge
+        for data_type in tqdm(data_types):
+            logger.info(f"Merging {data_type}")
+            merge(st, run_id, data_type, chunk_number_group)
+
+        if not args.rucio_upload:
+            logger.warning("Ignoring rucio upload")
             continue
-        data_type = os.path.basename(directory).split("-")[1]
-        if st.is_stored(run_id, data_type):
-            # Logic kept for slurm jobs
-            logger.info(f"Data type {data_type} already stored.")
-            continue
-        data_types.append(data_type)
-    data_types = sorted(set(data_types))
-    if len(data_types) == 0:
-        raise ValueError("No data type found to be merged.")
-    logger.info(f"{data_types} have to be merged.")
 
-    # Merge
-    for data_type in tqdm(data_types):
-        logger.info(f"Merging {data_type}")
-        merge(st, run_id, data_type, chunk_number_group)
+        # Now loop over data_type we just made and upload the data
+        processed_data = os.listdir(output_path)
+        logger.info(f"Combined data: {processed_data}")
 
-    if not args.rucio_upload:
-        logger.warning("Ignoring rucio upload")
-        return
+        for dirname in processed_data:
+            path = os.path.join(output_path, dirname)
+            if os.path.isdir(path):
+                upload_to_rucio(st, path, args.rundb_update)
 
-    # Now loop over data_type we just made and upload the data
-    processed_data = os.listdir(output_path)
-    logger.info(f"Combined data: {processed_data}")
-
-    for dirname in processed_data:
-        path = os.path.join(output_path, dirname)
-        if os.path.isdir(path):
-            upload_to_rucio(st, path, args.rundb_update)
+    logger.info("ALL DONE!")
 
 
 if __name__ == "__main__":
