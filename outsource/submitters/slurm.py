@@ -215,6 +215,9 @@ class SubmitterSlurm(Submitter):
 
     def is_stored(self, run_id, data_types, chunks=None, check_root_data_type=True):
         """Check if the data is already stored."""
+        if self.ignore_processed:
+            return []
+
         done = []
         for data_type in data_types:
             if self.context.is_stored(
