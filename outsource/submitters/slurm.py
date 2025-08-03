@@ -21,6 +21,7 @@ BATCHQ_DEFAULT_ARGUMENTS = {
     "qos": uconfig.get("Outsource", "rcc_partition"),
     "bind": uconfig.getlist("Outsource", "rcc_bind"),
 }
+SALTAX = uconfig.getboolean("Outsource", "saltax", fallback=False)
 
 
 CONTAINER_MEMORY_OVERHEAD = 6_000  # MB
@@ -255,6 +256,15 @@ class SubmitterSlurm(Submitter):
         if self.upper_only:
             self.logger.debug(f"Skipping lower-level processing for {dbcfg._run_id}.")
             return
+
+        # save the instruction for saltax
+        if SALTAX:
+            from saltax.contexts import instruction_generation
+
+            output_folder = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
+            self.context.instruction_kwargs["output_folder"] = output_folder
+
+            instruction_generation(self.context, dbcfg._run_id)
 
         # Loop over the chunks
         job_ids = []
