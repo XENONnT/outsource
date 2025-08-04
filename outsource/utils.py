@@ -16,6 +16,7 @@ coll = xent_collection()
 
 NO_REMOTE = uconfig.getboolean("Outsource", "no_remote", fallback=False)
 SALTAX = uconfig.getboolean("Outsource", "saltax", fallback=False)
+SAVE_PEAK_CORRELATION = uconfig.getboolean("Outsource", "save_peak_correlation", fallback=False)
 
 
 def get_context(
@@ -119,6 +120,9 @@ def get_context(
     st.purge_unused_configs()
     if "raw_records_simu" in st._plugin_class_registry:
         st._plugin_class_registry["raw_records_simu"].save_when = strax.SaveWhen.ALWAYS
+    if SAVE_PEAK_CORRELATION:
+        st._plugin_class_registry["peak_shadow"].save_when = strax.SaveWhen.ALWAYS
+        st._plugin_class_registry["peak_ambience"].save_when = strax.SaveWhen.ALWAYS
     return st
 
 
