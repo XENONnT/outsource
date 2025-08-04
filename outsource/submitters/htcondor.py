@@ -24,7 +24,6 @@ from outsource.submitter import Submitter
 from outsource.meta import DETECTOR_DATA_TYPES
 from outsource.utils import get_resources_retry
 
-
 base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
 
@@ -600,7 +599,6 @@ class SubmitterHTCondor(Submitter):
 
     def _generate_workflow(self):
         """Use the Pegasus API to build an abstract graph of the workflow."""
-
         # Create a abstract dag
         self.workflow = Workflow("outsource_workflow")
         # Initialize the catalogs
@@ -691,7 +689,6 @@ class SubmitterHTCondor(Submitter):
 
     def _plan_and_submit(self):
         """Submit the workflow."""
-
         self.workflow.plan(
             submit=not self.debug,
             cluster=["horizontal"],

@@ -9,7 +9,6 @@ from utilix import uconfig, batchq
 from outsource.utils import get_context, get_chunk_number
 from outsource.submitter import Submitter
 
-
 base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
 
@@ -97,7 +96,6 @@ class SubmitterSlurm(Submitter):
 
     def copy_files(self):
         """Copy the necessary files to the workflow directory."""
-
         os.makedirs(self.generated_dir, 0o755, exist_ok=True)
         os.makedirs(self.outputs_dir, 0o755, exist_ok=True)
         os.makedirs(self.scratch_dir, 0o755, exist_ok=True)
@@ -148,7 +146,6 @@ class SubmitterSlurm(Submitter):
 
     def __submit(self, job, jobname, log, **kwargs):
         """Submits job to batch queue which actually runs the analysis."""
-
         kwargs_to_pop = []
         for key, val in kwargs.items():
             if hasattr(self, key):
@@ -522,7 +519,6 @@ class SubmitterSlurm(Submitter):
 
     def submit(self):
         """Submit the workflow to the batch queue."""
-
         if not ((self.relay or self.resubmit) and self.debug):
             # All submitters need to make tarballs
             self.make_tarballs()
