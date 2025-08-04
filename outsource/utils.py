@@ -10,7 +10,6 @@ import cutax
 
 from outsource.meta import get_clean_detector_data_types, get_clean_per_chunk_data_types
 
-
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 coll = xent_collection()
 
@@ -337,7 +336,6 @@ def per_chunk_storage_root_data_type(st, run_id, data_type):
     root data_type of the data_type. For exmaple, it will return "raw_records" for "peaklets".
 
     """
-
     # Filter out the data_types that are not in the registered plugins
     per_chunk_data_types = get_clean_per_chunk_data_types(st)
 

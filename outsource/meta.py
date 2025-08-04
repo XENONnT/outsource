@@ -2,7 +2,6 @@ from packaging import version
 from utilix import uconfig
 import straxen
 
-
 NO_PER_CHUNK = uconfig.getboolean("Outsource", "no_per_chunk", fallback=False)
 
 
@@ -170,7 +169,6 @@ def get_clean_per_chunk_data_types(context):
 
 def get_clean_detector_data_types(context):
     """Remove data_types that are not registered at all from the list of possible data_types."""
-
     clean_detector_data_types = {}
     for detector, detector_dict in DETECTOR_DATA_TYPES.items():
         clean_detector_data_types[detector] = detector_dict.copy()

@@ -15,7 +15,6 @@ from outsource.utils import (
     SALTAX,
 )
 
-
 LOWER_DISK = uconfig.getint("Outsource", "lower_disk", fallback=None)
 LOWER_MEMORY = uconfig.getint("Outsource", "lower_memory", fallback=None)
 COMBINE_DISK = uconfig.getint("Outsource", "combine_disk", fallback=None)
@@ -542,7 +541,6 @@ class RunConfig:
         It is a simplified version of DB.get_rses, and faster to just go through RunDB.
 
         """
-
         for rse in uconfig.getlist("Outsource", "raw_records_rses"):
             for data in self.run_data:
                 if (
@@ -590,7 +588,6 @@ class RunConfig:
     @property
     def _exclude_sites(self):
         """Exclude sites from the user _dbcfgs file."""
-
         if not uconfig.has_option("Outsource", "exclude_sites"):
             return ""
 
@@ -602,7 +599,6 @@ class RunConfig:
 
     def _determine_target_sites(self, rses):
         """Given a list of RSEs, limit the runs for sites for those locations."""
-
         exprs = []
         sites = []
         ranks = []
