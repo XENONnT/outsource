@@ -257,15 +257,6 @@ class SubmitterSlurm(Submitter):
             self.logger.debug(f"Skipping lower-level processing for {dbcfg._run_id}.")
             return
 
-        # save the instruction for saltax
-        if SALTAX:
-            from saltax.contexts import instruction_generation
-
-            output_folder = os.path.join(self.outputs_dir, "strax_data_rcc_per_chunk")
-            self.context.instruction_kwargs["output_folder"] = output_folder
-
-            instruction_generation(self.context, dbcfg._run_id)
-
         # Loop over the chunks
         job_ids = []
         for job_i in range(len(level["chunks"])):
