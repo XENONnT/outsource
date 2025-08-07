@@ -87,7 +87,6 @@ def main():
             remove_heavy=True,
             stage=args.stage,
             saltax_mode=saltax_mode,
-            run_id=run_id,
         )
 
         # Check what data_type has to be merged

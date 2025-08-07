@@ -31,7 +31,6 @@ def get_context(
     remove_heavy=True,
     stage=False,
     saltax_mode="salt",
-    run_id=None,
 ):
     """Get straxen context for given context name and xedocs_version."""
     if SALTAX:
@@ -43,7 +42,6 @@ def get_context(
         import saltax
 
         st = saltax.contexts.sxenonnt(
-            runid=run_id,
             saltax_mode=saltax_mode,
             generator_name=uconfig.get("Outsource", "generator_name", fallback="flat"),
             recoil=uconfig.getint("Outsource", "recoil", fallback=8),

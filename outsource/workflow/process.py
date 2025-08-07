@@ -101,7 +101,6 @@ def main():
             remove_heavy=args.remove_heavy,
             stage=args.stage,
             saltax_mode=saltax_mode,
-            run_id=run_id,
         )
 
         logger.info("Context is set up!")
