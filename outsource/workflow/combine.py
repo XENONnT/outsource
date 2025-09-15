@@ -10,7 +10,6 @@ import straxen
 from outsource.utils import get_context, per_chunk_storage_root_data_type, SALTAX
 from outsource.upload import upload_to_rucio
 
-
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 admix.clients._init_clients()
 
