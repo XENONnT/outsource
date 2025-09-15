@@ -24,7 +24,6 @@ from outsource.submitter import Submitter
 from outsource.meta import DETECTOR_DATA_TYPES
 from outsource.utils import get_resources_retry
 
-
 base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
 
