@@ -302,7 +302,7 @@ class SubmitterHTCondor(Submitter):
             Namespace.ENV,
             PATH=(
                 "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                f"{self.image_tag}/anaconda/envs/XENONnT_development/bin:"
+                f"{self.image_tag}/anaconda/envs/XENONnT_{self.image_tag}/bin:"
                 "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
                 f"{self.image_tag}/anaconda/condabin:"
                 "/usr/bin:/bin"
@@ -312,9 +312,9 @@ class SubmitterHTCondor(Submitter):
             Namespace.ENV,
             LD_LIBRARY_PATH=(
                 "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                f"{self.image_tag}/anaconda/envs/XENONnT_development/lib64:"
+                f"{self.image_tag}/anaconda/envs/XENONnT_{self.image_tag}/lib64:"
                 "/cvmfs/xenon.opensciencegrid.org/releases/nT/"
-                f"{self.image_tag}/anaconda/envs/XENONnT_development/lib"
+                f"{self.image_tag}/anaconda/envs/XENONnT_{self.image_tag}/lib"
             ),
         )
         local.add_profiles(Namespace.ENV, PEGASUS_SUBMITTING_USER=os.environ["USER"])
