@@ -7,7 +7,6 @@ import admix
 
 from outsource.utils import get_rse
 
-
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 admix.clients._init_clients()
 db = DB()
