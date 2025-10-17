@@ -326,6 +326,8 @@ class SubmitterHTCondor(Submitter):
         # Improve python logging / suppress depreciation warnings (from gfal2 for example)
         local.add_profiles(Namespace.ENV, PYTHONUNBUFFERED="1")
         local.add_profiles(Namespace.ENV, PYTHONWARNINGS="ignore::DeprecationWarning")
+        # forbidding Pegasus to modify PYTHONPATH
+        local.add_profiles(Namespace.ENV, PEGASUS_UPDATE_PYTHONPATH="0")
 
         if not self.local_transfer:
             output_dir_path = f"/xenon/output/{getpass.getuser()}/{self.workflow_id}"
