@@ -44,7 +44,7 @@ def get_context(
         st = saltax.contexts.sxenonnt(
             saltax_mode=saltax_mode,
             generator_name=uconfig.get("Outsource", "generator_name", fallback="flat"),
-            recoil=uconfig.getint("Outsource", "recoil", fallback=8),
+            nestid=uconfig.getint("Outsource", "nestid", fallback=8),
             simu_mode=uconfig.get("Outsource", "simu_mode", fallback="all"),
             simulation_config=uconfig.get("Outsource", "simulation_config"),
             corrections_version=xedocs_version,
