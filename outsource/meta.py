@@ -33,6 +33,9 @@ else:
     KEEP_SECONDS = None
 
 
+SALTAX = uconfig.getboolean("Outsource", "saltax", fallback=False)
+
+
 # Do a query to see if these data_types are present
 DETECTOR_DATA_TYPES = {
     "tpc": {
@@ -91,7 +94,7 @@ DETECTOR_DATA_TYPES = {
         },
         "redundancy": {
             "disk": 1.2,
-            "memory": 1.2,
+            "memory": 1.2 if not SALTAX else 1.5,
         },
     },
     "neutron_veto": {
@@ -118,7 +121,7 @@ DETECTOR_DATA_TYPES = {
         },
         "redundancy": {
             "disk": 1.2,
-            "memory": 1.2,
+            "memory": 1.2 if not SALTAX else 1.5,
         },
     },
     "muon_veto": {
@@ -140,7 +143,7 @@ DETECTOR_DATA_TYPES = {
         },
         "redundancy": {
             "disk": 1.2,
-            "memory": 1.2,
+            "memory": 1.2 if not SALTAX else 1.5,
         },
     },
 }
