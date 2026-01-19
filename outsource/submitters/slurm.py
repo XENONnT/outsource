@@ -9,7 +9,6 @@ from utilix import uconfig, batchq
 from outsource.utils import get_context, get_chunk_number
 from outsource.submitter import Submitter
 
-
 base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
 
