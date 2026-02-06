@@ -1,13 +1,13 @@
 import sys
-from utilix import DB
+from utilix import xent_collection
 from straxen import DAQReader
 
 
 def main():
     run_id = sys.argv[1]
 
-    db = DB()
-    run_data = db.get_data(int(run_id))
+    coll = xent_collection()
+    run_data = coll.find_one({"number": int(run_id)}, {"data": 1})["data"]
     n = max(len(data_type) for data_type in DAQReader.provides)
 
     for data_type in DAQReader.provides:

@@ -1,7 +1,7 @@
 import os
 import time
 from datetime import datetime
-from utilix import DB, uconfig
+from utilix import uconfig
 from utilix.config import setup_logger
 import admix
 
@@ -10,7 +10,6 @@ from outsource.utils import get_rse
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 admix.clients._init_clients()
-db = DB()
 
 
 def upload_to_rucio(st, path, update_db=False):

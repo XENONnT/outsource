@@ -2,7 +2,7 @@ import os
 import shutil
 import getpass
 import utilix
-from utilix import DB, uconfig
+from utilix import uconfig
 from utilix.x509 import _validate_x509_proxy
 from Pegasus.api import (
     Operation,
@@ -32,8 +32,6 @@ IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:
 COMBINE_WRAPPER = "combine-wrapper.sh"
 PROCESS_WRAPPER = "process-wrapper.sh"
 UNTAR_WRAPPER = "untar.sh"
-
-db = DB()
 
 RESOURCES_RETRY = get_resources_retry()
 
