@@ -269,7 +269,7 @@ class RunConfig:
                     _rses = []
                     for _depends_on in depends_on:
                         hash = self.key_for(_depends_on).lineage_hash
-                        _rses.append(parse_rse(self.run_id, _depends_on, hash, self.data))
+                        _rses.append(set(parse_rse(self.run_id, _depends_on, hash, self.data)))
                     ret[detector][label]["data_types"][data_type]["rses"] = list(
                         set.intersection(*_rses)
                     )
