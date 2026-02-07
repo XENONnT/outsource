@@ -3,7 +3,8 @@ from itertools import chain
 from typing import Dict, Any
 import numpy as np
 from utilix.config import setup_logger
-from utilix import DB, uconfig, xent_collection
+from utilix.rundb import parse_rse
+from utilix import uconfig, xent_collection
 import admix
 
 from outsource.meta import get_clean_per_chunk_data_types, get_clean_detector_data_types, LED_MODES
@@ -92,7 +93,6 @@ MAX_MEMORY = uconfig.getint("Outsource", "max_memory", fallback=12_000)  # in MB
 MIN_DISK = uconfig.getint("Outsource", "min_disk", fallback=1_000)  # in MB
 
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
-db = DB()
 coll = xent_collection()
 
 
@@ -146,11 +146,11 @@ class RunConfig:
         if self.priority <= 0:
             raise ValueError("Priority must be positive. Are you from the future?")
 
-        self.run_data = db.get_data(self.run_id)
         self.set_requirements_base()
 
         # Get the detectors and start time of this run
-        cursor = coll.find_one({"number": self.run_id}, {"detectors": 1, "mode": 1})
+        cursor = coll.find_one({"number": self.run_id}, {"data": 1, "detectors": 1, "mode": 1})
+        self.data = cursor["data"]
         self.detectors = cursor["detectors"]
         self.mode = cursor["mode"]
         if not isinstance(self.detectors, list):
@@ -269,7 +269,7 @@ class RunConfig:
                     _rses = []
                     for _depends_on in depends_on:
                         hash = self.key_for(_depends_on).lineage_hash
-                        _rses.append(set(db.get_rses(self.run_id, _depends_on, hash)))
+                        _rses.append(set(parse_rse(self.run_id, _depends_on, hash, self.data)))
                     ret[detector][label]["data_types"][data_type]["rses"] = list(
                         set.intersection(*_rses)
                     )
@@ -280,7 +280,7 @@ class RunConfig:
                         continue
                     for _data_type in _data_types:
                         hash = self.key_for(_data_type).lineage_hash
-                        rses = db.get_rses(self.run_id, _data_type, hash)
+                        rses = parse_rse(self.run_id, _data_type, hash, self.data)
                         # If this data is not on any rse, reprocess it, or we are asking for a rerun
                         if rses:
                             ret[detector][label]["data_types"][data_type]["missing"].append(
@@ -544,7 +544,7 @@ class RunConfig:
         """
 
         for rse in uconfig.getlist("Outsource", "raw_records_rses"):
-            for data in self.run_data:
+            for data in self.data:
                 if (
                     data["type"] == data_type
                     and data["host"] == "rucio-catalogue"
