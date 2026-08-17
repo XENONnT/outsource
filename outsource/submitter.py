@@ -12,7 +12,6 @@ import cutax
 from outsource.config import RunConfig
 from outsource.utils import get_to_save_data_types
 
-
 IMAGE_PREFIX = "/cvmfs/singularity.opensciencegrid.org/xenonnt/base-environment:"
 
 

@@ -15,7 +15,6 @@ from outsource.workflow.process import process
 from outsource.workflow.combine import main as combine_main
 from outsource.workflow.combine import merge
 
-
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 
 parser = argparse.ArgumentParser()
