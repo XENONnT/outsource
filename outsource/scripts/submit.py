@@ -7,7 +7,6 @@ from utilix.config import setup_logger
 
 from outsource.utils import get_context, get_runlist, SALTAX
 
-
 logger = setup_logger("outsource", uconfig.get("Outsource", "logging_level", fallback="WARNING"))
 coll = xent_collection()
 
